@@ -43,7 +43,7 @@ class Node(BaseModel):
     position_x = FloatField(default=0)
     position_y = FloatField(default=0)
 
-    data = JSONField(default=dict, blank=True)  # Store node-specific data
+    data = JSONField(default=dict)  # Store node-specific data
 
 
 
