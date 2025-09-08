@@ -22,10 +22,7 @@ class ConnectionSerializer(ModelSerializer):
             # Filter nodes to only show those from the specific workflow
             workflow_nodes = Node.objects.filter(workflow_id=workflow_id)
             self.fields['source_node'].queryset = workflow_nodes
-            
-            # Target node cannot be an initiator node
-            non_initiator_nodes = workflow_nodes.filter(node_type__initiator=False)
-            self.fields['target_node'].queryset = non_initiator_nodes
+            self.fields['target_node'].queryset = workflow_nodes
     
     def validate(self, data):
         """
@@ -40,12 +37,6 @@ class ConnectionSerializer(ModelSerializer):
                 'target_node': 'Source node and target node cannot be the same.'
             })
         
-        
-        # Check if target node is an initiator (should not be allowed)
-        if target_node and target_node.node_type.initiator:
-            raise ValidationError({
-                'target_node': 'Target node cannot be an initiator node.'
-            })
         
         return data
     

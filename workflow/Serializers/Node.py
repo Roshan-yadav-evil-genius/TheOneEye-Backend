@@ -13,8 +13,10 @@ class NodeSerializer(ModelSerializer):
 
 
 class NodeCreateSerializer(ModelSerializer):
-    data = JSONField(default=dict)
     class Meta:
         model = Node
         fields = ['id', 'node_type', 'position_x', 'position_y', 'data']
     
+    def to_representation(self, instance):
+        # Return the full format with nested node_type after creation
+        return NodeSerializer(instance).data
