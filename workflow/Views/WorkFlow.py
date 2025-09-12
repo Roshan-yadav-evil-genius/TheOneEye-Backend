@@ -1,11 +1,12 @@
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
+from rest_framework import status
 from workflow.Serializers.WorkFlow import RawWorkFlawSerializer
 from workflow.models import WorkFlow
 from workflow.Serializers import WorkFlowSerializer
 from rest_framework.decorators import action
 from celery.result import AsyncResult
-from workflow.tasks import execute_workflow
+from workflow.tasks import execute_workflow,stop_workflow
 
 
 class WorkFlowViewSet(ModelViewSet):
@@ -13,19 +14,27 @@ class WorkFlowViewSet(ModelViewSet):
     serializer_class = WorkFlowSerializer
 
     @action(detail=True, methods=["get"])
-    def execute(self, request, pk=None):
+    def start_execution(self, request, pk=None):
         workFlowObject: WorkFlow = self.get_object()
         workFlowConfig = RawWorkFlawSerializer(workFlowObject)
         task:AsyncResult = execute_workflow.delay(workFlowConfig.data)
+        print(f"Task: {task}, id:{task.id}")
         workFlowObject.task_id = task.id
         workFlowObject.save()
+        return Response({"task_id": task.id, "status": task.status})
+    
+    @action(detail=True, methods=["get"])
+    def stop_execution(self, request, pk=None):
+        workFlowObject: WorkFlow = self.get_object()
+        task:AsyncResult = stop_workflow.delay(str(workFlowObject.id))
+        task.get(5)
         return Response({"task_id": task.id, "status": task.status})
 
     @action(detail=True, methods=["get"])
     def task_status(self, request, pk: str):
         workFlowObject: WorkFlow = self.get_object()
         task_id = workFlowObject.task_id
-
+        print(f"Task: {task_id}")
         if not task_id:
             return Response({"error": "No task associated with this workflow"}, status=400)
 
