@@ -1,10 +1,10 @@
 from celery import shared_task
+import json
 import time
 
-from workflow.Serializers.WorkFlow import RawWorkFlawSerializer
-from workflow.models import WorkFlow
 
 @shared_task(bind=True)
-def execute_workflow(self,workflow_config:dict):
-    print(workflow_config)
+def execute_workflow(self, workflow_config: dict):
+    with open("config.json", "w") as file:
+        json.dump(workflow_config, file, default=str)
     time.sleep(10)
