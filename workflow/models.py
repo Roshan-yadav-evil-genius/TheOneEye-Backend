@@ -1,4 +1,4 @@
-from django.db.models import BooleanField, Model, UUIDField, CharField, TextField, DateTimeField, FloatField, JSONField, ForeignKey, CASCADE, CheckConstraint, Q, F
+from django.db.models import BooleanField, ImageField, Model,JSONField, UUIDField, CharField, TextField, DateTimeField, FloatField, JSONField, ForeignKey, CASCADE, CheckConstraint, Q, F
 from django.core.exceptions import ValidationError
 import uuid
 
@@ -14,7 +14,7 @@ class BaseModel(Model):
 
 class WorkFlow(BaseModel):
     """Model to represent a workflow containing multiple nodes"""
-    name = CharField(max_length=20)
+    name = CharField(max_length=100)
     description = CharField(max_length=255, blank=True, null=True)
     task_id = CharField(max_length=255, blank=True, null=True)  # Store Celery task ID
 
@@ -25,11 +25,15 @@ class WorkFlow(BaseModel):
 class NodeType(BaseModel):
     """Model to represent types of nodes, allowing dynamic creation."""
     name = CharField(max_length=100)
-    module_path = CharField(max_length=50, unique=True)
+    logo = ImageField(upload_to="node_type_icons", blank=True, null=True)
     description = TextField(blank=True, null=True)
+    config = JSONField()
+    input = BooleanField(default=False)
+    output = BooleanField(default=False)
 
-    initiator = BooleanField(default=False)
-    
+    def clean(self):
+        if not (self.input or self.output):
+            raise ValidationError("At least one of Input or Output must be selected.")
 
     def __str__(self):
         return self.name
@@ -45,7 +49,8 @@ class Node(BaseModel):
 
     data = JSONField(default=dict)  # Store node-specific data
 
-
+    def __str__(self):
+        return f"{self.node_type.name}({self.id})"
 
 class Connection(BaseModel):
     """Model to represent connections between nodes"""
