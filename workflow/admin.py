@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import WorkFlow, NodeType, Node, Connection
+from .models import WorkFlow, NodeType, Node, Connection, NodeFile
 
 
 @admin.register(WorkFlow)
@@ -36,3 +36,13 @@ class ConnectionAdmin(admin.ModelAdmin):
     readonly_fields = ['id', 'created_at', 'updated_at']
     fields = ['id', 'workflow', 'source_node', 'target_node', 'created_at', 'updated_at']
     raw_id_fields = ['workflow', 'source_node', 'target_node']
+
+
+@admin.register(NodeFile)
+class NodeFileAdmin(admin.ModelAdmin):
+    list_display = ['id', 'node', 'key', 'created_at', 'updated_at']
+    list_filter = ['node__workflow', 'node__node_type', 'created_at', 'updated_at']
+    search_fields = ['node__workflow__name', 'node__node_type__name', 'key']
+    readonly_fields = ['id', 'created_at', 'updated_at']
+    fields = ['id', 'node', 'key', 'file', 'created_at', 'updated_at']
+    raw_id_fields = ['node']

@@ -1,6 +1,7 @@
-from django.db.models import BooleanField, ImageField, Model,JSONField, UUIDField, CharField, TextField, DateTimeField, FloatField, JSONField, ForeignKey, CASCADE, CheckConstraint, Q, F
+from django.db.models import BooleanField, ImageField, Model,JSONField, UUIDField, CharField, TextField, DateTimeField, FloatField, JSONField, ForeignKey, CASCADE, CheckConstraint, Q, F, FileField
 from django.core.exceptions import ValidationError
 import uuid
+import os
 
 class BaseModel(Model):
     id = UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -61,3 +62,29 @@ class Connection(BaseModel):
     
     class Meta:
         unique_together = ['source_node', 'target_node']
+
+
+def node_file_upload_path(instance, filename):
+    """Generate upload path for node files"""
+    return f"node_files/{instance.node.id}/{instance.key}/{filename}"
+
+
+class NodeFile(BaseModel):
+    """Model to store temporary files linked to specific nodes"""
+    node = ForeignKey(Node, on_delete=CASCADE, related_name='files')
+    key = CharField(max_length=255, help_text="Unique key for the file within the node")
+    file = FileField(upload_to=node_file_upload_path)
+    
+    class Meta:
+        unique_together = ['node', 'key']
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.node} - {self.key}"
+    
+    def delete(self, *args, **kwargs):
+        """Override delete to remove the actual file from filesystem"""
+        if self.file:
+            if os.path.isfile(self.file.path):
+                os.remove(self.file.path)
+        super().delete(*args, **kwargs)

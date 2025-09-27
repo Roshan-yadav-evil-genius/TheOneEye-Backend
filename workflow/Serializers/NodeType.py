@@ -6,7 +6,7 @@ class NodeTypeSerializer(ModelSerializer):
     
     class Meta:
         model = NodeType
-        fields = ["id", "name", "description","logo","input","output"]
+        fields = ["id", "name", "description","logo","input","output","config"]
         read_only_fields = ["id", "created_at", "updated_at"]
     
     # def get_logo(self, obj):
