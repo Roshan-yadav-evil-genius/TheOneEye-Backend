@@ -17,6 +17,18 @@ class WorkFlow(BaseModel):
     """Model to represent a workflow containing multiple nodes"""
     name = CharField(max_length=100)
     description = CharField(max_length=255, blank=True, null=True)
+    category = CharField(max_length=50, blank=True, null=True)
+    status = CharField(max_length=20, choices=[
+        ('active', 'Active'),
+        ('inactive', 'Inactive'),
+        ('error', 'Error'),
+    ], default='inactive')
+    last_run = DateTimeField(blank=True, null=True)
+    next_run = DateTimeField(blank=True, null=True)
+    runs_count = FloatField(default=0)
+    success_rate = FloatField(default=0)
+    tags = JSONField(default=list)
+    created_by = CharField(max_length=100, blank=True, null=True)
     task_id = CharField(max_length=255, blank=True, null=True)  # Store Celery task ID
 
     def __str__(self):
