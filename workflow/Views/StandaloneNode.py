@@ -7,7 +7,7 @@ from django.db.models import Count, Q
 from django.utils import timezone
 from datetime import timedelta
 from workflow.models import StandaloneNode
-from workflow.Serializers import StandaloneNodeSerializer, StandaloneNodeCreateSerializer
+from workflow.Serializers import StandaloneNodeSerializer, StandaloneNodeCreateSerializer, StandaloneNodeUpdateSerializer
 
 
 class StandaloneNodeViewSet(ModelViewSet):
@@ -47,6 +47,8 @@ class StandaloneNodeViewSet(ModelViewSet):
     def get_serializer_class(self):
         if self.action == 'create':
             return StandaloneNodeCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return StandaloneNodeUpdateSerializer
         return StandaloneNodeSerializer
 
     @action(detail=False, methods=['get'])
