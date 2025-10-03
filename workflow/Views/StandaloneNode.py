@@ -2,6 +2,7 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.db.models import Count, Q
 from django.utils import timezone
 from datetime import timedelta
@@ -11,6 +12,7 @@ from workflow.Serializers import StandaloneNodeSerializer, StandaloneNodeCreateS
 
 class StandaloneNodeViewSet(ModelViewSet):
     serializer_class = StandaloneNodeSerializer
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_queryset(self):
         queryset = StandaloneNode.objects.all()
