@@ -69,6 +69,31 @@ def node_file_upload_path(instance, filename):
     return f"node_files/{instance.node.id}/{instance.key}/{filename}"
 
 
+class StandaloneNode(BaseModel):
+    """Model to represent standalone nodes for frontend compatibility"""
+    name = CharField(max_length=100)
+    type = CharField(max_length=20, choices=[
+        ('trigger', 'Trigger'),
+        ('action', 'Action'),
+        ('logic', 'Logic'),
+        ('system', 'System'),
+    ])
+    category = CharField(max_length=50)
+    description = TextField(blank=True, null=True)
+    version = CharField(max_length=20, default="1.0.0")
+    is_active = BooleanField(default=True)
+    created_by = CharField(max_length=100, blank=True, null=True)
+    form_configuration = JSONField(default=dict)
+    tags = JSONField(default=list)
+    logo = ImageField(upload_to="node_logos", blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.name}({self.id})"
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
 class NodeFile(BaseModel):
     """Model to store temporary files linked to specific nodes"""
     node = ForeignKey(Node, on_delete=CASCADE, related_name='files')
