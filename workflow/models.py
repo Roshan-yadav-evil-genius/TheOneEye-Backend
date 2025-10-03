@@ -1,4 +1,4 @@
-from django.db.models import BooleanField, ImageField, Model,JSONField, UUIDField, CharField, TextField, DateTimeField, FloatField, JSONField, ForeignKey, CASCADE, CheckConstraint, Q, F, FileField
+from django.db.models import BooleanField, ImageField, Model, JSONField, UUIDField, CharField, TextField, DateTimeField, FloatField, ForeignKey, CASCADE, CheckConstraint, Q, F, FileField
 from django.core.exceptions import ValidationError
 import uuid
 import os
