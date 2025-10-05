@@ -55,38 +55,58 @@ class WorkFlowViewSet(ModelViewSet):
 
     @action(detail=True, methods=["get"])
     def canvas_data(self, request, pk=None):
-        """Get simplified workflow canvas data - only essential fields for display"""
+        """Get workflow canvas data with full node information"""
         workflow = self.get_object()
-        nodes = workflow.nodes.all()
+        nodes = workflow.nodes.select_related('node').all()  # Include StandaloneNode data
         connections = workflow.connections.all()
         
-        # Simple nodes - only what's needed for canvas display
-        simple_nodes = []
+        # Full nodes with StandaloneNode template data
+        canvas_nodes = []
         for node in nodes:
-            # Get node data from the node's data field instead of node_type
             node_data = node.data or {}
-            simple_nodes.append({
+            standalone_node = node.node  # The linked StandaloneNode template
+            
+            canvas_nodes.append({
                 'id': str(node.id),
                 'position': {'x': node.position_x, 'y': node.position_y},
                 'data': {
-                    'label': node_data.get('name', f'Node {str(node.id)[:8]}'),  # Title from node data
+                    'label': node_data.get('name', f'Node {str(node.id)[:8]}'),
                     'description': node_data.get('description', ''),
                     'icon': node_data.get('icon', None),
-                }
+                    'category': node_data.get('category', 'custom'),
+                    'type': node_data.get('template_type', 'custom'),
+                    'template_id': node_data.get('template_id', None),
+                },
+                'node_template': {
+                    'id': str(standalone_node.id) if standalone_node else None,
+                    'name': standalone_node.name if standalone_node else None,
+                    'type': standalone_node.type if standalone_node else None,
+                    'description': standalone_node.description if standalone_node else None,
+                    'logo': standalone_node.logo.url if standalone_node and standalone_node.logo else None,
+                    'form_configuration': standalone_node.form_configuration if standalone_node else {},
+                    'tags': standalone_node.tags if standalone_node else [],
+                } if standalone_node else None
             })
         
-        # Simple edges - just connections
-        simple_edges = []
+        # Full edges with connection data
+        canvas_edges = []
         for connection in connections:
-            simple_edges.append({
+            canvas_edges.append({
                 'id': str(connection.id),
                 'source': str(connection.source_node.id),
                 'target': str(connection.target_node.id),
+                'created_at': connection.created_at.isoformat(),
             })
         
         return Response({
-            'nodes': simple_nodes,
-            'edges': simple_edges
+            'nodes': canvas_nodes,
+            'edges': canvas_edges,
+            'workflow': {
+                'id': str(workflow.id),
+                'name': workflow.name,
+                'description': workflow.description,
+                'status': workflow.status,
+            }
         })
 
     @action(detail=False, methods=["get"])
@@ -117,19 +137,43 @@ class WorkFlowViewSet(ModelViewSet):
         position = request.data.get('position', {'x': 0, 'y': 0})
         custom_data = request.data.get('data', {})
         
-        # Create node data based on template
-        node_data = {
-            'name': custom_data.get('name', f'Node {node_template_id}'),
-            'description': custom_data.get('description', ''),
-            'icon': custom_data.get('icon', None),
-            'category': custom_data.get('category', 'custom'),
-            'template_id': node_template_id,
-        }
+        # Try to get the StandaloneNode template if nodeTemplate is provided
+        standalone_node = None
+        if node_template_id and node_template_id != 'custom-node':
+            try:
+                from workflow.models import StandaloneNode
+                standalone_node = StandaloneNode.objects.get(id=node_template_id, is_active=True)
+            except StandaloneNode.DoesNotExist:
+                return Response(
+                    {'error': f'Node template with ID {node_template_id} not found'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         
-        # Create the node directly without NodeType
+        # Create node data based on template or custom data
+        if standalone_node:
+            node_data = {
+                'name': custom_data.get('name', standalone_node.name),
+                'description': custom_data.get('description', standalone_node.description or ''),
+                'icon': custom_data.get('icon', standalone_node.logo.url if standalone_node.logo else None),
+                'category': custom_data.get('category', standalone_node.type),
+                'template_id': node_template_id,
+                'template_name': standalone_node.name,
+                'template_type': standalone_node.type,
+            }
+        else:
+            node_data = {
+                'name': custom_data.get('name', f'Custom Node'),
+                'description': custom_data.get('description', ''),
+                'icon': custom_data.get('icon', None),
+                'category': custom_data.get('category', 'custom'),
+                'template_id': node_template_id,
+            }
+        
+        # Create the node with proper StandaloneNode reference
         from workflow.models import Node
         node = Node.objects.create(
             workflow=workflow,
+            node=standalone_node,  # Link to StandaloneNode template
             position_x=position.get('x', 0),
             position_y=position.get('y', 0),
             data=node_data
@@ -138,7 +182,12 @@ class WorkFlowViewSet(ModelViewSet):
         return Response({
             'id': str(node.id),
             'position': {'x': node.position_x, 'y': node.position_y},
-            'data': node_data
+            'data': node_data,
+            'node_template': {
+                'id': str(standalone_node.id) if standalone_node else None,
+                'name': standalone_node.name if standalone_node else None,
+                'type': standalone_node.type if standalone_node else None,
+            } if standalone_node else None
         }, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["post"])
