@@ -1,11 +1,10 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from rest_framework_nested.routers import NestedDefaultRouter
-from workflow.Views import ConnectionViewSet, NodeTypeViewSet, NodeViewSet, WorkFlowViewSet, NodeFileViewSet, StandaloneNodeViewSet, NodeGroupViewSet
+from workflow.Views import ConnectionViewSet, NodeViewSet, WorkFlowViewSet, NodeFileViewSet, StandaloneNodeViewSet, NodeGroupViewSet
 
 router = DefaultRouter()
 router.register("workflow", WorkFlowViewSet, basename="workflow")
-router.register("node-types", NodeTypeViewSet, basename="node-type")
 router.register("node-groups", NodeGroupViewSet, basename="node-groups")
 router.register("nodes", StandaloneNodeViewSet, basename="standalone-nodes")
 

@@ -13,6 +13,13 @@ class ConnectionSerializer(ModelSerializer):
         fields = ["id", 'source_node', 'target_node']
         read_only_fields = ["id", "created_at", "updated_at"]
     
+    def create(self, validated_data):
+        # Get workflow from context
+        workflow = self.context.get('workflow')
+        if workflow:
+            validated_data['workflow'] = workflow
+        return super().create(validated_data)
+    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         

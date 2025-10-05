@@ -35,27 +35,12 @@ class WorkFlow(BaseModel):
         return f"{self.name}({self.id})"
 
 
-class NodeType(BaseModel):
-    """Model to represent types of nodes, allowing dynamic creation."""
-    name = CharField(max_length=100)
-    logo = ImageField(upload_to="node_type_icons", blank=True, null=True)
-    description = TextField(blank=True, null=True)
-    config = JSONField()
-    input = BooleanField(default=False)
-    output = BooleanField(default=False)
-
-    def clean(self):
-        if not (self.input or self.output):
-            raise ValidationError("At least one of Input or Output must be selected.")
-
-    def __str__(self):
-        return self.name
 
 
 class Node(BaseModel):
     """Model to represent individual nodes in a workflow"""
     workflow = ForeignKey(WorkFlow, on_delete=CASCADE, related_name='nodes')
-    node_type = ForeignKey(NodeType, on_delete=CASCADE, related_name='nodes')
+    node = ForeignKey("StandaloneNode", on_delete=CASCADE, related_name='workflow_nodes', null=True, blank=True)
 
     position_x = FloatField(default=0)
     position_y = FloatField(default=0)
@@ -63,7 +48,8 @@ class Node(BaseModel):
     data = JSONField(default=dict)  # Store node-specific data
 
     def __str__(self):
-        return f"{self.node_type.name}({self.id})"
+        node_name = self.data.get('name', f'Node {str(self.id)[:8]}') if self.data else f'Node {str(self.id)[:8]}'
+        return f"{node_name}({self.id})"
 
 class Connection(BaseModel):
     """Model to represent connections between nodes"""
