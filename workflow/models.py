@@ -104,8 +104,7 @@ class StandaloneNode(BaseModel):
         ('logic', 'Logic'),
         ('system', 'System'),
     ])
-    category = CharField(max_length=50)  # Keep temporarily for migration
-    node_group = ForeignKey(NodeGroup, on_delete=CASCADE, related_name='nodes', null=True, blank=True)
+    node_group = ForeignKey(NodeGroup, on_delete=CASCADE, related_name='nodes')
     description = TextField(blank=True, null=True)
     version = CharField(max_length=20, default="1.0.0")
     is_active = BooleanField(default=True)

@@ -22,10 +22,6 @@ class StandaloneNodeViewSet(ModelViewSet):
         if node_type:
             queryset = queryset.filter(type=node_type)
             
-        category = self.request.query_params.get('category')
-        if category:
-            queryset = queryset.filter(category=category)
-            
         node_group = self.request.query_params.get('node_group')
         if node_group:
             queryset = queryset.filter(node_group=node_group)
@@ -65,7 +61,6 @@ class StandaloneNodeViewSet(ModelViewSet):
             'active_nodes': queryset.filter(is_active=True).count(),
             'inactive_nodes': queryset.filter(is_active=False).count(),
             'by_type': dict(queryset.values('type').annotate(count=Count('id')).values_list('type', 'count')),
-            'by_category': dict(queryset.values('category').annotate(count=Count('id')).values_list('category', 'count')),
             'by_node_group': dict(queryset.values('node_group__name').annotate(count=Count('id')).values_list('node_group__name', 'count')),
             'recent_created': queryset.filter(created_at__gte=timezone.now() - timedelta(days=7)).count()
         }

@@ -460,7 +460,7 @@ class Command(BaseCommand):
             existing_node = StandaloneNode.objects.filter(
                 name=node_data['name'],
                 type=node_data['type'],
-                category=node_data['category']
+                node_group=node_data['node_group']
             ).first()
 
             if existing_node:

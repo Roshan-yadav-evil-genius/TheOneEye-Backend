@@ -11,7 +11,7 @@ class StandaloneNodeSerializer(ModelSerializer):
     class Meta:
         model = StandaloneNode
         fields = [
-            'id', 'name', 'type', 'category', 'node_group', 'node_group_name', 'node_group_icon',
+            'id', 'name', 'type', 'node_group', 'node_group_name', 'node_group_icon',
             'description', 'version', 'is_active', 'created_by', 'form_configuration', 'tags', 'logo',
             'created_at', 'updated_at'
         ]
@@ -26,7 +26,7 @@ class StandaloneNodeCreateSerializer(ModelSerializer):
     class Meta:
         model = StandaloneNode
         fields = [
-            'name', 'type', 'category', 'node_group', 'description', 'version',
+            'name', 'type', 'node_group', 'description', 'version',
             'is_active', 'created_by', 'form_configuration', 'tags', 'logo'
         ]
     
@@ -43,7 +43,7 @@ class StandaloneNodeUpdateSerializer(ModelSerializer):
     class Meta:
         model = StandaloneNode
         fields = [
-            'name', 'type', 'category', 'node_group', 'description', 'version',
+            'name', 'type', 'node_group', 'description', 'version',
             'is_active', 'created_by', 'form_configuration', 'tags', 'logo'
         ]
     

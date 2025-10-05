@@ -49,11 +49,11 @@ class NodeGroupAdmin(admin.ModelAdmin):
 
 @admin.register(StandaloneNode)
 class StandaloneNodeAdmin(admin.ModelAdmin):
-    list_display = ['id', 'name', 'type', 'category', 'node_group', 'version', 'is_active', 'created_by', 'created_at', 'updated_at']
-    list_filter = ['type', 'category', 'node_group', 'is_active', 'created_at', 'updated_at']
+    list_display = ['id', 'name', 'type', 'node_group', 'version', 'is_active', 'created_by', 'created_at', 'updated_at']
+    list_filter = ['type', 'node_group', 'is_active', 'created_at', 'updated_at']
     search_fields = ['name', 'description', 'created_by']
     readonly_fields = ['id', 'created_at', 'updated_at']
-    fields = ['id', 'name', 'type', 'category', 'node_group', 'description', 'version', 'is_active', 'created_by', 'form_configuration', 'tags', 'logo', 'created_at', 'updated_at']
+    fields = ['id', 'name', 'type', 'node_group', 'description', 'version', 'is_active', 'created_by', 'form_configuration', 'tags', 'logo', 'created_at', 'updated_at']
     raw_id_fields = ['node_group']
 
 
