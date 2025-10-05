@@ -82,7 +82,7 @@ class WorkFlowViewSet(ModelViewSet):
                     'name': standalone_node.name if standalone_node else None,
                     'type': standalone_node.type if standalone_node else None,
                     'description': standalone_node.description if standalone_node else None,
-                    'logo': standalone_node.logo.url if standalone_node and standalone_node.logo else None,
+                    'logo': request.build_absolute_uri(standalone_node.logo.url) if standalone_node and standalone_node.logo else None,
                     'form_configuration': standalone_node.form_configuration if standalone_node else {},
                     'tags': standalone_node.tags if standalone_node else [],
                 } if standalone_node else None
@@ -121,7 +121,7 @@ class WorkFlowViewSet(ModelViewSet):
                 'id': str(node.id),
                 'name': node.name,
                 'description': node.description or '',
-                'icon': node.logo.url if node.logo else None,
+                'icon': request.build_absolute_uri(node.logo.url) if node.logo else None,
                 'category': node.type,
             })
         
@@ -154,7 +154,7 @@ class WorkFlowViewSet(ModelViewSet):
             node_data = {
                 'name': custom_data.get('name', standalone_node.name),
                 'description': custom_data.get('description', standalone_node.description or ''),
-                'icon': custom_data.get('icon', standalone_node.logo.url if standalone_node.logo else None),
+                'icon': custom_data.get('icon', request.build_absolute_uri(standalone_node.logo.url) if standalone_node.logo else None),
                 'category': custom_data.get('category', standalone_node.type),
                 'template_id': node_template_id,
                 'template_name': standalone_node.name,
@@ -187,6 +187,10 @@ class WorkFlowViewSet(ModelViewSet):
                 'id': str(standalone_node.id) if standalone_node else None,
                 'name': standalone_node.name if standalone_node else None,
                 'type': standalone_node.type if standalone_node else None,
+                'description': standalone_node.description if standalone_node else None,
+                'logo': request.build_absolute_uri(standalone_node.logo.url) if standalone_node and standalone_node.logo else None,
+                'form_configuration': standalone_node.form_configuration if standalone_node else {},
+                'tags': standalone_node.tags if standalone_node else [],
             } if standalone_node else None
         }, status=status.HTTP_201_CREATED)
 
