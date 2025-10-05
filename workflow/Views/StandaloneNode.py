@@ -51,6 +51,20 @@ class StandaloneNodeViewSet(ModelViewSet):
             return StandaloneNodeUpdateSerializer
         return StandaloneNodeSerializer
 
+    def create(self, request, *args, **kwargs):
+        """Override create method to add debugging"""
+        print(f"🔧 Backend: Creating node with data: {request.data}")
+        print(f"🔧 Backend: Request content type: {request.content_type}")
+        print(f"🔧 Backend: Request files: {list(request.FILES.keys()) if hasattr(request, 'FILES') else 'No files'}")
+        
+        try:
+            response = super().create(request, *args, **kwargs)
+            print(f"✅ Backend: Node created successfully: {response.data}")
+            return response
+        except Exception as e:
+            print(f"❌ Backend: Error creating node: {str(e)}")
+            raise
+
     @action(detail=False, methods=['get'])
     def stats(self, request):
         """Get node statistics"""
