@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import WorkFlow, NodeType, Node, Connection, NodeFile, StandaloneNode
+from .models import WorkFlow, NodeType, Node, Connection, NodeFile, StandaloneNode, NodeGroup
 
 
 @admin.register(WorkFlow)
@@ -38,13 +38,23 @@ class ConnectionAdmin(admin.ModelAdmin):
     raw_id_fields = ['workflow', 'source_node', 'target_node']
 
 
+@admin.register(NodeGroup)
+class NodeGroupAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name', 'description', 'is_active', 'created_at', 'updated_at']
+    list_filter = ['is_active', 'created_at', 'updated_at']
+    search_fields = ['name', 'description']
+    readonly_fields = ['id', 'created_at', 'updated_at']
+    fields = ['id', 'name', 'description', 'icon', 'is_active', 'created_at', 'updated_at']
+
+
 @admin.register(StandaloneNode)
 class StandaloneNodeAdmin(admin.ModelAdmin):
-    list_display = ['id', 'name', 'type', 'category', 'version', 'is_active', 'created_by', 'created_at', 'updated_at']
-    list_filter = ['type', 'category', 'is_active', 'created_at', 'updated_at']
+    list_display = ['id', 'name', 'type', 'category', 'node_group', 'version', 'is_active', 'created_by', 'created_at', 'updated_at']
+    list_filter = ['type', 'category', 'node_group', 'is_active', 'created_at', 'updated_at']
     search_fields = ['name', 'description', 'created_by']
     readonly_fields = ['id', 'created_at', 'updated_at']
-    fields = ['id', 'name', 'type', 'category', 'description', 'version', 'is_active', 'created_by', 'form_configuration', 'tags', 'logo', 'created_at', 'updated_at']
+    fields = ['id', 'name', 'type', 'category', 'node_group', 'description', 'version', 'is_active', 'created_by', 'form_configuration', 'tags', 'logo', 'created_at', 'updated_at']
+    raw_id_fields = ['node_group']
 
 
 @admin.register(NodeFile)

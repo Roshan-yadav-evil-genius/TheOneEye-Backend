@@ -81,6 +81,20 @@ def node_file_upload_path(instance, filename):
     return f"node_files/{instance.node.id}/{instance.key}/{filename}"
 
 
+class NodeGroup(BaseModel):
+    """Model to represent node groups with icons for better organization"""
+    name = CharField(max_length=100)
+    description = TextField(blank=True, null=True)
+    icon = ImageField(upload_to="node_group_icons", blank=True, null=True)
+    is_active = BooleanField(default=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ["name"]
+
+
 class StandaloneNode(BaseModel):
     """Model to represent standalone nodes for frontend compatibility"""
     name = CharField(max_length=100)
@@ -90,7 +104,8 @@ class StandaloneNode(BaseModel):
         ('logic', 'Logic'),
         ('system', 'System'),
     ])
-    category = CharField(max_length=50)
+    category = CharField(max_length=50)  # Keep temporarily for migration
+    node_group = ForeignKey(NodeGroup, on_delete=CASCADE, related_name='nodes', null=True, blank=True)
     description = TextField(blank=True, null=True)
     version = CharField(max_length=20, default="1.0.0")
     is_active = BooleanField(default=True)

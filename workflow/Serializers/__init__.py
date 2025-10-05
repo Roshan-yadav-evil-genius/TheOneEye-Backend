@@ -4,3 +4,4 @@ from .WorkFlow import WorkFlowSerializer
 from .Connection import ConnectionSerializer
 from .NodeFile import NodeFileSerializer, NodeFileUploadSerializer
 from .StandaloneNode import StandaloneNodeSerializer, StandaloneNodeCreateSerializer, StandaloneNodeUpdateSerializer
+from .NodeGroup import NodeGroupSerializer, NodeGroupCreateSerializer, NodeGroupUpdateSerializer

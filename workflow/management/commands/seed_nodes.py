@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from workflow.models import StandaloneNode
+from workflow.models import StandaloneNode, NodeGroup
 import json
 from datetime import datetime
 
@@ -23,6 +23,26 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         force = options['force']
         dry_run = options['dry_run']
+        
+        # Get or create NodeGroups for category mapping
+        category_to_group_mapping = {
+            'system': 'System Operations',
+            'email': 'Email & Communication',
+            'database': 'Database Operations',
+            'api': 'API & Integration',
+            'logic': 'Logic & Control Flow',
+            'control': 'Workflow Control',
+            'file': 'File Operations'
+        }
+        
+        # Ensure all NodeGroups exist
+        node_groups = {}
+        for category, group_name in category_to_group_mapping.items():
+            node_group, created = NodeGroup.objects.get_or_create(
+                name=group_name,
+                defaults={'is_active': True}
+            )
+            node_groups[category] = node_group
         
         # Mock nodes data from frontend
         mock_nodes_data = [
@@ -431,6 +451,11 @@ class Command(BaseCommand):
         skipped_count = 0
 
         for node_data in mock_nodes_data:
+            # Add node_group to the node data
+            category = node_data['category']
+            if category in node_groups:
+                node_data['node_group'] = node_groups[category]
+            
             # Check if node already exists
             existing_node = StandaloneNode.objects.filter(
                 name=node_data['name'],
