@@ -13,19 +13,19 @@ class WorkFlowAdmin(admin.ModelAdmin):
 
 @admin.register(Node)
 class NodeAdmin(admin.ModelAdmin):
-    list_display = ['id', 'workflow', 'node', 'position_x', 'position_y', 'created_at', 'updated_at']
-    list_filter = ['workflow', 'node', 'created_at', 'updated_at']
-    search_fields = ['workflow__name', 'node__name']
+    list_display = ['id', 'workflow', 'node_type', 'position_x', 'position_y', 'created_at', 'updated_at']
+    list_filter = ['workflow', 'node_type', 'created_at', 'updated_at']
+    search_fields = ['workflow__name', 'node_type__name']
     readonly_fields = ['id', 'created_at', 'updated_at']
-    fields = ['id', 'workflow', 'node', 'position_x', 'position_y', 'data', 'created_at', 'updated_at']
-    raw_id_fields = ['workflow', 'node']
+    fields = ['id', 'workflow', 'node_type', 'position_x', 'position_y', 'data', 'created_at', 'updated_at']
+    raw_id_fields = ['workflow', 'node_type']
 
 
 @admin.register(Connection)
 class ConnectionAdmin(admin.ModelAdmin):
     list_display = ['id', 'workflow', 'source_node', 'target_node', 'created_at', 'updated_at']
     list_filter = ['workflow', 'created_at', 'updated_at']
-    search_fields = ['workflow__name', 'source_node__node__name', 'target_node__node__name']
+    search_fields = ['workflow__name', 'source_node__node_type__name', 'target_node__node_type__name']
     readonly_fields = ['id', 'created_at', 'updated_at']
     fields = ['id', 'workflow', 'source_node', 'target_node', 'created_at', 'updated_at']
     raw_id_fields = ['workflow', 'source_node', 'target_node']
@@ -53,8 +53,8 @@ class StandaloneNodeAdmin(admin.ModelAdmin):
 @admin.register(NodeFile)
 class NodeFileAdmin(admin.ModelAdmin):
     list_display = ['id', 'node', 'key', 'created_at', 'updated_at']
-    list_filter = ['node__workflow', 'node__node', 'created_at', 'updated_at']
-    search_fields = ['node__workflow__name', 'node__node__name', 'key']
+    list_filter = ['node__workflow', 'node__node_type', 'created_at', 'updated_at']
+    search_fields = ['node__workflow__name', 'node__node_type__name', 'key']
     readonly_fields = ['id', 'created_at', 'updated_at']
     fields = ['id', 'node', 'key', 'file', 'created_at', 'updated_at']
     raw_id_fields = ['node']

@@ -57,27 +57,24 @@ class WorkFlowViewSet(ModelViewSet):
     def canvas_data(self, request, pk=None):
         """Get workflow canvas data with full node information"""
         workflow = self.get_object()
-        nodes = workflow.nodes.select_related('node').all()  # Include StandaloneNode data
+        nodes = workflow.nodes.select_related('node_type').all()  # Include StandaloneNode data
         connections = workflow.connections.all()
         
         # Full nodes with StandaloneNode template data
         canvas_nodes = []
         for node in nodes:
             node_data = node.data or {}
-            standalone_node = node.node  # The linked StandaloneNode template
+            standalone_node = node.node_type  # The linked StandaloneNode template
             
             canvas_nodes.append({
                 'id': str(node.id),
                 'position': {'x': node.position_x, 'y': node.position_y},
                 'data': {
-                    'label': node_data.get('name', f'Node {str(node.id)[:8]}'),
-                    'description': node_data.get('description', ''),
-                    'icon': node_data.get('icon', None),
-                    'category': node_data.get('category', 'custom'),
-                    'type': node_data.get('template_type', 'custom'),
-                    'template_id': node_data.get('template_id', None),
+                    # Only node-specific configuration data, no redundant fields
+                    'formValues': node_data.get('formValues', {}),
+                    'customSettings': node_data.get('customSettings', {}),
                 },
-                'node_template': {
+                'node_type': {
                     'id': str(standalone_node.id) if standalone_node else None,
                     'name': standalone_node.name if standalone_node else None,
                     'type': standalone_node.type if standalone_node else None,
@@ -85,6 +82,20 @@ class WorkFlowViewSet(ModelViewSet):
                     'logo': request.build_absolute_uri(standalone_node.logo.url) if standalone_node and standalone_node.logo else None,
                     'form_configuration': standalone_node.form_configuration if standalone_node else {},
                     'tags': standalone_node.tags if standalone_node else [],
+                    'node_group': {
+                        'id': str(standalone_node.node_group.id) if standalone_node and standalone_node.node_group else None,
+                        'name': standalone_node.node_group.name if standalone_node and standalone_node.node_group else None,
+                        'description': standalone_node.node_group.description if standalone_node and standalone_node.node_group else None,
+                        'icon': request.build_absolute_uri(standalone_node.node_group.icon.url) if standalone_node and standalone_node.node_group and standalone_node.node_group.icon else None,
+                        'is_active': standalone_node.node_group.is_active if standalone_node and standalone_node.node_group else None,
+                        'created_at': standalone_node.node_group.created_at.isoformat() if standalone_node and standalone_node.node_group else None,
+                        'updated_at': standalone_node.node_group.updated_at.isoformat() if standalone_node and standalone_node.node_group else None,
+                    } if standalone_node and standalone_node.node_group else None,
+                    'version': standalone_node.version if standalone_node else None,
+                    'is_active': standalone_node.is_active if standalone_node else None,
+                    'created_by': standalone_node.created_by if standalone_node else None,
+                    'created_at': standalone_node.created_at.isoformat() if standalone_node else None,
+                    'updated_at': standalone_node.updated_at.isoformat() if standalone_node else None,
                 } if standalone_node else None
             })
         
@@ -149,31 +160,17 @@ class WorkFlowViewSet(ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
         
-        # Create node data based on template or custom data
-        if standalone_node:
-            node_data = {
-                'name': custom_data.get('name', standalone_node.name),
-                'description': custom_data.get('description', standalone_node.description or ''),
-                'icon': custom_data.get('icon', request.build_absolute_uri(standalone_node.logo.url) if standalone_node.logo else None),
-                'category': custom_data.get('category', standalone_node.type),
-                'template_id': node_template_id,
-                'template_name': standalone_node.name,
-                'template_type': standalone_node.type,
-            }
-        else:
-            node_data = {
-                'name': custom_data.get('name', f'Custom Node'),
-                'description': custom_data.get('description', ''),
-                'icon': custom_data.get('icon', None),
-                'category': custom_data.get('category', 'custom'),
-                'template_id': node_template_id,
-            }
+        # Create node data - only store node-specific configuration, no redundant data
+        node_data = {
+            'formValues': custom_data.get('formValues', {}),
+            'customSettings': custom_data.get('customSettings', {}),
+        }
         
         # Create the node with proper StandaloneNode reference
         from workflow.models import Node
         node = Node.objects.create(
             workflow=workflow,
-            node=standalone_node,  # Link to StandaloneNode template
+            node_type=standalone_node,  # Link to StandaloneNode template
             position_x=position.get('x', 0),
             position_y=position.get('y', 0),
             data=node_data
@@ -183,7 +180,7 @@ class WorkFlowViewSet(ModelViewSet):
             'id': str(node.id),
             'position': {'x': node.position_x, 'y': node.position_y},
             'data': node_data,
-            'node_template': {
+            'node_type': {
                 'id': str(standalone_node.id) if standalone_node else None,
                 'name': standalone_node.name if standalone_node else None,
                 'type': standalone_node.type if standalone_node else None,
@@ -191,6 +188,20 @@ class WorkFlowViewSet(ModelViewSet):
                 'logo': request.build_absolute_uri(standalone_node.logo.url) if standalone_node and standalone_node.logo else None,
                 'form_configuration': standalone_node.form_configuration if standalone_node else {},
                 'tags': standalone_node.tags if standalone_node else [],
+                'node_group': {
+                    'id': str(standalone_node.node_group.id) if standalone_node and standalone_node.node_group else None,
+                    'name': standalone_node.node_group.name if standalone_node and standalone_node.node_group else None,
+                    'description': standalone_node.node_group.description if standalone_node and standalone_node.node_group else None,
+                    'icon': request.build_absolute_uri(standalone_node.node_group.icon.url) if standalone_node and standalone_node.node_group and standalone_node.node_group.icon else None,
+                    'is_active': standalone_node.node_group.is_active if standalone_node and standalone_node.node_group else None,
+                    'created_at': standalone_node.node_group.created_at.isoformat() if standalone_node and standalone_node.node_group else None,
+                    'updated_at': standalone_node.node_group.updated_at.isoformat() if standalone_node and standalone_node.node_group else None,
+                } if standalone_node and standalone_node.node_group else None,
+                'version': standalone_node.version if standalone_node else None,
+                'is_active': standalone_node.is_active if standalone_node else None,
+                'created_by': standalone_node.created_by if standalone_node else None,
+                'created_at': standalone_node.created_at.isoformat() if standalone_node else None,
+                'updated_at': standalone_node.updated_at.isoformat() if standalone_node else None,
             } if standalone_node else None
         }, status=status.HTTP_201_CREATED)
 

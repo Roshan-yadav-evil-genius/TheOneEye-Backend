@@ -40,7 +40,7 @@ class WorkFlow(BaseModel):
 class Node(BaseModel):
     """Model to represent individual nodes in a workflow"""
     workflow = ForeignKey(WorkFlow, on_delete=CASCADE, related_name='nodes')
-    node = ForeignKey("StandaloneNode", on_delete=CASCADE, related_name='workflow_nodes', null=True, blank=True)
+    node_type = ForeignKey("StandaloneNode", on_delete=CASCADE, related_name='workflow_nodes', null=True, blank=True)
 
     position_x = FloatField(default=0)
     position_y = FloatField(default=0)
@@ -64,7 +64,7 @@ class Connection(BaseModel):
 
 def node_file_upload_path(instance, filename):
     """Generate upload path for node files"""
-    return f"node_files/{instance.node.id}/{instance.key}/{filename}"
+    return f"node_files/{instance.node_type.id}/{instance.key}/{filename}"
 
 
 class NodeGroup(BaseModel):

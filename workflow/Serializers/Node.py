@@ -4,7 +4,7 @@ from rest_framework.serializers import ModelSerializer,JSONField
 
 
 class NodeSerializer(ModelSerializer):
-    node = StandaloneNodeSerializer(read_only=True)
+    node_type = StandaloneNodeSerializer(read_only=True)
 
     class Meta:
         model = Node
@@ -15,7 +15,7 @@ class NodeSerializer(ModelSerializer):
 class NodeCreateSerializer(ModelSerializer):
     class Meta:
         model = Node
-        fields = ['id', 'node', 'position_x', 'position_y', 'data']
+        fields = ['id', 'node_type', 'position_x', 'position_y', 'data']
         read_only_fields = ['id']
     
     def create(self, validated_data):
