@@ -245,7 +245,7 @@ class WorkFlowViewSet(ModelViewSet):
             return Response(ConnectionSerializer(connection).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=["put"])
+    @action(detail=True, methods=["patch"])
     def update_node_position(self, request, pk=None):
         """Update node position in the workflow"""
         workflow = self.get_object()
