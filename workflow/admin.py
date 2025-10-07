@@ -17,7 +17,7 @@ class NodeAdmin(admin.ModelAdmin):
     list_filter = ['workflow', 'node_type', 'created_at', 'updated_at']
     search_fields = ['workflow__name', 'node_type__name']
     readonly_fields = ['id', 'created_at', 'updated_at']
-    fields = ['id', 'workflow', 'node_type', 'position_x', 'position_y', 'data', 'created_at', 'updated_at']
+    fields = ['id', 'workflow', 'node_type', 'position_x', 'position_y', 'data', 'form_values', 'created_at', 'updated_at']
     raw_id_fields = ['workflow', 'node_type']
 
 

@@ -46,6 +46,7 @@ class Node(BaseModel):
     position_y = FloatField(default=0)
 
     data = JSONField(default=dict,blank=True)  # Store node-specific data node.form_configuration values
+    form_values = JSONField(default=dict,blank=True)  # Store node-specific data node.form_configuration values
 
     def __str__(self):
         node_name = self.data.get('name', f'Node {str(self.id)[:8]}') if self.data else f'Node {str(self.id)[:8]}'
