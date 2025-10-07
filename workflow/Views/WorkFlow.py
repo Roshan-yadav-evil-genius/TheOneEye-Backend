@@ -105,8 +105,8 @@ class WorkFlowViewSet(ModelViewSet):
         for connection in connections:
             canvas_edges.append({
                 'id': str(connection.id),
-                'source': str(connection.source_node.id),
-                'target': str(connection.target_node.id),
+                'source_node': str(connection.source_node.id),
+                'target_node': str(connection.target_node.id),
                 'created_at': connection.created_at.isoformat(),
             })
         
