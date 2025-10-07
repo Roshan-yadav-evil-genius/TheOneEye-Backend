@@ -74,6 +74,7 @@ class WorkFlowViewSet(ModelViewSet):
                     'formValues': node_data.get('formValues', {}),
                     'customSettings': node_data.get('customSettings', {}),
                 },
+                'form_values': node.form_values or {},
                 'node_type': {
                     'id': str(standalone_node.id) if standalone_node else None,
                     'name': standalone_node.name if standalone_node else None,
