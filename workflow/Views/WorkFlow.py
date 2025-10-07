@@ -8,7 +8,7 @@ from workflow.Serializers.Node import NodeSerializer, NodeCreateSerializer
 from workflow.Serializers.Connection import ConnectionSerializer
 from rest_framework.decorators import action
 from celery.result import AsyncResult
-from workflow.tasks import execute_workflow,stop_workflow
+from workflow.tasks import execute_workflow,stop_workflow,execute_single_node
 from django.db import transaction
 
 
@@ -296,3 +296,39 @@ class WorkFlowViewSet(ModelViewSet):
                 {'error': 'Connection not found'}, 
                 status=status.HTTP_404_NOT_FOUND
             )
+
+    @action(detail=True, methods=["post"])
+    def execute_single_node(self, request, pk=None):
+        """Execute a single node with its dependencies"""
+        workflow = self.get_object()
+        node_id = request.data.get('node_id')
+        
+        if not node_id:
+            return Response(
+                {'error': 'node_id is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Verify the node exists in this workflow
+            node = Node.objects.get(id=node_id, workflow=workflow)
+        except Node.DoesNotExist:
+            return Response(
+                {'error': 'Node not found in this workflow'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Start the Celery task
+        # task = execute_single_node.delay(str(workflow.id), str(node_id))
+        print("Executing Node", str(node_id))
+        
+        return Response({
+            "task_id": "task.id", 
+            "status": "task.status",
+            "message": "Started execution of node {node.node_type.name if node.node_type else 'Unknown'}"
+        })
+        return Response({
+            "task_id": task.id, 
+            "status": task.status,
+            "message": f"Started execution of node {node.node_type.name if node.node_type else 'Unknown'}"
+        })

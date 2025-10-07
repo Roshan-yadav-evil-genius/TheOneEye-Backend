@@ -47,6 +47,7 @@ class Node(BaseModel):
 
     data = JSONField(default=dict,blank=True)  # Store node-specific data node.form_configuration values
     form_values = JSONField(default=dict,blank=True)  # Store node-specific data node.form_configuration values
+    output = JSONField(default=dict,blank=True)  # Store node execution results
 
     def __str__(self):
         node_name = self.data.get('name', f'Node {str(self.id)[:8]}') if self.data else f'Node {str(self.id)[:8]}'
