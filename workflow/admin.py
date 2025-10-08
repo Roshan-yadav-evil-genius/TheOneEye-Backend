@@ -13,11 +13,11 @@ class WorkFlowAdmin(admin.ModelAdmin):
 
 @admin.register(Node)
 class NodeAdmin(admin.ModelAdmin):
-    list_display = ['id', 'workflow', 'node_type', 'position_x', 'position_y', 'created_at', 'updated_at']
+    list_display = ['id', 'workflow', 'node_type', 'x', 'y', 'created_at', 'updated_at']
     list_filter = ['workflow', 'node_type', 'created_at', 'updated_at']
     search_fields = ['workflow__name', 'node_type__name']
     readonly_fields = ['id', 'created_at', 'updated_at']
-    fields = ['id', 'workflow', 'node_type', 'position_x', 'position_y', 'data', 'form_values', 'created_at', 'updated_at']
+    fields = ['id', 'workflow', 'node_type', 'x', 'y', 'form_values', 'output', 'created_at', 'updated_at']
     raw_id_fields = ['workflow', 'node_type']
 
 

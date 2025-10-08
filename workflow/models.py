@@ -42,15 +42,14 @@ class Node(BaseModel):
     workflow = ForeignKey(WorkFlow, on_delete=CASCADE, related_name='nodes')
     node_type = ForeignKey("StandaloneNode", on_delete=CASCADE, related_name='workflow_nodes', null=True, blank=True)
 
-    position_x = FloatField(default=0)
-    position_y = FloatField(default=0)
+    x = FloatField(default=0)
+    y = FloatField(default=0)
 
-    data = JSONField(default=dict,blank=True)  # Store node-specific data node.form_configuration values
     form_values = JSONField(default=dict,blank=True)  # Store node-specific data node.form_configuration values
     output = JSONField(default=dict,blank=True)  # Store node execution results
 
     def __str__(self):
-        node_name = self.data.get('name', f'Node {str(self.id)[:8]}') if self.data else f'Node {str(self.id)[:8]}'
+        node_name = self.node_type.name if self.node_type else f'Node {str(self.id)[:8]}'
         return f"{node_name}({self.id})"
 
 class Connection(BaseModel):

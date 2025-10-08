@@ -190,9 +190,8 @@ def print_node_details(node: Node):
     print(f"ID: {node.id}")
     print(f"Type: {node.node_type.type if node.node_type else 'Unknown'}")
     print(f"Name: {node.node_type.name if node.node_type else 'Unknown'}")
-    print(f"Position: ({node.position_x}, {node.position_y})")
+    print(f"Position: ({node.x}, {node.y})")
     print(f"Form Values: {json.dumps(node.form_values, indent=2)}")
-    print(f"Data: {json.dumps(node.data, indent=2)}")
     
     if node.node_type:
         print(f"StandaloneNode Template:")

@@ -15,7 +15,7 @@ class NodeSerializer(ModelSerializer):
 class NodeCreateSerializer(ModelSerializer):
     class Meta:
         model = Node
-        fields = ['id', 'node_type', 'position_x', 'position_y', 'data', 'form_values']
+        fields = ['id', 'node_type', 'x', 'y', 'form_values']
         read_only_fields = ['id']
     
     def create(self, validated_data):

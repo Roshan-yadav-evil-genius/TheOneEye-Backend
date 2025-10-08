@@ -6,6 +6,7 @@ from workflow.models import WorkFlow, Node, Connection, StandaloneNode
 from workflow.Serializers import WorkFlowSerializer
 from workflow.Serializers.Node import NodeSerializer, NodeCreateSerializer
 from workflow.Serializers.Connection import ConnectionSerializer
+from workflow.Serializers.Canvas import CanvasDataSerializer, AvailableNodeTemplateSerializer, CanvasNodeSerializer
 from rest_framework.decorators import action
 from celery.result import AsyncResult
 from workflow.tasks import execute_workflow,stop_workflow,execute_single_node
@@ -57,87 +58,19 @@ class WorkFlowViewSet(ModelViewSet):
     def canvas_data(self, request, pk=None):
         """Get workflow canvas data with full node information"""
         workflow = self.get_object()
-        nodes = workflow.nodes.select_related('node_type').all()  # Include StandaloneNode data
-        connections = workflow.connections.all()
-        
-        # Full nodes with StandaloneNode template data
-        canvas_nodes = []
-        for node in nodes:
-            node_data = node.data or {}
-            standalone_node = node.node_type  # The linked StandaloneNode template
-            
-            canvas_nodes.append({
-                'id': str(node.id),
-                'position': {'x': node.position_x, 'y': node.position_y},
-                'data': {
-                    # Only node-specific configuration data, no redundant fields
-                    'formValues': node_data.get('formValues', {}),
-                    'customSettings': node_data.get('customSettings', {}),
-                },
-                'form_values': node.form_values or {},
-                'node_type': {
-                    'id': str(standalone_node.id) if standalone_node else None,
-                    'name': standalone_node.name if standalone_node else None,
-                    'type': standalone_node.type if standalone_node else None,
-                    'description': standalone_node.description if standalone_node else None,
-                    'logo': request.build_absolute_uri(standalone_node.logo.url) if standalone_node and standalone_node.logo else None,
-                    'form_configuration': standalone_node.form_configuration if standalone_node else {},
-                    'tags': standalone_node.tags if standalone_node else [],
-                    'node_group': {
-                        'id': str(standalone_node.node_group.id) if standalone_node and standalone_node.node_group else None,
-                        'name': standalone_node.node_group.name if standalone_node and standalone_node.node_group else None,
-                        'description': standalone_node.node_group.description if standalone_node and standalone_node.node_group else None,
-                        'icon': request.build_absolute_uri(standalone_node.node_group.icon.url) if standalone_node and standalone_node.node_group and standalone_node.node_group.icon else None,
-                        'is_active': standalone_node.node_group.is_active if standalone_node and standalone_node.node_group else None,
-                        'created_at': standalone_node.node_group.created_at.isoformat() if standalone_node and standalone_node.node_group else None,
-                        'updated_at': standalone_node.node_group.updated_at.isoformat() if standalone_node and standalone_node.node_group else None,
-                    } if standalone_node and standalone_node.node_group else None,
-                    'version': standalone_node.version if standalone_node else None,
-                    'is_active': standalone_node.is_active if standalone_node else None,
-                    'created_by': standalone_node.created_by if standalone_node else None,
-                    'created_at': standalone_node.created_at.isoformat() if standalone_node else None,
-                    'updated_at': standalone_node.updated_at.isoformat() if standalone_node else None,
-                } if standalone_node else None
-            })
-        
-        # Full edges with connection data
-        canvas_edges = []
-        for connection in connections:
-            canvas_edges.append({
-                'id': str(connection.id),
-                'source_node': str(connection.source_node.id),
-                'target_node': str(connection.target_node.id),
-                'created_at': connection.created_at.isoformat(),
-            })
-        
-        return Response({
-            'nodes': canvas_nodes,
-            'edges': canvas_edges,
-            'workflow': {
-                'id': str(workflow.id),
-                'name': workflow.name,
-                'description': workflow.description,
-                'status': workflow.status,
-            }
-        })
+        serializer = CanvasDataSerializer(workflow, context={'request': request})
+        return Response(serializer.data)
 
     @action(detail=False, methods=["get"])
     def available_nodes(self, request):
         """Get available node templates that can be added to canvas"""
-        # Get available StandaloneNode templates
         standalone_nodes = StandaloneNode.objects.filter(is_active=True)
-        
-        node_templates = []
-        for node in standalone_nodes:
-            node_templates.append({
-                'id': str(node.id),
-                'name': node.name,
-                'description': node.description or '',
-                'icon': request.build_absolute_uri(node.logo.url) if node.logo else None,
-                'category': node.type,
-            })
-        
-        return Response(node_templates)
+        serializer = AvailableNodeTemplateSerializer(
+            standalone_nodes, 
+            many=True, 
+            context={'request': request}
+        )
+        return Response(serializer.data)
 
     @action(detail=True, methods=["post"])
     def add_node(self, request, pk=None):
@@ -147,13 +80,11 @@ class WorkFlowViewSet(ModelViewSet):
         # Get node template data
         node_template_id = request.data.get('nodeTemplate', 'custom-node')
         position = request.data.get('position', {'x': 0, 'y': 0})
-        custom_data = request.data.get('data', {})
         
         # Try to get the StandaloneNode template if nodeTemplate is provided
         standalone_node = None
         if node_template_id and node_template_id != 'custom-node':
             try:
-                from workflow.models import StandaloneNode
                 standalone_node = StandaloneNode.objects.get(id=node_template_id, is_active=True)
             except StandaloneNode.DoesNotExist:
                 return Response(
@@ -161,50 +92,27 @@ class WorkFlowViewSet(ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
         
-        # Create node data - only store node-specific configuration, no redundant data
+        # Prepare data for NodeCreateSerializer
         node_data = {
-            'formValues': custom_data.get('formValues', {}),
-            'customSettings': custom_data.get('customSettings', {}),
+            'node_type': standalone_node.id if standalone_node else None,
+            'x': position.get('x', 0),
+            'y': position.get('y', 0),
+            'form_values': request.data.get('form_values', {})
         }
         
-        # Create the node with proper StandaloneNode reference
-        from workflow.models import Node
-        node = Node.objects.create(
-            workflow=workflow,
-            node_type=standalone_node,  # Link to StandaloneNode template
-            position_x=position.get('x', 0),
-            position_y=position.get('y', 0),
-            data=node_data
+        # Use NodeCreateSerializer
+        serializer = NodeCreateSerializer(
+            data=node_data, 
+            context={'workflow': workflow, 'request': request}
         )
         
-        return Response({
-            'id': str(node.id),
-            'position': {'x': node.position_x, 'y': node.position_y},
-            'data': node_data,
-            'node_type': {
-                'id': str(standalone_node.id) if standalone_node else None,
-                'name': standalone_node.name if standalone_node else None,
-                'type': standalone_node.type if standalone_node else None,
-                'description': standalone_node.description if standalone_node else None,
-                'logo': request.build_absolute_uri(standalone_node.logo.url) if standalone_node and standalone_node.logo else None,
-                'form_configuration': standalone_node.form_configuration if standalone_node else {},
-                'tags': standalone_node.tags if standalone_node else [],
-                'node_group': {
-                    'id': str(standalone_node.node_group.id) if standalone_node and standalone_node.node_group else None,
-                    'name': standalone_node.node_group.name if standalone_node and standalone_node.node_group else None,
-                    'description': standalone_node.node_group.description if standalone_node and standalone_node.node_group else None,
-                    'icon': request.build_absolute_uri(standalone_node.node_group.icon.url) if standalone_node and standalone_node.node_group and standalone_node.node_group.icon else None,
-                    'is_active': standalone_node.node_group.is_active if standalone_node and standalone_node.node_group else None,
-                    'created_at': standalone_node.node_group.created_at.isoformat() if standalone_node and standalone_node.node_group else None,
-                    'updated_at': standalone_node.node_group.updated_at.isoformat() if standalone_node and standalone_node.node_group else None,
-                } if standalone_node and standalone_node.node_group else None,
-                'version': standalone_node.version if standalone_node else None,
-                'is_active': standalone_node.is_active if standalone_node else None,
-                'created_by': standalone_node.created_by if standalone_node else None,
-                'created_at': standalone_node.created_at.isoformat() if standalone_node else None,
-                'updated_at': standalone_node.updated_at.isoformat() if standalone_node else None,
-            } if standalone_node else None
-        }, status=status.HTTP_201_CREATED)
+        if serializer.is_valid():
+            node = serializer.save()
+            # Return using CanvasNodeSerializer for consistent format
+            canvas_serializer = CanvasNodeSerializer(node, context={'request': request})
+            return Response(canvas_serializer.data, status=status.HTTP_201_CREATED)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=["post"])
     def add_connection(self, request, pk=None):
@@ -255,8 +163,8 @@ class WorkFlowViewSet(ModelViewSet):
         
         try:
             node = Node.objects.get(id=node_id, workflow=workflow)
-            node.position_x = position.get('x', node.position_x)
-            node.position_y = position.get('y', node.position_y)
+            node.x = position.get('x', node.x)
+            node.y = position.get('y', node.y)
             node.save()
             return Response(NodeSerializer(node).data)
         except Node.DoesNotExist:
