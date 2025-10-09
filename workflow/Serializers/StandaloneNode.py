@@ -47,7 +47,16 @@ class StandaloneNodeUpdateSerializer(ModelSerializer):
             'name', 'type', 'node_group', 'description', 'version',
             'is_active', 'created_by', 'form_configuration', 'tags', 'logo'
         ]
-    
+        
+    def update(self, instance, validated_data):
+        # Print raw request data (before saving)
+        print("\n=== PUT Request Data (validated_data) ===")
+        print(validated_data)
+        print("========================================\n")
+
+        # Proceed with normal update
+        return super().update(instance, validated_data)
+
     def to_representation(self, instance):
         # Return the full format after update
         return StandaloneNodeSerializer(instance).data

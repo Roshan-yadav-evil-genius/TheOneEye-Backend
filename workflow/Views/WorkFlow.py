@@ -227,14 +227,9 @@ class WorkFlowViewSet(ModelViewSet):
             )
         
         # Start the Celery task
-        # task = execute_single_node.delay(str(workflow.id), str(node_id))
+        task = execute_single_node.delay(str(workflow.id), str(node_id))
         print("Executing Node", str(node_id))
         
-        return Response({
-            "task_id": "task.id", 
-            "status": "task.status",
-            "message": "Started execution of node {node.node_type.name if node.node_type else 'Unknown'}"
-        })
         return Response({
             "task_id": task.id, 
             "status": task.status,
