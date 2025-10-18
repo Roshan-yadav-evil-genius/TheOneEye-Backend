@@ -9,7 +9,7 @@ from workflow.Serializers.Connection import ConnectionSerializer
 from workflow.Serializers.Canvas import CanvasDataSerializer, AvailableNodeTemplateSerializer, CanvasNodeSerializer
 from rest_framework.decorators import action
 from celery.result import AsyncResult
-from workflow.tasks import execute_workflow,stop_workflow,execute_single_node
+from workflow.tasks import execute_workflow,stop_workflow,execute_single_node,execute_single_node_incremental,stop_dev_container
 from django.db import transaction
 from django.core.serializers.json import DjangoJSONEncoder
 import json
@@ -230,12 +230,27 @@ class WorkFlowViewSet(ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        # Start the Celery task
-        task = execute_single_node.delay(str(workflow.id), str(node_id))
+        # Start the incremental Celery task
+        task = execute_single_node_incremental.delay(str(workflow.id), str(node_id))
         print("Executing Node", str(node_id))
         
         return Response({
             "task_id": task.id, 
             "status": task.status,
-            "message": f"Started execution of node {node.node_type.name if node.node_type else 'Unknown'}"
+            "message": f"Started incremental execution of node {node.node_type.name if node.node_type else 'Unknown'}"
+        })
+
+    @action(detail=True, methods=["post"])
+    def stop_dev_mode(self, request, pk=None):
+        """Stop the persistent dev container for this workflow"""
+        workflow = self.get_object()
+        
+        # Start the Celery task to stop dev container
+        task = stop_dev_container.delay(str(workflow.id))
+        print("Stopping dev container for workflow", str(workflow.id))
+        
+        return Response({
+            "task_id": task.id,
+            "status": task.status,
+            "message": f"Stopping dev container for workflow {workflow.name}"
         })
