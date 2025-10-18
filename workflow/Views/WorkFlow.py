@@ -11,6 +11,8 @@ from rest_framework.decorators import action
 from celery.result import AsyncResult
 from workflow.tasks import execute_workflow,stop_workflow,execute_single_node
 from django.db import transaction
+from django.core.serializers.json import DjangoJSONEncoder
+import json
 
 
 class WorkFlowViewSet(ModelViewSet):
@@ -21,6 +23,8 @@ class WorkFlowViewSet(ModelViewSet):
     def start_execution(self, request, pk=None):
         workFlowObject: WorkFlow = self.get_object()
         workFlowConfig = RawWorkFlawSerializer(workFlowObject)
+        with open("workFlowConfig.json","w") as file:
+            json.dump(workFlowConfig.data, file, cls=DjangoJSONEncoder)
         task:AsyncResult = execute_workflow.delay(workFlowConfig.data)
         print(f"Task: {task}, id:{task.id}")
         workFlowObject.task_id = task.id
