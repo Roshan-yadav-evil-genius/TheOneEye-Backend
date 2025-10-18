@@ -121,3 +121,4 @@ class DependencyService:
 
 # Global instance for backward compatibility
 dependency_service = DependencyService()
+

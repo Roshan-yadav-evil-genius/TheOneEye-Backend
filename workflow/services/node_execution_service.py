@@ -156,3 +156,4 @@ class NodeExecutionService:
 
 # Global instance for backward compatibility
 node_execution_service = NodeExecutionService()
+

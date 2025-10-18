@@ -220,3 +220,4 @@ class DockerService:
 
 # Global instance for backward compatibility
 docker_service = DockerService()
+

@@ -78,3 +78,4 @@ def stop_workflow(self, workflow_id: str):
     except Exception as e:
         print(f"[-] Error stopping workflow {workflow_id}: {str(e)}")
         return {"status": "error", "error": str(e)}
+

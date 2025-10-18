@@ -254,3 +254,56 @@ class WorkFlowViewSet(ModelViewSet):
             "status": task.status,
             "message": f"Stopping dev container for workflow {workflow.name}"
         })
+
+    @action(detail=True, methods=["get"])
+    def dev_container_status(self, request, pk=None):
+        """Get the status of the dev container for this workflow"""
+        workflow = self.get_object()
+        
+        try:
+            from workflow.services.docker_service import docker_service
+            
+            dev_container_name = f"{workflow.id}-dev"
+            container_exists = docker_service.container_exists(dev_container_name)
+            
+            if container_exists:
+                container = docker_service.get_container(dev_container_name)
+                container.reload()
+                
+                # Calculate uptime if container is running
+                uptime = None
+                if container.status == 'running':
+                    import time
+                    from datetime import datetime
+                    try:
+                        # Parse the StartedAt timestamp (ISO format string)
+                        started_at_str = container.attrs['State']['StartedAt']
+                        started_at = datetime.fromisoformat(started_at_str.replace('Z', '+00:00'))
+                        current_time = datetime.now(started_at.tzinfo)
+                        uptime = int((current_time - started_at).total_seconds())
+                    except (ValueError, KeyError, TypeError) as e:
+                        # If we can't parse the timestamp, just set uptime to None
+                        uptime = None
+                
+                return Response({
+                    "exists": True,
+                    "status": container.status,
+                    "uptime": uptime,
+                    "container_name": dev_container_name
+                })
+            else:
+                return Response({
+                    "exists": False,
+                    "status": "stopped",
+                    "uptime": None,
+                    "container_name": dev_container_name
+                })
+                
+        except Exception as e:
+            return Response({
+                "exists": False,
+                "status": "error",
+                "uptime": None,
+                "error": str(e),
+                "container_name": f"{workflow.id}-dev"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

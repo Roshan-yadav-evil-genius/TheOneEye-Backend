@@ -71,3 +71,4 @@ class WorkflowConfigService:
 
 # Global instance for backward compatibility
 workflow_config_service = WorkflowConfigService()
+
