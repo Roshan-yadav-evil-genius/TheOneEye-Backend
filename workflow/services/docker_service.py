@@ -175,7 +175,7 @@ class DockerService:
             print(f"[-] Error getting container port: {e}")
             return None
     
-    def send_command_to_container(self, container_name: str, endpoint: str, data: Dict[str, Any], timeout: int = 30) -> Optional[Dict[str, Any]]:
+    def send_command_to_container(self, container_name: str, endpoint: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Send HTTP request to container's command server."""
         try:
             port = self.get_container_port(container_name)
@@ -185,8 +185,7 @@ class DockerService:
             server_url = f"http://localhost:{port}"
             response = requests.post(
                 f"{server_url}{endpoint}",
-                json=data,
-                timeout=timeout
+                json=data
             )
             
             if response.status_code == 200:

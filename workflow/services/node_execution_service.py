@@ -70,10 +70,19 @@ class NodeExecutionService:
         try:
             # Get input payload from dependencies
             input_payload = self.dependency_service.get_node_input_payload(node_id)
-            print(f"[+] Input payload for node {node_id}: {input_payload}")
+            
+            # Get node configuration (form_values)
+            node = Node.objects.get(id=node_id)
+            config = node.form_values or {}
+            
+            # Combine input payload and config into a single payload
+            combined_payload = {
+                "input": input_payload,
+                "config": config
+            }
             
             # Execute the node in the container
-            result = self.execute_node_in_container(workflow_id, node_id, input_payload)
+            result = self.execute_node_in_container(workflow_id, node_id, combined_payload)
             
             if result and result.get("status") == "success":
                 node_output = result.get("result", {})
