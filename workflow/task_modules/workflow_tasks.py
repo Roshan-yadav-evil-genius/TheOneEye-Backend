@@ -9,6 +9,7 @@ from celery.result import AsyncResult
 from ..models import WorkFlow
 from ..services.docker_service import docker_service
 from ..services.workflow_config_service import workflow_config_service
+from ..services.resource_monitor_service import resource_monitor_service
 
 
 @shared_task(bind=True)
@@ -37,6 +38,11 @@ def execute_workflow(self, workflow_config: dict):
         container = docker_service.create_workflow_container(workflow_id, workflow_config)
         if container:
             print(f"[+] Workflow container {workflow_id} created successfully")
+            
+            # Start resource monitoring directly (not as separate task)
+            print(f"[+] Starting resource monitoring for workflow {workflow_id}")
+            resource_monitor_service.monitor_container_stats(workflow_id)
+            print(f"[+] Resource monitoring completed for workflow {workflow_id}")
         else:
             print(f"[-] Failed to create workflow container {workflow_id}")
     except Exception as e:

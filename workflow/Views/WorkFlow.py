@@ -2,11 +2,13 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework import status
 from workflow.Serializers.WorkFlow import RawWorkFlawSerializer
-from workflow.models import WorkFlow, Node, Connection, StandaloneNode
+from workflow.models import WorkFlow, Node, Connection, StandaloneNode, ContainerStats
 from workflow.Serializers import WorkFlowSerializer
 from workflow.Serializers.Node import NodeSerializer, NodeCreateSerializer
 from workflow.Serializers.Connection import ConnectionSerializer
 from workflow.Serializers.Canvas import CanvasDataSerializer, AvailableNodeTemplateSerializer, CanvasNodeSerializer
+from workflow.Serializers.ContainerStats import ContainerStatsListSerializer
+from workflow.services.resource_monitor_service import resource_monitor_service
 from rest_framework.decorators import action
 from celery.result import AsyncResult
 from workflow.tasks import execute_workflow,stop_workflow,execute_single_node,execute_single_node_incremental,stop_dev_container
@@ -307,3 +309,40 @@ class WorkFlowViewSet(ModelViewSet):
                 "error": str(e),
                 "container_name": f"{workflow.id}-dev"
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=["get"])
+    def resource_stats(self, request, pk=None):
+        """Get container resource statistics for a workflow"""
+        workflow = self.get_object()
+        
+        # Get time range from query params
+        time_range = request.query_params.get('range', '24h')
+        
+        # Validate time range
+        valid_ranges = ['1h', '24h', '7d', '30d']
+        if time_range not in valid_ranges:
+            return Response(
+                {'error': f'Invalid time range. Must be one of: {", ".join(valid_ranges)}'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Get stats from the service
+            stats_data = resource_monitor_service.get_workflow_stats(str(workflow.id), time_range)
+            
+            # Serialize the data
+            serializer = ContainerStatsListSerializer(stats_data, many=True)
+            
+            return Response({
+                'workflow_id': str(workflow.id),
+                'workflow_name': workflow.name,
+                'time_range': time_range,
+                'stats_count': len(stats_data),
+                'stats': serializer.data
+            })
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Error retrieving resource stats: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
