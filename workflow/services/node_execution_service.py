@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional
 from ..models import Node
 from .docker_service import docker_service
 from .dependency_service import dependency_service
-
+from rich import print
 
 class NodeExecutionService:
     """Service for orchestrating node execution."""
@@ -77,9 +77,10 @@ class NodeExecutionService:
             
             # Combine input payload and config into a single payload
             combined_payload = {
-                "input": input_payload,
+                "inputs": input_payload,
                 "config": config
             }
+            print(f"[+] Combined payload: {combined_payload}")
             
             # Execute the node in the container
             result = self.execute_node_in_container(workflow_id, node_id, combined_payload)

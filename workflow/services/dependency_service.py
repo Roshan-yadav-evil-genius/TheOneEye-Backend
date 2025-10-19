@@ -44,6 +44,7 @@ class DependencyService:
     def get_node_input_payload(node_id: str) -> Dict[str, Any]:
         """
         Get input payload for a node by collecting outputs from its dependency nodes.
+        Returns a dictionary keyed by source node ID to preserve all outputs.
         """
         try:
             node = Node.objects.get(id=node_id)
@@ -51,25 +52,15 @@ class DependencyService:
             
             payload = {}
             for conn in incoming_connections:
+                source_node_id = str(conn.source_node.id)
                 source_output = conn.source_node.output or {}
-                # Merge outputs, with later sources overriding earlier ones if keys conflict
-                payload.update(source_output)
+                # Keep outputs separated by source node ID to avoid data loss
+                payload[source_node_id] = source_output
             
             return payload
         except Node.DoesNotExist:
             return {}
     
-    @staticmethod
-    def merge_dependency_outputs(dependencies: List[Node]) -> Dict[str, Any]:
-        """
-        Merge outputs from multiple dependency nodes into a single payload.
-        Later dependencies override earlier ones if keys conflict.
-        """
-        payload = {}
-        for dep in dependencies:
-            dep_output = dep.output or {}
-            payload.update(dep_output)
-        return payload
     
     @staticmethod
     def get_dependency_tree_info(node: Node) -> Dict[str, Any]:
