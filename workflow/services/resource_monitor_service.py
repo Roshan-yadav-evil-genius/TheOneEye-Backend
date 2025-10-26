@@ -158,8 +158,12 @@ class ResourceMonitorService:
                             **parsed_stats
                         )
                         
-                        logger.debug(f"Recorded stats for {workflow_id}: CPU {parsed_stats['cpu_percent']}%, "
-                                   f"Memory {parsed_stats['memory_percent']}%")
+                        logger.info(f"Recorded stats for {workflow_id}: CPU {parsed_stats['cpu_percent']}%, "
+                                   f"Memory {parsed_stats['memory_percent']}%, "
+                                   f"Network In {parsed_stats['network_in_kb']}KB, "
+                                   f"Network Out {parsed_stats['network_out_kb']}KB, "
+                                   f"Disk Read {parsed_stats['disk_read_mb']}MB, "
+                                   f"Disk Write {parsed_stats['disk_write_mb']}MB")
                     
                 except Exception as e:
                     logger.error(f"Error processing stats for {workflow_id}: {e}")

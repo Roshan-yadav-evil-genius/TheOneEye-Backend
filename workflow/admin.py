@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import WorkFlow, Node, Connection, NodeFile, StandaloneNode, NodeGroup
+from .models import WorkFlow, Node, Connection, NodeFile, StandaloneNode, NodeGroup, BrowserSession, DemoRequest
 
 
 @admin.register(WorkFlow)
@@ -58,3 +58,23 @@ class NodeFileAdmin(admin.ModelAdmin):
     readonly_fields = ['id', 'created_at', 'updated_at']
     fields = ['id', 'node', 'key', 'file', 'created_at', 'updated_at']
     raw_id_fields = ['node']
+
+
+@admin.register(BrowserSession)
+class BrowserSessionAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name', 'browser_type', 'status', 'created_by', 'created_at', 'updated_at']
+    list_filter = ['browser_type', 'status', 'created_at', 'updated_at']
+    search_fields = ['name', 'description', 'created_by']
+    readonly_fields = ['id', 'created_at', 'updated_at']
+    fields = ['id', 'name', 'description', 'browser_type', 'playwright_config', 'status', 'created_by', 'tags', 'created_at', 'updated_at']
+    ordering = ['-created_at']
+
+
+@admin.register(DemoRequest)
+class DemoRequestAdmin(admin.ModelAdmin):
+    list_display = ['id', 'full_name', 'company_name', 'work_email', 'status', 'created_at']
+    list_filter = ['status', 'created_at', 'updated_at']
+    search_fields = ['full_name', 'company_name', 'work_email', 'automation_needs']
+    readonly_fields = ['id', 'created_at', 'updated_at']
+    fields = ['id', 'full_name', 'company_name', 'work_email', 'automation_needs', 'status', 'notes', 'created_at', 'updated_at']
+    ordering = ['-created_at']
