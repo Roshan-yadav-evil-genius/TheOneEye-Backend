@@ -9,19 +9,27 @@ from .serializers import UserSerializer, RegisterSerializer
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register(request):
-    serializer = RegisterSerializer(data=request.data)
-    if serializer.is_valid():
-        user = serializer.save()
-        refresh = RefreshToken.for_user(user)
-        user_data = UserSerializer(user).data
-        
-        return Response({
-            'user': user_data,
-            'access': str(refresh.access_token),
-            'refresh': str(refresh),
-        }, status=status.HTTP_201_CREATED)
+    # TEMPORARILY DISABLED: New signups are currently disabled
+    # TODO: Re-enable by removing this block when ready to accept new users
+    return Response(
+        {'error': 'New user registration is temporarily disabled. Please contact support if you need access.'}, 
+        status=status.HTTP_503_SERVICE_UNAVAILABLE
+    )
     
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    # Original registration code (commented out for easy re-enabling)
+    # serializer = RegisterSerializer(data=request.data)
+    # if serializer.is_valid():
+    #     user = serializer.save()
+    #     refresh = RefreshToken.for_user(user)
+    #     user_data = UserSerializer(user).data
+    #     
+    #     return Response({
+    #         'user': user_data,
+    #         'access': str(refresh.access_token),
+    #         'refresh': str(refresh),
+    #     }, status=status.HTTP_201_CREATED)
+    # 
+    # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
