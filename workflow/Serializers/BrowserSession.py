@@ -47,3 +47,4 @@ class BrowserSessionUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Description is required")
         return value.strip()
 
+

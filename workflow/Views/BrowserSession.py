@@ -32,3 +32,4 @@ class BrowserSessionViewSet(ModelViewSet):
             'playwright_config': session.playwright_config
         })
 
+
