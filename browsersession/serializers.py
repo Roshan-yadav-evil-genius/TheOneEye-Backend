@@ -6,7 +6,7 @@ class BrowserSessionSerializer(serializers.ModelSerializer):
         model = BrowserSession
         fields = [
             'id', 'name', 'description', 'browser_type', 
-            'playwright_config', 'status', 'created_by', 'tags', 
+            'playwright_config', 'status', 'created_by', 
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -16,7 +16,7 @@ class BrowserSessionCreateSerializer(serializers.ModelSerializer):
         model = BrowserSession
         fields = [
             'name', 'description', 'browser_type', 
-            'playwright_config', 'status', 'created_by', 'tags'
+            'playwright_config', 'status', 'created_by'
         ]
     
     def validate_name(self, value):
@@ -34,7 +34,7 @@ class BrowserSessionUpdateSerializer(serializers.ModelSerializer):
         model = BrowserSession
         fields = [
             'id', 'name', 'description', 'browser_type', 
-            'playwright_config', 'status', 'created_by', 'tags',
+            'playwright_config', 'status', 'created_by',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']

@@ -25,7 +25,6 @@ class BrowserSession(BaseModel):
     
     # Session metadata
     created_by = CharField(max_length=100, blank=True, null=True)
-    tags = JSONField(default=list)
     
     def __str__(self):
         return f"{self.name}({self.id})"
