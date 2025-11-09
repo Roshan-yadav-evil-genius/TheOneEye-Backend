@@ -9,4 +9,5 @@ urlpatterns = [
     path("api/",include("workflow.urls")),
     path("api/auth/", include("authentication.urls")),
     path("api/contact/", include("contact.urls")),
+    
 ]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
