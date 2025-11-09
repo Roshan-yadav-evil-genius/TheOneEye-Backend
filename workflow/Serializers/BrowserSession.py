@@ -33,9 +33,11 @@ class BrowserSessionUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = BrowserSession
         fields = [
-            'name', 'description', 'browser_type', 
-            'playwright_config', 'status', 'tags'
+            'id', 'name', 'description', 'browser_type', 
+            'playwright_config', 'status', 'created_by', 'tags',
+            'created_at', 'updated_at'
         ]
+        read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']
     
     def validate_name(self, value):
         if not value or not value.strip():
