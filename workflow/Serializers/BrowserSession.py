@@ -48,3 +48,5 @@ class BrowserSessionUpdateSerializer(serializers.ModelSerializer):
         return value.strip()
 
 
+
+
