@@ -2,14 +2,12 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from rest_framework_nested.routers import NestedDefaultRouter
 from workflow.Views import ConnectionViewSet, NodeViewSet, WorkFlowViewSet, NodeFileViewSet, StandaloneNodeViewSet, NodeGroupViewSet, DemoRequestViewSet
-from workflow.Views.BrowserSession import BrowserSessionViewSet
 from workflow.Views.CeleryTaskView import CeleryTaskStatusView
 
 router = DefaultRouter()
 router.register("workflow", WorkFlowViewSet, basename="workflow")
 router.register("node-groups", NodeGroupViewSet, basename="node-groups")
 router.register("nodes", StandaloneNodeViewSet, basename="standalone-nodes")
-router.register("browser-sessions", BrowserSessionViewSet, basename="browser-sessions")
 router.register("demo-requests", DemoRequestViewSet, basename="demo-requests")
 
 workflow_router = NestedDefaultRouter(router, "workflow", lookup='workflow')

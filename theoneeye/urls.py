@@ -7,6 +7,7 @@ from theoneeye import settings
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/",include("workflow.urls")),
+    path("api/", include("browsersession.urls")),
     path("api/auth/", include("authentication.urls")),
     path("api/contact/", include("contact.urls")),
     

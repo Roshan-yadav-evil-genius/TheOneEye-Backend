@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from workflow.models import BrowserSession
+from browsersession.models import BrowserSession
 
 class BrowserSessionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -48,7 +48,4 @@ class BrowserSessionUpdateSerializer(serializers.ModelSerializer):
         if not value or not value.strip():
             raise serializers.ValidationError("Description is required")
         return value.strip()
-
-
-
 
