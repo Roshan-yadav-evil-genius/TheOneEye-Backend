@@ -140,17 +140,7 @@ class BrowserManager:
         
         # For persistent context, a page is automatically created
         # For regular context, we need to create a new page
-        if session_id:
-            # Persistent context already has a page
-            pages = self.context.pages
-            if pages:
-                self.page = pages[0]
-            else:
-                # Fallback: create a new page if none exists
-                self.page = await self.context.new_page()
-        else:
-            # Create a new page (viewport is inherited from context)
-            self.page = await self.context.new_page()
+        self.page = await self.context.new_page()
         
         # Navigate to URL - don't wait for full page load, start streaming immediately
         # Using 'commit' means we return as soon as navigation is committed
