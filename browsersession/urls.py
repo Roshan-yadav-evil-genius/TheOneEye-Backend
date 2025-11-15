@@ -7,3 +7,5 @@ router.register("browser-sessions", BrowserSessionViewSet, basename="browser-ses
 
 urlpatterns = router.urls
 
+
+
