@@ -94,9 +94,14 @@ class KeyboardController:
             
             if effective_modifiers:
                 # For modifiers, use the format Playwright expects: "Shift+a" for Shift+A
-                # Use lowercase physical key with modifiers
+                # If Shift is pressed and key is a letter, ensure uppercase; otherwise use lowercase for physical key
                 mod_list = sorted(effective_modifiers)
-                physical = press_key.lower() if press_key.isalpha() else press_key
+                if 'Shift' in effective_modifiers and press_key.isalpha():
+                    # When Shift is pressed, use uppercase key (Playwright accepts both Shift+a and Shift+A)
+                    physical = press_key.upper()
+                else:
+                    # For other modifiers or no Shift, use lowercase physical key
+                    physical = press_key.lower() if press_key.isalpha() else press_key
                 mod_str = '+'.join(mod_list)
                 await self.page.keyboard.press(f"{mod_str}+{physical}")
             else:
