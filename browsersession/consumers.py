@@ -185,14 +185,6 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
             self.browser_manager.page_added_callback = page_added_callback
             self.browser_manager.page_removed_callback = page_removed_callback
             
-            # Launch browser - use first testing URL if testing mode, otherwise use HOMEPAGE_URL
-            launch_url = StreamConfig.TESTING_URLS[0] if StreamConfig.TESTING else StreamConfig.HOMEPAGE_URL
-            await self.browser_manager.launch(
-                url=launch_url,
-                headless=StreamConfig.HEADLESS,
-                session_id=session_id
-            )
-            
             # Open all remaining testing URLs in new tabs (only if testing mode is enabled)
             if StreamConfig.TESTING:
                 for url in StreamConfig.TESTING_URLS[1:]:
@@ -200,6 +192,12 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
                         new_page = await self.browser_manager.context.new_page()
                         await new_page.goto(url, wait_until='commit')
                         # Page will be automatically registered via context.on('page') listener
+            else:
+                await self.browser_manager.launch(
+                    url=StreamConfig.BROWSER_URL,
+                    headless=StreamConfig.HEADLESS,
+                    session_id=session_id
+                )
             
             # Send initial page list sync after browser launch if same 
             # browser was streamed from multiple clients then if user join 
