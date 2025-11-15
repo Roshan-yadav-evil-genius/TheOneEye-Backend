@@ -1,5 +1,6 @@
 """Browser management for Playwright browser instances."""
 import uuid
+from pathlib import Path
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 from typing import Optional, Callable
 
@@ -64,13 +65,14 @@ class BrowserManager:
         page.on('close', on_close)
         return page_id
     
-    async def launch(self, url: str, headless: bool = False) -> Page:
+    async def launch(self, url: str, headless: bool = False, session_id: Optional[str] = None) -> Page:
         """
         Launch browser and navigate to URL.
         
         Args:
             url: URL to navigate to
             headless: Whether to run browser in headless mode
+            session_id: Optional session ID to use for persistent browser context storage
             
         Returns:
             Page instance
@@ -83,35 +85,72 @@ class BrowserManager:
         # Browser launch arguments to disable background throttling
         # These prevent the browser from throttling when in background
         browser_args = [
+            "--disable-blink-features=AutomationControlled", # Googel Detection Bypass
             "--disable-renderer-backgrounding",
             "--disable-background-timer-throttling",
             "--disable-backgrounding-occluded-windows",
             "--disable-features=CalculateNativeWinOcclusion",
         ]
         
-        self.browser = await self.playwright.chromium.launch(
-            headless=headless,
-            args=browser_args
-        )
+        # Prepare context options
+        context_options = {
+            'viewport': {
+                'width': self.viewport_width,
+                'height': self.viewport_height
+            },
+            'user_agent': "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.3",
+            'permissions': ["geolocation"],
+            'locale': "en-US",
+            'timezone_id': "Asia/Kolkata",
+            'geolocation': {"latitude": 28.6139, "longitude": 77.2090},  # example: New Delhi
+        }
         
-        # Create browser context with viewport matching canvas dimensions
-        self.context = await self.browser.new_context(viewport={
-            'width': self.viewport_width,
-            'height': self.viewport_height
-        },
-            user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.3",
-            permissions=["geolocation"],
-            locale="en-US",
-            timezone_id="Asia/Kolkata",
-            geolocation={"latitude": 28.6139, "longitude": 77.2090},  # example: New Delhi
-        )
+        # If session_id is provided, use persistent context
+        if session_id:
+            # Create directory for persistent browser data
+            base_dir = Path("browser_sessions")
+            base_dir.mkdir(exist_ok=True)
+            
+            user_data_dir = base_dir / session_id
+            user_data_dir.mkdir(exist_ok=True)
+            
+            # Create persistent browser context
+            self.context = await self.playwright.chromium.launch_persistent_context(
+                user_data_dir=str(user_data_dir),
+                headless=headless,
+                args=browser_args,
+                **context_options
+            )
+            
+            # Get the browser instance from persistent context
+            self.browser = self.context.browser
+        else:
+            # Launch browser normally (non-persistent)
+            self.browser = await self.playwright.chromium.launch(
+                headless=headless,
+                args=browser_args
+            )
+            
+            # Create browser context with viewport matching canvas dimensions
+            self.context = await self.browser.new_context(**context_options)
 
         # Set up context event listener BEFORE creating pages
         # This will catch all pages including the initial one
         self.context.on('page', lambda page: self._register_page(page))
         
-        # Create a new page (viewport is inherited from context)
-        self.page = await self.context.new_page()
+        # For persistent context, a page is automatically created
+        # For regular context, we need to create a new page
+        if session_id:
+            # Persistent context already has a page
+            pages = self.context.pages
+            if pages:
+                self.page = pages[0]
+            else:
+                # Fallback: create a new page if none exists
+                self.page = await self.context.new_page()
+        else:
+            # Create a new page (viewport is inherited from context)
+            self.page = await self.context.new_page()
         
         # Navigate to URL - don't wait for full page load, start streaming immediately
         # Using 'commit' means we return as soon as navigation is committed

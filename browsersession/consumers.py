@@ -95,7 +95,8 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
             
             # Handle 'start' message - needs consumer state check
             if message_type == 'start' and not self.streaming:
-                self.streaming_task = asyncio.create_task(self.start_streaming())
+                session_id = data.get('session_id')
+                self.streaming_task = asyncio.create_task(self.start_streaming(session_id))
                 return
             
             # Handle page management messages - need manager checks
@@ -141,8 +142,12 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
             await self.message_sender.send_error(f'Error processing message: {str(e)}')
 
 
-    async def start_streaming(self):
-        """Start browser and begin streaming screenshots."""
+    async def start_streaming(self, session_id: str = None):
+        """Start browser and begin streaming screenshots.
+        
+        Args:
+            session_id: Optional session ID to use for persistent browser context storage
+        """
         if self.streaming:
             return
         
@@ -184,7 +189,8 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
             launch_url = StreamConfig.TESTING_URLS[0] if StreamConfig.TESTING else StreamConfig.BROWSER_URL
             await self.browser_manager.launch(
                 url=launch_url,
-                headless=StreamConfig.HEADLESS
+                headless=StreamConfig.HEADLESS,
+                session_id=session_id
             )
             
             # Open all remaining testing URLs in new tabs (only if testing mode is enabled)
