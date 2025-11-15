@@ -185,8 +185,8 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
             self.browser_manager.page_added_callback = page_added_callback
             self.browser_manager.page_removed_callback = page_removed_callback
             
-            # Launch browser - use first testing URL if testing mode, otherwise use BROWSER_URL
-            launch_url = StreamConfig.TESTING_URLS[0] if StreamConfig.TESTING else StreamConfig.BROWSER_URL
+            # Launch browser - use first testing URL if testing mode, otherwise use HOMEPAGE_URL
+            launch_url = StreamConfig.TESTING_URLS[0] if StreamConfig.TESTING else StreamConfig.HOMEPAGE_URL
             await self.browser_manager.launch(
                 url=launch_url,
                 headless=StreamConfig.HEADLESS,

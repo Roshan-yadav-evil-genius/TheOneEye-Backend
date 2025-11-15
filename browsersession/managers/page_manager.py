@@ -1,6 +1,8 @@
 """Page management operations."""
 from typing import Optional
 from playwright.async_api import Page
+
+from backend.browsersession.config import StreamConfig
 from .base_manager import BaseManager
 from .browser_manager import BrowserManager
 from .interaction_manager import InteractionManager
@@ -77,14 +79,14 @@ class PageManager(BaseManager):
             # This will trigger the page_added_callback which will auto-switch to it
             new_page = await self.browser_manager.context.new_page()
             
-            # Navigate to duckduckgo.com
-            await new_page.goto('https://duckduckgo.com/', wait_until='commit')
+            # Navigate to homepage URL
+            await new_page.goto(StreamConfig.HOMEPAGE_URL, wait_until='commit')
         
         await self._execute_with_error_handling(
             operation_name='create_new_tab',
             operation_func=_create_tab_operation,
             error_message_template='Error creating new tab: {error}',
-            success_message="[+] Created new tab and navigated to duckduckgo.com"
+            success_message=f"[+] Created new tab and navigated to {StreamConfig.HOMEPAGE_URL}"
         )
     
     async def close_tab(self, page_id: str) -> None:
