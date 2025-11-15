@@ -2,7 +2,8 @@
 from typing import Optional
 from playwright.async_api import Page
 
-from backend.browsersession.config import StreamConfig
+from browsersession.config import StreamConfig
+
 from .base_manager import BaseManager
 from .browser_manager import BrowserManager
 from .interaction_manager import InteractionManager
