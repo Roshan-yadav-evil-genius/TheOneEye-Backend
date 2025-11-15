@@ -81,8 +81,11 @@ class KeyMapper:
         
         # Handle single character keys (letters, numbers, symbols)
         if len(key) == 1:
-            # Playwright expects lowercase for letters, but Shift is handled separately
-            return key.lower() if key.isalpha() else key
+            # Preserve case - Playwright's keyboard.press() handles case automatically
+            # For keyboard.down/up, we use the physical key (lowercase) and handle Shift via modifiers
+            # But since modifiers are handled separately, we return the key as-is
+            # The keyboard controller will use the correct method based on whether modifiers are present
+            return key
         
         # Handle code-based mapping for special cases
         if code and code in cls._CODE_MAP:
