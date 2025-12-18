@@ -1,4 +1,4 @@
-from django.db.models import BooleanField, ImageField, Model, JSONField, UUIDField, CharField, TextField, DateTimeField, FloatField, ForeignKey, CASCADE, CheckConstraint, Q, F, FileField, Index
+from django.db.models import Model, JSONField, UUIDField, CharField, TextField, DateTimeField, FloatField, ForeignKey, CASCADE, FileField, Index
 from django.core.exceptions import ValidationError
 import uuid
 import os
@@ -40,16 +40,16 @@ class WorkFlow(BaseModel):
 class Node(BaseModel):
     """Model to represent individual nodes in a workflow"""
     workflow = ForeignKey(WorkFlow, on_delete=CASCADE, related_name='nodes')
-    node_type = ForeignKey("StandaloneNode", on_delete=CASCADE, related_name='workflow_nodes', null=True, blank=True)
+    node_type = CharField(max_length=255)
 
     x = FloatField(default=0)
     y = FloatField(default=0)
 
     form_values = JSONField(default=dict,blank=True)  # Store node-specific data node.form_configuration values
-    output = JSONField(default=dict,blank=True)  # Store node execution results
+    config = JSONField(default=dict,blank=True)  # Store node execution results
 
     def __str__(self):
-        node_name = self.node_type.name if self.node_type else f'Node {str(self.id)[:8]}'
+        node_name = self.node_type if self.node_type else f'Node {str(self.id)[:8]}'
         return f"{node_name}({self.id})"
 
 class Connection(BaseModel):
@@ -65,46 +65,7 @@ class Connection(BaseModel):
 
 def node_file_upload_path(instance, filename):
     """Generate upload path for node files"""
-    return f"node_files/{instance.node_type.id}/{instance.key}/{filename}"
-
-
-class NodeGroup(BaseModel):
-    """Model to represent node groups with icons for better organization"""
-    name = CharField(max_length=100)
-    description = TextField(blank=True, null=True)
-    icon = ImageField(upload_to="node_group_icons", blank=True, null=True)
-    is_active = BooleanField(default=True)
-
-    def __str__(self):
-        return self.name
-
-    class Meta:
-        ordering = ["name"]
-
-
-class StandaloneNode(BaseModel):
-    """Model to represent standalone nodes for frontend compatibility"""
-    name = CharField(max_length=100)
-    type = CharField(max_length=20, choices=[
-        ('trigger', 'Trigger'),
-        ('action', 'Action'),
-        ('logic', 'Logic'),
-        ('system', 'System'),
-    ])
-    node_group = ForeignKey(NodeGroup, on_delete=CASCADE, related_name='nodes')
-    description = TextField(blank=True, null=True)
-    version = CharField(max_length=20, default="1.0.0")
-    is_active = BooleanField(default=True)
-    created_by = CharField(max_length=100, blank=True, null=True)
-    form_configuration = JSONField(default=dict)
-    tags = JSONField(default=list)
-    logo = ImageField(upload_to="node_logos", blank=True, null=True)
-
-    def __str__(self):
-        return f"{self.name}({self.id})"
-
-    class Meta:
-        ordering = ["-created_at"]
+    return f"node_files/{instance.node.id}/{instance.key}/{filename}"
 
 
 class NodeFile(BaseModel):

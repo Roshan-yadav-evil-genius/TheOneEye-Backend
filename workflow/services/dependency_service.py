@@ -53,7 +53,7 @@ class DependencyService:
             payload = {}
             for conn in incoming_connections:
                 source_node_id = str(conn.source_node.id)
-                source_output = conn.source_node.output or {}
+                source_output = conn.source_node.config or {}
                 # Keep outputs separated by source node ID to avoid data loss
                 payload[source_node_id] = source_output
             
@@ -71,7 +71,7 @@ class DependencyService:
         
         tree_info = {
             "node_id": str(node.id),
-            "node_name": node.node_type.name if node.node_type else "Unknown",
+            "node_type": node.node_type or "Unknown",
             "dependency_count": len(dependencies),
             "dependencies": []
         }
@@ -80,8 +80,8 @@ class DependencyService:
             dep_info = {
                 "order": i,
                 "id": str(dep.id),
-                "name": dep.node_type.name if dep.node_type else f"Node {str(dep.id)[:8]}",
-                "has_output": bool(dep.output)
+                "node_type": dep.node_type or f"Node {str(dep.id)[:8]}",
+                "has_output": bool(dep.config)
             }
             tree_info["dependencies"].append(dep_info)
         
@@ -97,10 +97,10 @@ class DependencyService:
         missing_outputs = []
         
         for dep in dependencies:
-            if not dep.output:
+            if not dep.config:
                 missing_outputs.append({
                     "id": str(dep.id),
-                    "name": dep.node_type.name if dep.node_type else "Unknown"
+                    "node_type": dep.node_type or "Unknown"
                 })
         
         return {
@@ -112,4 +112,3 @@ class DependencyService:
 
 # Global instance for backward compatibility
 dependency_service = DependencyService()
-

@@ -2,8 +2,7 @@ from rest_framework.serializers import ModelSerializer, SerializerMethodField
 from .Node import NodeSerializer
 from .Connection import ConnectionSerializer
 from .WorkFlow import WorkFlowSerializer
-from .StandaloneNode import StandaloneNodeSerializer
-from workflow.models import WorkFlow, StandaloneNode
+from workflow.models import WorkFlow
 
 
 class CanvasNodeSerializer(NodeSerializer):
@@ -50,22 +49,3 @@ class CanvasDataSerializer(ModelSerializer):
             'description': obj.description,
             'status': obj.status,
         }
-
-
-class AvailableNodeTemplateSerializer(StandaloneNodeSerializer):
-    """Simplified serializer for available node templates"""
-    icon = SerializerMethodField()
-    category = SerializerMethodField()
-    
-    class Meta:
-        model = StandaloneNode
-        fields = ['id', 'name', 'description', 'icon', 'category']
-    
-    def get_icon(self, obj):
-        request = self.context.get('request')
-        if obj.logo and request:
-            return request.build_absolute_uri(obj.logo.url)
-        return None
-    
-    def get_category(self, obj):
-        return obj.type

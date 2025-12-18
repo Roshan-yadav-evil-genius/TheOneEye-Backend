@@ -2,11 +2,11 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework import status
 from workflow.Serializers.WorkFlow import RawWorkFlawSerializer
-from workflow.models import WorkFlow, Node, Connection, StandaloneNode, ContainerStats
+from workflow.models import WorkFlow, Node, Connection, ContainerStats
 from workflow.Serializers import WorkFlowSerializer
 from workflow.Serializers.Node import NodeSerializer, NodeCreateSerializer
 from workflow.Serializers.Connection import ConnectionSerializer
-from workflow.Serializers.Canvas import CanvasDataSerializer, AvailableNodeTemplateSerializer, CanvasNodeSerializer
+from workflow.Serializers.Canvas import CanvasDataSerializer, CanvasNodeSerializer
 from workflow.Serializers.ContainerStats import ContainerStatsListSerializer
 from workflow.services.resource_monitor_service import resource_monitor_service
 from rest_framework.decorators import action
@@ -67,40 +67,18 @@ class WorkFlowViewSet(ModelViewSet):
         serializer = CanvasDataSerializer(workflow, context={'request': request})
         return Response(serializer.data)
 
-    @action(detail=False, methods=["get"])
-    def available_nodes(self, request):
-        """Get available node templates that can be added to canvas"""
-        standalone_nodes = StandaloneNode.objects.filter(is_active=True)
-        serializer = AvailableNodeTemplateSerializer(
-            standalone_nodes, 
-            many=True, 
-            context={'request': request}
-        )
-        return Response(serializer.data)
-
     @action(detail=True, methods=["post"])
     def add_node(self, request, pk=None):
         """Add a node to the workflow canvas"""
         workflow = self.get_object()
         
-        # Get node template data
-        node_template_id = request.data.get('nodeTemplate', 'custom-node')
+        # Get node type and position
+        node_type = request.data.get('nodeType', 'custom-node')
         position = request.data.get('position', {'x': 0, 'y': 0})
-        
-        # Try to get the StandaloneNode template if nodeTemplate is provided
-        standalone_node = None
-        if node_template_id and node_template_id != 'custom-node':
-            try:
-                standalone_node = StandaloneNode.objects.get(id=node_template_id, is_active=True)
-            except StandaloneNode.DoesNotExist:
-                return Response(
-                    {'error': f'Node template with ID {node_template_id} not found'}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
         
         # Prepare data for NodeCreateSerializer
         node_data = {
-            'node_type': standalone_node.id if standalone_node else None,
+            'node_type': node_type,
             'x': position.get('x', 0),
             'y': position.get('y', 0),
             'form_values': request.data.get('form_values', {})
@@ -239,7 +217,7 @@ class WorkFlowViewSet(ModelViewSet):
         return Response({
             "task_id": task.id, 
             "status": task.status,
-            "message": f"Started incremental execution of node {node.node_type.name if node.node_type else 'Unknown'}"
+            "message": f"Started incremental execution of node {node.node_type or 'Unknown'}"
         })
 
     @action(detail=True, methods=["post"])

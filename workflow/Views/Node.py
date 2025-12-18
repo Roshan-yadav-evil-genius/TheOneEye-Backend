@@ -33,12 +33,11 @@ class NodeViewSet(ModelViewSet):
         input_data = {}
         for connection in incoming_connections:
             source_node_id = str(connection.source_node.id)
-            input_data[source_node_id] = connection.source_node.output
+            input_data[source_node_id] = connection.source_node.config
         return Response(input_data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'], url_path='output')
     def get_output(self, request, workflow_pk=None, pk=None):
         """Get the output data for this node"""
         node = self.get_object()
-        return Response(node.output, status=status.HTTP_200_OK)
-    
+        return Response(node.config, status=status.HTTP_200_OK)

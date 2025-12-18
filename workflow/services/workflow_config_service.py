@@ -34,9 +34,7 @@ class WorkflowConfigService:
         for node in workflow.nodes.all():
             node_data = {
                 "id": str(node.id),
-                "node_type": {
-                    "id": str(node.node_type.id) if node.node_type else None
-                },
+                "node_type": node.node_type or None,
                 "form_values": node.form_values or {}
             }
             nodes.append(node_data)
@@ -71,4 +69,3 @@ class WorkflowConfigService:
 
 # Global instance for backward compatibility
 workflow_config_service = WorkflowConfigService()
-

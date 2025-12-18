@@ -40,7 +40,7 @@ class NodeExecutionService:
         """
         try:
             node = Node.objects.get(id=node_id)
-            node.output = output
+            node.config = output
             node.save()
             print(f"[+] Node {node_id} output stored successfully")
             return True
@@ -58,7 +58,7 @@ class NodeExecutionService:
         """
         try:
             node = Node.objects.get(id=node_id)
-            return node.output or {}
+            return node.config or {}
         except Node.DoesNotExist:
             return {}
     
@@ -128,7 +128,7 @@ class NodeExecutionService:
             
             return {
                 "node_id": node_id,
-                "node_name": node.node_type.name if node.node_type else "Unknown",
+                "node_type": node.node_type or "Unknown",
                 "can_execute": validation["is_valid"],
                 "validation": validation
             }
@@ -151,8 +151,7 @@ class NodeExecutionService:
             return {
                 "node": {
                     "id": str(node.id),
-                    "name": node.node_type.name if node.node_type else "Unknown",
-                    "type": node.node_type.type if node.node_type else "unknown"
+                    "node_type": node.node_type or "Unknown"
                 },
                 "dependencies": tree_info,
                 "output": output,
@@ -166,4 +165,3 @@ class NodeExecutionService:
 
 # Global instance for backward compatibility
 node_execution_service = NodeExecutionService()
-

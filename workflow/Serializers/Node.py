@@ -1,11 +1,8 @@
-from workflow.models import Node, StandaloneNode
-from .StandaloneNode import StandaloneNodeSerializer
-from rest_framework.serializers import ModelSerializer,JSONField
+from workflow.models import Node
+from rest_framework.serializers import ModelSerializer
 
 
 class NodeSerializer(ModelSerializer):
-    node_type = StandaloneNodeSerializer(read_only=True)
-
     class Meta:
         model = Node
         exclude = ["workflow"]
@@ -26,5 +23,5 @@ class NodeCreateSerializer(ModelSerializer):
         return super().create(validated_data)
     
     def to_representation(self, instance):
-        # Return the full format with nested node_type after creation
+        # Return the full format after creation
         return NodeSerializer(instance).data

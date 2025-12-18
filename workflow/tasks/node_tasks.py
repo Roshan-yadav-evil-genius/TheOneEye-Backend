@@ -23,7 +23,7 @@ def execute_single_node_incremental(self, workflow_id: str, node_id: str):
         workflow = WorkFlow.objects.get(id=workflow_id)
         target_node = Node.objects.get(id=node_id, workflow=workflow)
         
-        print(f"[+] Starting incremental execution of node {target_node.node_type.name if target_node.node_type else 'Unknown'}")
+        print(f"[+] Starting incremental execution of node {target_node.node_type or 'Unknown'}")
         
         # Build workflow config
         workflow_config = workflow_config_service.build_workflow_config(workflow)
@@ -115,7 +115,7 @@ def execute_single_node(self, workflow_id: str, node_id: str):
         print("=" * 50)
         print("=== Single Node Execution (Legacy Mock) ===")
         print(f"Workflow: {workflow.name} (ID: {workflow.id})")
-        print(f"Target Node: {target_node.node_type.name if target_node.node_type else 'Unknown'} (ID: {target_node.id})")
+        print(f"Target Node: {target_node.node_type or 'Unknown'} (ID: {target_node.id})")
         print()
         
         # Find all dependencies (nodes that connect to this node)
@@ -124,7 +124,7 @@ def execute_single_node(self, workflow_id: str, node_id: str):
         print("--- Dependency Tree ---")
         if dependencies:
             for i, dep in enumerate(dependencies, 1):
-                dep_name = dep.node_type.name if dep.node_type else f"Node {str(dep.id)[:8]}"
+                dep_name = dep.node_type or f"Node {str(dep.id)[:8]}"
                 print(f"{i}. {dep_name} (ID: {dep.id})")
         else:
             print("No dependencies found")
@@ -135,16 +135,16 @@ def execute_single_node(self, workflow_id: str, node_id: str):
         
         # Execute dependencies first (in order) - MOCK EXECUTION
         for dep in dependencies:
-            print(f"\n--- Executing Dependency: {dep.node_type.name if dep.node_type else 'Unknown'} ---")
+            print(f"\n--- Executing Dependency: {dep.node_type or 'Unknown'} ---")
             result = _simulate_node_execution(dep)
-            dep.output = result
+            dep.config = result
             dep.save()
             print(f"Result: {json.dumps(result, indent=2)}")
         
         # Execute target node - MOCK EXECUTION
-        print(f"\n--- Executing Target Node: {target_node.node_type.name if target_node.node_type else 'Unknown'} ---")
+        print(f"\n--- Executing Target Node: {target_node.node_type or 'Unknown'} ---")
         result = _simulate_node_execution(target_node)
-        target_node.output = result
+        target_node.config = result
         target_node.save()
         print(f"Result: {json.dumps(result, indent=2)}")
         
@@ -171,18 +171,9 @@ def _print_node_details(node: Node):
     """Print comprehensive node details (legacy function)."""
     print("--- Node Details ---")
     print(f"ID: {node.id}")
-    print(f"Type: {node.node_type.type if node.node_type else 'Unknown'}")
-    print(f"Name: {node.node_type.name if node.node_type else 'Unknown'}")
+    print(f"Type: {node.node_type or 'Unknown'}")
     print(f"Position: ({node.x}, {node.y})")
     print(f"Form Values: {json.dumps(node.form_values, indent=2)}")
-    
-    if node.node_type:
-        print(f"StandaloneNode Template:")
-        print(f"  - ID: {node.node_type.id}")
-        print(f"  - Description: {node.node_type.description}")
-        print(f"  - Version: {node.node_type.version}")
-        print(f"  - Form Configuration: {json.dumps(node.node_type.form_configuration, indent=2)}")
-        print(f"  - Tags: {json.dumps(node.node_type.tags, indent=2)}")
     
     # Print connections
     print("--- Connections ---")
@@ -192,12 +183,12 @@ def _print_node_details(node: Node):
     
     print("Incoming:")
     for conn in incoming:
-        source_name = conn.source_node.node_type.name if conn.source_node.node_type else f"Node {str(conn.source_node.id)[:8]}"
+        source_name = conn.source_node.node_type or f"Node {str(conn.source_node.id)[:8]}"
         print(f"  - From: {source_name} (ID: {conn.source_node.id})")
     
     print("Outgoing:")
     for conn in outgoing:
-        target_name = conn.target_node.node_type.name if conn.target_node.node_type else f"Node {str(conn.target_node.id)[:8]}"
+        target_name = conn.target_node.node_type or f"Node {str(conn.target_node.id)[:8]}"
         print(f"  - To: {target_name} (ID: {conn.target_node.id})")
 
 
@@ -209,28 +200,15 @@ def _simulate_node_execution(node: Node):
     # Mock execution result based on node type and configuration
     result = {
         "node_id": str(node.id),
-        "node_name": node.node_type.name if node.node_type else "Unknown",
-        "node_type": node.node_type.type if node.node_type else "unknown",
+        "node_type": node.node_type or "unknown",
         "execution_time": "2024-01-01T12:00:00Z",  # Mock timestamp
         "status": "success",
         "output_data": {
             "processed_items": 1,
-            "result": f"Mock execution result for {node.node_type.name if node.node_type else 'Unknown'}",
+            "result": f"Mock execution result for {node.node_type or 'Unknown'}",
             "form_values_used": node.form_values,
-            "configuration": node.data
+            "configuration": node.config
         }
     }
     
-    # Add type-specific mock data
-    if node.node_type and node.node_type.type == "trigger":
-        result["output_data"]["triggered"] = True
-        result["output_data"]["event_data"] = {"source": "mock_trigger"}
-    elif node.node_type and node.node_type.type == "action":
-        result["output_data"]["action_performed"] = True
-        result["output_data"]["action_result"] = "Mock action completed"
-    elif node.node_type and node.node_type.type == "logic":
-        result["output_data"]["logic_result"] = True
-        result["output_data"]["condition_met"] = True
-    
     return result
-
