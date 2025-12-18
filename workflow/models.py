@@ -45,8 +45,10 @@ class Node(BaseModel):
     x = FloatField(default=0)
     y = FloatField(default=0)
 
-    form_values = JSONField(default=dict,blank=True)  # Store node-specific data node.form_configuration values
-    config = JSONField(default=dict,blank=True)  # Store node execution results
+    form_values = JSONField(default=dict, blank=True)  # Store form field values
+    config = JSONField(default=dict, blank=True)  # Store node configuration
+    input_data = JSONField(default=dict, blank=True)  # Store last execution input
+    output_data = JSONField(default=dict, blank=True)  # Store last execution output
 
     def __str__(self):
         node_name = self.node_type if self.node_type else f'Node {str(self.id)[:8]}'

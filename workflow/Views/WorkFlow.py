@@ -224,6 +224,96 @@ class WorkFlowViewSet(ModelViewSet):
         })
 
     @action(detail=True, methods=["post"])
+    def execute_and_save_node(self, request, pk=None):
+        """
+        Execute a workflow node and save all execution data.
+        
+        Flow:
+        1. Save form_values and input_data to Node model
+        2. Execute the node using core engine
+        3. Save output_data to Node model
+        4. Return execution result
+        
+        Request body:
+        {
+            "node_id": "uuid",
+            "form_values": { ... },
+            "input_data": { ... }
+        }
+        """
+        workflow = self.get_object()
+        node_id = request.data.get('node_id')
+        form_values = request.data.get('form_values', {})
+        input_data = request.data.get('input_data', {})
+        
+        if not node_id:
+            return Response(
+                {'error': 'node_id is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Get the workflow node instance
+            node_instance = Node.objects.get(id=node_id, workflow=workflow)
+        except Node.DoesNotExist:
+            return Response(
+                {'error': 'Node not found in this workflow'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Step 1: Save form_values and input_data
+        node_instance.form_values = form_values
+        node_instance.input_data = input_data
+        node_instance.save()
+        
+        # Step 2: Execute the node using core engine
+        try:
+            from nodes.services import get_node_services
+            services = get_node_services()
+            
+            # Find the node type metadata
+            node_metadata = services.node_registry.find_by_identifier(node_instance.node_type)
+            
+            if node_metadata is None:
+                return Response(
+                    {'error': f'Node type not found: {node_instance.node_type}'}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Execute the node
+            result = services.node_executor.execute(node_metadata, input_data, form_values)
+            
+            # Step 3: Save output_data
+            if result.get('success'):
+                output = result.get('output', {})
+                # Extract data from output if it's wrapped
+                if isinstance(output, dict) and 'data' in output:
+                    node_instance.output_data = output.get('data', {})
+                else:
+                    node_instance.output_data = output
+                node_instance.save()
+            
+            # Step 4: Return the result
+            return Response({
+                'success': result.get('success', False),
+                'node_id': str(node_instance.id),
+                'node_type': node_instance.node_type,
+                'input_data': input_data,
+                'form_values': form_values,
+                'output': result.get('output'),
+                'error': result.get('error'),
+                'error_type': result.get('error_type'),
+            })
+            
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e),
+                'error_type': 'ExecutionError',
+                'node_id': str(node_instance.id),
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=["post"])
     def stop_dev_mode(self, request, pk=None):
         """Stop the persistent dev container for this workflow"""
         workflow = self.get_object()
