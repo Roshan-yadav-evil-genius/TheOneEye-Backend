@@ -23,8 +23,8 @@ class WorkFlowViewSet(ModelViewSet):
     def start_execution(self, request, pk=None):
         workFlowObject: WorkFlow = self.get_object()
         workFlowConfig = RawWorkFlawSerializer(workFlowObject)
-        with open("workFlowConfig.json","w") as file:
-            json.dump(workFlowConfig.data, file, cls=DjangoJSONEncoder)
+        # with open("workFlowConfig.json","w") as file:
+        #     json.dump(workFlowConfig.data, file, cls=DjangoJSONEncoder)
         task:AsyncResult = execute_workflow.delay(workFlowConfig.data)
         print(f"Task: {task}, id:{task.id}")
         workFlowObject.task_id = task.id
