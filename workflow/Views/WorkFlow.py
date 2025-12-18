@@ -105,6 +105,7 @@ class WorkFlowViewSet(ModelViewSet):
         
         source_node_id = request.data.get('source')
         target_node_id = request.data.get('target')
+        source_handle = request.data.get('sourceHandle', 'default')
         
         try:
             source_node = Node.objects.get(id=source_node_id, workflow=workflow)
@@ -115,11 +116,12 @@ class WorkFlowViewSet(ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Check if connection already exists
+        # Check if connection already exists (including source_handle)
         if Connection.objects.filter(
             workflow=workflow,
             source_node=source_node,
-            target_node=target_node
+            target_node=target_node,
+            source_handle=source_handle
         ).exists():
             return Response(
                 {'error': 'Connection already exists'}, 
@@ -129,7 +131,8 @@ class WorkFlowViewSet(ModelViewSet):
         connection_data = {
             'workflow': workflow.id,
             'source_node': source_node.id,
-            'target_node': target_node.id
+            'target_node': target_node.id,
+            'source_handle': source_handle
         }
         
         serializer = ConnectionSerializer(data=connection_data, context={'workflow_id': workflow.id, 'workflow': workflow})

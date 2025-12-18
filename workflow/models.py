@@ -58,9 +58,10 @@ class Connection(BaseModel):
 
     source_node = ForeignKey(Node, on_delete=CASCADE, related_name='outgoing_connections')
     target_node = ForeignKey(Node, on_delete=CASCADE, related_name='incoming_connections')
+    source_handle = CharField(max_length=50, default='default', blank=True)
     
     class Meta:
-        unique_together = ['source_node', 'target_node']
+        unique_together = ['source_node', 'target_node', 'source_handle']
 
 
 def node_file_upload_path(instance, filename):

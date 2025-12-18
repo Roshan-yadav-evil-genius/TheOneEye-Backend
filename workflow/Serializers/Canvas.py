@@ -48,15 +48,19 @@ class CanvasEdgeSerializer(ConnectionSerializer):
     """Extended Connection serializer for canvas display"""
     source_node = SerializerMethodField()
     target_node = SerializerMethodField()
+    source_handle = SerializerMethodField()
     
     class Meta(ConnectionSerializer.Meta):
-        fields = ['id', 'source_node', 'target_node', 'created_at']
+        fields = ['id', 'source_node', 'target_node', 'source_handle', 'created_at']
     
     def get_source_node(self, obj):
         return str(obj.source_node.id)
     
     def get_target_node(self, obj):
         return str(obj.target_node.id)
+    
+    def get_source_handle(self, obj):
+        return obj.source_handle or 'default'
 
 
 class CanvasDataSerializer(ModelSerializer):

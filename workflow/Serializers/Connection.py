@@ -10,7 +10,7 @@ class ConnectionSerializer(ModelSerializer):
     
     class Meta:
         model = Connection
-        fields = ["id", 'source_node', 'target_node']
+        fields = ["id", 'source_node', 'target_node', 'source_handle']
         read_only_fields = ["id", "created_at", "updated_at"]
     
     def create(self, validated_data):
