@@ -2,16 +2,14 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework import status
 from workflow.Serializers.WorkFlow import RawWorkFlawSerializer
-from workflow.models import WorkFlow, Node, Connection, ContainerStats
+from workflow.models import WorkFlow, Node, Connection
 from workflow.Serializers import WorkFlowSerializer
 from workflow.Serializers.Node import NodeSerializer, NodeCreateSerializer
 from workflow.Serializers.Connection import ConnectionSerializer
 from workflow.Serializers.Canvas import CanvasDataSerializer, CanvasNodeSerializer
-from workflow.Serializers.ContainerStats import ContainerStatsListSerializer
-from workflow.services.resource_monitor_service import resource_monitor_service
 from rest_framework.decorators import action
 from celery.result import AsyncResult
-from workflow.tasks import execute_workflow,stop_workflow,execute_single_node,execute_single_node_incremental,stop_dev_container
+from workflow.tasks import execute_workflow, stop_workflow
 from django.db import transaction
 from django.core.serializers.json import DjangoJSONEncoder
 import json
@@ -193,37 +191,6 @@ class WorkFlowViewSet(ModelViewSet):
             )
 
     @action(detail=True, methods=["post"])
-    def execute_single_node(self, request, pk=None):
-        """Execute a single node with its dependencies"""
-        workflow = self.get_object()
-        node_id = request.data.get('node_id')
-        
-        if not node_id:
-            return Response(
-                {'error': 'node_id is required'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            # Verify the node exists in this workflow
-            node = Node.objects.get(id=node_id, workflow=workflow)
-        except Node.DoesNotExist:
-            return Response(
-                {'error': 'Node not found in this workflow'}, 
-                status=status.HTTP_404_NOT_FOUND
-            )
-        
-        # Start the incremental Celery task
-        task = execute_single_node_incremental.delay(str(workflow.id), str(node_id))
-        print("Executing Node", str(node_id))
-        
-        return Response({
-            "task_id": task.id, 
-            "status": task.status,
-            "message": f"Started incremental execution of node {node.node_type or 'Unknown'}"
-        })
-
-    @action(detail=True, methods=["post"])
     def execute_and_save_node(self, request, pk=None):
         """
         Execute a workflow node and save all execution data.
@@ -312,108 +279,3 @@ class WorkFlowViewSet(ModelViewSet):
                 'error_type': 'ExecutionError',
                 'node_id': str(node_instance.id),
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    @action(detail=True, methods=["post"])
-    def stop_dev_mode(self, request, pk=None):
-        """Stop the persistent dev container for this workflow"""
-        workflow = self.get_object()
-        
-        # Start the Celery task to stop dev container
-        task = stop_dev_container.delay(str(workflow.id))
-        print("Stopping dev container for workflow", str(workflow.id))
-        
-        return Response({
-            "task_id": task.id,
-            "status": task.status,
-            "message": f"Stopping dev container for workflow {workflow.name}"
-        })
-
-    @action(detail=True, methods=["get"])
-    def dev_container_status(self, request, pk=None):
-        """Get the status of the dev container for this workflow"""
-        workflow = self.get_object()
-        
-        try:
-            from workflow.services.docker_service import docker_service
-            
-            dev_container_name = f"{workflow.id}-dev"
-            container_exists = docker_service.container_exists(dev_container_name)
-            
-            if container_exists:
-                container = docker_service.get_container(dev_container_name)
-                container.reload()
-                
-                # Calculate uptime if container is running
-                uptime = None
-                if container.status == 'running':
-                    import time
-                    from datetime import datetime
-                    try:
-                        # Parse the StartedAt timestamp (ISO format string)
-                        started_at_str = container.attrs['State']['StartedAt']
-                        started_at = datetime.fromisoformat(started_at_str.replace('Z', '+00:00'))
-                        current_time = datetime.now(started_at.tzinfo)
-                        uptime = int((current_time - started_at).total_seconds())
-                    except (ValueError, KeyError, TypeError) as e:
-                        # If we can't parse the timestamp, just set uptime to None
-                        uptime = None
-                
-                return Response({
-                    "exists": True,
-                    "status": container.status,
-                    "uptime": uptime,
-                    "container_name": dev_container_name
-                })
-            else:
-                return Response({
-                    "exists": False,
-                    "status": "stopped",
-                    "uptime": None,
-                    "container_name": dev_container_name
-                })
-                
-        except Exception as e:
-            return Response({
-                "exists": False,
-                "status": "error",
-                "uptime": None,
-                "error": str(e),
-                "container_name": f"{workflow.id}-dev"
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    @action(detail=True, methods=["get"])
-    def resource_stats(self, request, pk=None):
-        """Get container resource statistics for a workflow"""
-        workflow = self.get_object()
-        
-        # Get time range from query params
-        time_range = request.query_params.get('range', '24h')
-        
-        # Validate time range
-        valid_ranges = ['1h', '24h', '7d', '30d']
-        if time_range not in valid_ranges:
-            return Response(
-                {'error': f'Invalid time range. Must be one of: {", ".join(valid_ranges)}'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            # Get stats from the service
-            stats_data = resource_monitor_service.get_workflow_stats(str(workflow.id), time_range)
-            
-            # Serialize the data
-            serializer = ContainerStatsListSerializer(stats_data, many=True)
-            
-            return Response({
-                'workflow_id': str(workflow.id),
-                'workflow_name': workflow.name,
-                'time_range': time_range,
-                'stats_count': len(stats_data),
-                'stats': serializer.data
-            })
-            
-        except Exception as e:
-            return Response(
-                {'error': f'Error retrieving resource stats: {str(e)}'}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )

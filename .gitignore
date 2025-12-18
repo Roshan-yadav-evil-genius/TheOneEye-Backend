@@ -2,3 +2,4 @@ __pycache__
 media
 db.sqlite3
 browser_sessions
+bin

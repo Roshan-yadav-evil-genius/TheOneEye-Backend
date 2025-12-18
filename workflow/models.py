@@ -1,4 +1,4 @@
-from django.db.models import Model, JSONField, UUIDField, CharField, TextField, DateTimeField, FloatField, ForeignKey, CASCADE, FileField, Index
+from django.db.models import Model, JSONField, UUIDField, CharField, TextField, DateTimeField, FloatField, ForeignKey, CASCADE, FileField
 from django.core.exceptions import ValidationError
 import uuid
 import os
@@ -90,33 +90,6 @@ class NodeFile(BaseModel):
             if os.path.isfile(self.file.path):
                 os.remove(self.file.path)
         super().delete(*args, **kwargs)
-
-
-class ContainerStats(BaseModel):
-    """Model to store container resource statistics during workflow execution"""
-    workflow = ForeignKey(WorkFlow, on_delete=CASCADE, related_name='container_stats')
-    
-    # Resource metrics
-    cpu_percent = FloatField(help_text="CPU usage percentage")
-    memory_usage_mb = FloatField(help_text="Memory usage in MB")
-    memory_percent = FloatField(help_text="Memory usage percentage")
-    network_in_kb = FloatField(help_text="Network input in KB")
-    network_out_kb = FloatField(help_text="Network output in KB")
-    disk_read_mb = FloatField(help_text="Disk read in MB")
-    disk_write_mb = FloatField(help_text="Disk write in MB")
-    
-    # Timestamp for the stat entry
-    timestamp = DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        ordering = ['-timestamp']
-        indexes = [
-            Index(fields=['workflow', 'timestamp']),
-            Index(fields=['timestamp']),
-        ]
-    
-    def __str__(self):
-        return f"{self.workflow.name} - {self.timestamp} - CPU: {self.cpu_percent}%"
 
 
 class DemoRequest(BaseModel):

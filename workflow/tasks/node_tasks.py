@@ -1,111 +1,21 @@
 """
 Celery tasks for node operations.
 
-This module contains Celery tasks for single node execution and development mode.
+This module contains Celery tasks for single node execution.
+Node execution is handled by the core NodeExecutor.
 """
 
 import json
 from celery import shared_task
-from ..models import WorkFlow, Node
-from ..services.docker_service import docker_service
-from ..services.workflow_config_service import workflow_config_service
-from ..services.node_execution_service import node_execution_service
-
-
-@shared_task(bind=True)
-def execute_single_node_incremental(self, workflow_id: str, node_id: str):
-    """
-    Execute a single node using persistent container with stateful node instances.
-    This is the new incremental execution task for development mode.
-    """
-    try:
-        # Get workflow and target node
-        workflow = WorkFlow.objects.get(id=workflow_id)
-        target_node = Node.objects.get(id=node_id, workflow=workflow)
-        
-        print(f"[+] Starting incremental execution of node {target_node.node_type or 'Unknown'}")
-        
-        # Build workflow config
-        workflow_config = workflow_config_service.build_workflow_config(workflow)
-        
-        # Create or get dev container
-        dev_container_name = f"{workflow_id}-dev"
-        container = docker_service.get_container(dev_container_name)
-        
-        if not container or container.status != 'running':
-            print(f"[+] Creating persistent dev container: {dev_container_name}")
-            container = docker_service.create_dev_container(workflow_id, workflow_config)
-            
-            if not container:
-                return {
-                    "status": "error",
-                    "node_id": node_id,
-                    "error": "Failed to create dev container"
-                }
-        
-        # Execute the node using the orchestration service
-        result = node_execution_service.execute_node_with_dependencies(workflow_id, node_id)
-        
-        if result.get("status") == "success":
-            print(f"[+] Node execution successful: {result.get('result')}")
-        else:
-            print(f"[-] Node execution failed: {result.get('error')}")
-        
-        return result
-        
-    except WorkFlow.DoesNotExist:
-        print(f"[-] Workflow {workflow_id} not found")
-        return {
-            "status": "error",
-            "node_id": node_id,
-            "error": "Workflow not found"
-        }
-    except Node.DoesNotExist:
-        print(f"[-] Node {node_id} not found in workflow {workflow_id}")
-        return {
-            "status": "error",
-            "node_id": node_id,
-            "error": "Node not found in workflow"
-        }
-    except Exception as e:
-        print(f"[-] Error in incremental execution: {str(e)}")
-        return {
-            "status": "error",
-            "node_id": node_id,
-            "error": str(e)
-        }
-
-
-@shared_task(bind=True)
-def stop_dev_container(self, workflow_id: str):
-    """
-    Stop and remove the persistent dev container for a workflow.
-    """
-    try:
-        dev_container_name = f"{workflow_id}-dev"
-        
-        if docker_service.container_exists(dev_container_name):
-            print(f"[+] Stopping dev container: {dev_container_name}")
-            success = docker_service.kill_and_remove(dev_container_name)
-            if success:
-                print(f"[+] Dev container {dev_container_name} stopped and removed")
-                return {"status": "success", "message": f"Dev container {dev_container_name} stopped"}
-            else:
-                return {"status": "error", "error": f"Failed to stop dev container {dev_container_name}"}
-        else:
-            print(f"[+] Dev container {dev_container_name} not found")
-            return {"status": "success", "message": f"Dev container {dev_container_name} not found"}
-            
-    except Exception as e:
-        print(f"[-] Error stopping dev container: {str(e)}")
-        return {"status": "error", "error": str(e)}
+from ..models import WorkFlow, Node, Connection
+from ..services.dependency_service import dependency_service
 
 
 @shared_task(bind=True)
 def execute_single_node(self, workflow_id: str, node_id: str):
     """
-    Execute a single node with all its dependencies (legacy mock version).
-    This is kept for backward compatibility but uses mock execution.
+    Execute a single node with all its dependencies.
+    Uses the dependency service to resolve dependencies and print execution details.
     """
     try:
         # Get workflow and target node
@@ -113,13 +23,13 @@ def execute_single_node(self, workflow_id: str, node_id: str):
         target_node = Node.objects.get(id=node_id, workflow=workflow)
         
         print("=" * 50)
-        print("=== Single Node Execution (Legacy Mock) ===")
+        print("=== Single Node Execution ===")
         print(f"Workflow: {workflow.name} (ID: {workflow.id})")
         print(f"Target Node: {target_node.node_type or 'Unknown'} (ID: {target_node.id})")
         print()
         
         # Find all dependencies (nodes that connect to this node)
-        dependencies = node_execution_service.dependency_service.get_node_dependencies(target_node)
+        dependencies = dependency_service.get_node_dependencies(target_node)
         
         print("--- Dependency Tree ---")
         if dependencies:
@@ -133,7 +43,7 @@ def execute_single_node(self, workflow_id: str, node_id: str):
         # Print detailed node information
         _print_node_details(target_node)
         
-        # Execute dependencies first (in order) - MOCK EXECUTION
+        # Execute dependencies first (in order)
         for dep in dependencies:
             print(f"\n--- Executing Dependency: {dep.node_type or 'Unknown'} ---")
             result = _simulate_node_execution(dep)
@@ -141,7 +51,7 @@ def execute_single_node(self, workflow_id: str, node_id: str):
             dep.save()
             print(f"Result: {json.dumps(result, indent=2)}")
         
-        # Execute target node - MOCK EXECUTION
+        # Execute target node
         print(f"\n--- Executing Target Node: {target_node.node_type or 'Unknown'} ---")
         result = _simulate_node_execution(target_node)
         target_node.config = result
@@ -159,16 +69,19 @@ def execute_single_node(self, workflow_id: str, node_id: str):
             "result": result
         }
         
+    except WorkFlow.DoesNotExist:
+        print(f"[-] Workflow {workflow_id} not found")
+        return {"status": "error", "error": "Workflow not found"}
+    except Node.DoesNotExist:
+        print(f"[-] Node {node_id} not found in workflow {workflow_id}")
+        return {"status": "error", "node_id": node_id, "error": "Node not found in workflow"}
     except Exception as e:
         print(f"Error executing single node: {str(e)}")
-        return {
-            "status": "error",
-            "error": str(e)
-        }
+        return {"status": "error", "error": str(e)}
 
 
 def _print_node_details(node: Node):
-    """Print comprehensive node details (legacy function)."""
+    """Print comprehensive node details."""
     print("--- Node Details ---")
     print(f"ID: {node.id}")
     print(f"Type: {node.node_type or 'Unknown'}")
@@ -177,7 +90,6 @@ def _print_node_details(node: Node):
     
     # Print connections
     print("--- Connections ---")
-    from ..models import Connection
     incoming = Connection.objects.filter(target_node=node).select_related('source_node')
     outgoing = Connection.objects.filter(source_node=node).select_related('target_node')
     
@@ -194,14 +106,15 @@ def _print_node_details(node: Node):
 
 def _simulate_node_execution(node: Node):
     """
-    Simulate node execution and return mock results (legacy function).
-    In a real implementation, this would execute the actual node logic.
+    Simulate node execution and return mock results.
+    In a real implementation, this would use the core NodeExecutor.
     """
-    # Mock execution result based on node type and configuration
+    from datetime import datetime
+    
     result = {
         "node_id": str(node.id),
         "node_type": node.node_type or "unknown",
-        "execution_time": "2024-01-01T12:00:00Z",  # Mock timestamp
+        "execution_time": datetime.now().isoformat(),
         "status": "success",
         "output_data": {
             "processed_items": 1,
