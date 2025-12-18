@@ -31,12 +31,16 @@ class CanvasNodeSerializer(NodeSerializer):
                 'description': node_metadata.get('description'),
                 'has_form': node_metadata.get('has_form'),
                 'category': node_metadata.get('category'),
+                'input_ports': node_metadata.get('input_ports', [{'id': 'default', 'label': 'In'}]),
+                'output_ports': node_metadata.get('output_ports', [{'id': 'default', 'label': 'Out'}]),
             }
         # Fallback if node not found in registry
         return {
             'identifier': obj.node_type,
             'name': obj.node_type,
             'type': 'unknown',
+            'input_ports': [{'id': 'default', 'label': 'In'}],
+            'output_ports': [{'id': 'default', 'label': 'Out'}],
         }
 
 
