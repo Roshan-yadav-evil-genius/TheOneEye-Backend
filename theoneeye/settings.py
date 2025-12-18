@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "browsersession",
     "authentication",
     "contact",
+    "nodes",
 ]
 
 MIDDLEWARE = [

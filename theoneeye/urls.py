@@ -10,5 +10,6 @@ urlpatterns = [
     path("api/", include("browsersession.urls")),
     path("api/auth/", include("authentication.urls")),
     path("api/contact/", include("contact.urls")),
+    path("api/nodes/", include("nodes.urls")),
     
 ]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
