@@ -33,9 +33,8 @@ class NodeServices:
     def services(self) -> ServiceContainer:
         """Get or create the ServiceContainer instance."""
         if self._services is None:
-            # Project root is the core folder's parent
-            project_root = CORE_PATH.parent
-            self._services = create_services(project_root)
+            # Project root should be CORE_PATH so module paths align with sys.path
+            self._services = create_services(CORE_PATH)
         return self._services
     
     @property
