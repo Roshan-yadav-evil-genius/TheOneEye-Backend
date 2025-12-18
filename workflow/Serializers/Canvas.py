@@ -8,6 +8,7 @@ from workflow.models import WorkFlow
 class CanvasNodeSerializer(NodeSerializer):
     """Extended Node serializer for canvas display with position data"""
     position = SerializerMethodField()
+    node_type = SerializerMethodField()  # Override to return full object
     
     class Meta(NodeSerializer.Meta):
         exclude = ["workflow"]
@@ -15,6 +16,28 @@ class CanvasNodeSerializer(NodeSerializer):
     
     def get_position(self, obj):
         return {'x': obj.x, 'y': obj.y}
+    
+    def get_node_type(self, obj):
+        """Expand node_type identifier to metadata object"""
+        from nodes.services import get_node_services
+        services = get_node_services()
+        node_metadata = services.node_registry.find_by_identifier(obj.node_type)
+        
+        if node_metadata:
+            return {
+                'identifier': node_metadata.get('identifier'),
+                'name': node_metadata.get('label') or node_metadata.get('name'),
+                'type': node_metadata.get('type'),
+                'description': node_metadata.get('description'),
+                'has_form': node_metadata.get('has_form'),
+                'category': node_metadata.get('category'),
+            }
+        # Fallback if node not found in registry
+        return {
+            'identifier': obj.node_type,
+            'name': obj.node_type,
+            'type': 'unknown',
+        }
 
 
 class CanvasEdgeSerializer(ConnectionSerializer):

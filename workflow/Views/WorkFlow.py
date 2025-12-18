@@ -73,7 +73,7 @@ class WorkFlowViewSet(ModelViewSet):
         workflow = self.get_object()
         
         # Get node type and position
-        node_type = request.data.get('nodeType', 'custom-node')
+        node_type = request.data.get('nodeTemplate', 'custom-node')
         position = request.data.get('position', {'x': 0, 'y': 0})
         
         # Prepare data for NodeCreateSerializer
