@@ -16,7 +16,8 @@ class NodeExecutionService:
     def execute_node(
         node: Node,
         form_values: Dict[str, Any],
-        input_data: Dict[str, Any]
+        input_data: Dict[str, Any],
+        session_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Execute a node with given form values and input data.
@@ -25,6 +26,7 @@ class NodeExecutionService:
             node: The Node model instance to execute
             form_values: Form field values for the node
             input_data: Input data from connected nodes
+            session_id: Optional session ID for stateful execution
             
         Returns:
             Dict with execution result including success status, output, and any errors
@@ -50,8 +52,10 @@ class NodeExecutionService:
                     'node_type': node.node_type,
                 }
             
-            # Execute the node
-            result = services.node_executor.execute(node_metadata, input_data, form_values)
+            # Execute the node with session support
+            result = services.node_executor.execute(
+                node_metadata, input_data, form_values, session_id
+            )
             
             # Save output_data if execution was successful
             if result.get('success'):
@@ -73,6 +77,7 @@ class NodeExecutionService:
                 'output': result.get('output'),
                 'error': result.get('error'),
                 'error_type': result.get('error_type'),
+                'session_id': session_id,
             }
             
         except Exception as e:

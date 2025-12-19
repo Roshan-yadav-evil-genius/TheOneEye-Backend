@@ -64,7 +64,8 @@ class WorkFlowViewSet(ModelViewSet):
         {
             "node_id": "uuid",
             "form_values": { ... },
-            "input_data": { ... }
+            "input_data": { ... },
+            "session_id": "optional session id for stateful execution"
         }
         """
         from workflow.services import node_execution_service
@@ -73,6 +74,7 @@ class WorkFlowViewSet(ModelViewSet):
         node_id = request.data.get('node_id')
         form_values = request.data.get('form_values', {})
         input_data = request.data.get('input_data', {})
+        session_id = request.data.get('session_id')
         
         if not node_id:
             return Response(
@@ -88,8 +90,8 @@ class WorkFlowViewSet(ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        # Execute the node using the service
-        result = node_execution_service.execute_node(node, form_values, input_data)
+        # Execute the node using the service with session support
+        result = node_execution_service.execute_node(node, form_values, input_data, session_id)
         
         # Return appropriate response based on result
         if result.get('error_type') == 'NodeTypeNotFound':
