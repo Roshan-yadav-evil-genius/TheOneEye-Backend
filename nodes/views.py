@@ -114,7 +114,8 @@ class NodeExecuteView(APIView):
     Request body:
     {
         "input_data": { ... },
-        "form_data": { ... }
+        "form_data": { ... },
+        "session_id": "uuid"  // For stateful execution
     }
     """
     permission_classes = [AllowAny]
@@ -134,14 +135,51 @@ class NodeExecuteView(APIView):
         # Parse request data
         input_data = request.data.get('input_data', {})
         form_data = request.data.get('form_data', {})
+        session_id = request.data.get('session_id')
         
-        # Execute the node
-        result = services.node_executor.execute(node, input_data, form_data)
+        # Execute the node with session support
+        result = services.node_executor.execute(
+            node, input_data, form_data, session_id
+        )
         
         if not result.get('success'):
             return Response(result, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         return Response(result)
+
+
+class NodeResetSessionView(APIView):
+    """
+    Reset a node's session, clearing its stateful instance.
+    
+    POST /api/nodes/<identifier>/reset-session/
+    
+    Request body:
+    {
+        "session_id": "uuid"
+    }
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request, identifier):
+        services = get_node_services()
+        
+        session_id = request.data.get('session_id')
+        
+        if not session_id:
+            return Response(
+                {'error': 'session_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Clear the session
+        cleared = services.node_executor.clear_session(session_id)
+        
+        return Response({
+            'success': True,
+            'session_id': session_id,
+            'cleared': cleared
+        })
 
 
 class NodeFieldOptionsView(APIView):
