@@ -6,6 +6,8 @@ from .Views.GoogleOAuth import (
     GoogleOAuthInitiateView,
     GoogleOAuthCallbackView,
     GoogleAccountDeleteView,
+    GoogleAccountChoicesView,
+    GoogleAccountCredentialsView,
 )
 
 urlpatterns = [
@@ -21,4 +23,8 @@ urlpatterns = [
     path('google/initiate/', GoogleOAuthInitiateView.as_view(), name='google-oauth-initiate'),
     path('google/callback/', GoogleOAuthCallbackView.as_view(), name='google-oauth-callback'),
     path('google/accounts/<uuid:account_id>/', GoogleAccountDeleteView.as_view(), name='google-account-delete'),
+    
+    # Google Account API for Node Forms
+    path('google/accounts/choices/', GoogleAccountChoicesView.as_view(), name='google-accounts-choices'),
+    path('google/accounts/<uuid:account_id>/credentials/', GoogleAccountCredentialsView.as_view(), name='google-account-credentials'),
 ]
