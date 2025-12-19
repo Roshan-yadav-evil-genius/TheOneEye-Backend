@@ -1,11 +1,13 @@
-from django.urls import include, path
+from django.urls import path
 from rest_framework.routers import DefaultRouter
-from browsersession.views import BrowserSessionViewSet
+from browsersession.views import BrowserSessionViewSet, BrowserSessionChoicesView
 
 router = DefaultRouter()
 router.register("browser-sessions", BrowserSessionViewSet, basename="browser-sessions")
 
-urlpatterns = router.urls
+urlpatterns = [
+    path("browser-sessions/choices/", BrowserSessionChoicesView.as_view(), name="browser-session-choices"),
+] + router.urls
 
 
 

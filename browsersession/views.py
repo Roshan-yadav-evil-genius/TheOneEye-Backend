@@ -1,6 +1,8 @@
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny
 from django.conf import settings
 import os
 import shutil
@@ -11,6 +13,18 @@ from browsersession.serializers import (
     BrowserSessionUpdateSerializer
 )
 from rest_framework.decorators import action
+
+
+class BrowserSessionChoicesView(APIView):
+    """Standalone view for session choices - no authentication required."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        """Return session choices for dropdown/select fields in forms."""
+        sessions = BrowserSession.objects.all().values('id', 'name')
+        choices = [{'id': str(s['id']), 'name': s['name']} for s in sessions]
+        return Response(choices)
 
 class BrowserSessionViewSet(ModelViewSet):
     queryset = BrowserSession.objects.all()
@@ -32,8 +46,8 @@ class BrowserSessionViewSet(ModelViewSet):
         # Get the created session instance ID
         session_id = instance.id
         if session_id:
-            # Create session directory: media/sessions/{session_id}
-            sessions_dir = settings.MEDIA_ROOT / 'sessions'
+            # Create session directory: browser_sessions/{session_id}
+            sessions_dir = settings.BASE_DIR / 'browser_sessions'
             session_dir = sessions_dir / str(session_id)
             
             # Create directories if they don't exist
@@ -55,7 +69,7 @@ class BrowserSessionViewSet(ModelViewSet):
         
         # Delete session directory if it exists
         if session_id:
-            sessions_dir = settings.MEDIA_ROOT / 'sessions'
+            sessions_dir = settings.BASE_DIR / 'browser_sessions'
             session_dir = sessions_dir / str(session_id)
             
             try:
@@ -79,3 +93,10 @@ class BrowserSessionViewSet(ModelViewSet):
             'browser_type': session.browser_type,
             'playwright_config': session.playwright_config
         })
+    
+    @action(detail=False, methods=['get'], authentication_classes=[], permission_classes=[AllowAny])
+    def choices(self, request):
+        """Return session choices for dropdown/select fields in forms."""
+        sessions = BrowserSession.objects.all().values('id', 'name')
+        choices = [{'id': str(s['id']), 'name': s['name']} for s in sessions]
+        return Response(choices)
