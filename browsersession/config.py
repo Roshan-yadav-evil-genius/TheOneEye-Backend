@@ -25,6 +25,6 @@ class StreamConfig:
     STREAMING_QUALITY: int = 40  # JPEG quality (1-100), lower = less bandwidth, faster streaming
     
     # Browser settings
-    HEADLESS: bool = True
+    HEADLESS: bool = False
     TESTING: bool = False  # If True, opens all TESTING_URLS in separate tabs on launch
 
