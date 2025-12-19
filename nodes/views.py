@@ -154,7 +154,8 @@ class NodeFieldOptionsView(APIView):
     {
         "parent_field": "country",
         "parent_value": "india",
-        "dependent_field": "state"
+        "dependent_field": "state",
+        "form_values": {"country": "india", ...}  // Optional: all current form values
     }
     
     Returns:
@@ -180,6 +181,7 @@ class NodeFieldOptionsView(APIView):
         parent_field = request.data.get('parent_field')
         parent_value = request.data.get('parent_value')
         dependent_field = request.data.get('dependent_field')
+        form_values = request.data.get('form_values', {})
         
         if not all([parent_field, dependent_field]):
             return Response(
@@ -187,9 +189,9 @@ class NodeFieldOptionsView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Get field options from form
+        # Get field options from form, passing all form values for multi-parent access
         options = services.form_loader.get_field_options(
-            node, dependent_field, parent_value
+            node, dependent_field, parent_value, form_values
         )
         
         return Response({
