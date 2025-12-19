@@ -100,3 +100,27 @@ class BrowserSessionViewSet(ModelViewSet):
         sessions = BrowserSession.objects.all().values('id', 'name')
         choices = [{'id': str(s['id']), 'name': s['name']} for s in sessions]
         return Response(choices)
+    
+    @action(detail=True, methods=['get'], authentication_classes=[], permission_classes=[AllowAny])
+    def config(self, request, pk=None):
+        """
+        Return session config for use by core BrowserManager.
+        This endpoint is public to allow the core to fetch session config without auth.
+        
+        Returns:
+            Session config with browser_type and playwright_config.
+        """
+        try:
+            session = BrowserSession.objects.get(pk=pk)
+            return Response({
+                'id': str(session.id),
+                'name': session.name,
+                'browser_type': session.browser_type,
+                'playwright_config': session.playwright_config,
+                'status': session.status
+            })
+        except BrowserSession.DoesNotExist:
+            return Response(
+                {'error': 'Session not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
