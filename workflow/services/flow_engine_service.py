@@ -8,10 +8,14 @@ Follows Single Responsibility Principle - only handles FlowEngine operations.
 import sys
 import asyncio
 import structlog
+from datetime import datetime
 from typing import Dict, Any, Optional
 
 # Add core to path for imports
 sys.path.insert(0, '/home/roshan/main/TheOneEye/Attempt3/core')
+
+from .execution_state_manager import execution_state_manager
+from .websocket_broadcaster import websocket_broadcaster
 
 logger = structlog.get_logger(__name__)
 
@@ -35,15 +39,22 @@ class FlowEngineService:
             Dict with execution status and results
         """
         from Workflow.flow_engine import FlowEngine
+        from Workflow.events import WorkflowEventEmitter
         
-        engine = FlowEngine()
+        engine = FlowEngine(workflow_id=workflow_id)
         _running_engines[workflow_id] = engine
+        
+        # Register engine for state manager (WebSocket sync)
+        execution_state_manager.register_engine(workflow_id, engine)
         
         try:
             # Load the workflow
             logger.info("Loading workflow into FlowEngine", workflow_id=workflow_id)
             engine.load_workflow(flow_engine_config)
             logger.info("Workflow loaded into FlowEngine", workflow_id=workflow_id)
+            
+            # Subscribe to events for WebSocket broadcasting
+            FlowEngineService._subscribe_to_events(workflow_id, engine.events)
             
             # Run the workflow in production mode
             loop = asyncio.new_event_loop()
@@ -53,19 +64,33 @@ class FlowEngineService:
                 loop.run_until_complete(engine.run_production())
                 logger.info("Workflow execution completed successfully", workflow_id=workflow_id)
                 
+                # Broadcast workflow completed
+                if engine.state_tracker:
+                    duration = 0.0
+                    if engine.state_tracker._started_at:
+                        duration = (datetime.utcnow() - engine.state_tracker._started_at).total_seconds()
+                    websocket_broadcaster.broadcast_workflow_completed(
+                        workflow_id, "success", duration
+                    )
+                
                 return {
                     "status": "success",
                     "workflow_id": workflow_id,
                     "message": "Workflow execution completed successfully"
                 }
+            except Exception as e:
+                # Broadcast workflow failed
+                websocket_broadcaster.broadcast_workflow_failed(workflow_id, str(e))
+                raise
             finally:
                 # Clean up browser resources
                 FlowEngineService._cleanup_browser_resources(loop, workflow_id)
                 loop.close()
                 
         finally:
-            # Clean up engine reference
+            # Clean up engine references
             FlowEngineService._unregister_engine(workflow_id)
+            execution_state_manager.unregister_engine(workflow_id)
     
     @staticmethod
     def shutdown_engine(workflow_id: str) -> bool:
@@ -133,6 +158,51 @@ class FlowEngineService:
                 logger.warning("Error cleaning up browser resources on stop", error=str(browser_cleanup_error))
             else:
                 logger.warning("Error cleaning up browser resources", error=str(browser_cleanup_error))
+    
+    @staticmethod
+    def _subscribe_to_events(workflow_id: str, events) -> None:
+        """
+        Subscribe to FlowEngine events and broadcast via WebSocket.
+        
+        Args:
+            workflow_id: The workflow ID
+            events: The WorkflowEventEmitter instance
+        """
+        from Workflow.events import WorkflowEventEmitter
+        
+        # Subscribe to node_started events
+        def on_node_started(data: Dict[str, Any]):
+            websocket_broadcaster.broadcast_node_started(
+                workflow_id=workflow_id,
+                node_id=data.get("node_id"),
+                node_type=data.get("node_type"),
+                started_at=datetime.utcnow().isoformat() + "Z"
+            )
+        events.subscribe(WorkflowEventEmitter.NODE_STARTED, on_node_started)
+        
+        # Subscribe to node_completed events
+        def on_node_completed(data: Dict[str, Any]):
+            websocket_broadcaster.broadcast_node_completed(
+                workflow_id=workflow_id,
+                node_id=data.get("node_id"),
+                node_type=data.get("node_type"),
+                duration=0.0,  # Duration is calculated by state tracker
+                route=data.get("route"),
+                output_data=data.get("output_data")
+            )
+        events.subscribe(WorkflowEventEmitter.NODE_COMPLETED, on_node_completed)
+        
+        # Subscribe to node_failed events
+        def on_node_failed(data: Dict[str, Any]):
+            websocket_broadcaster.broadcast_node_failed(
+                workflow_id=workflow_id,
+                node_id=data.get("node_id"),
+                node_type=data.get("node_type"),
+                error=data.get("error")
+            )
+        events.subscribe(WorkflowEventEmitter.NODE_FAILED, on_node_failed)
+        
+        logger.info("Subscribed to FlowEngine events", workflow_id=workflow_id)
     
     @staticmethod
     def _unregister_engine(workflow_id: str) -> None:
