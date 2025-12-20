@@ -22,9 +22,48 @@ class ScreenshotStreamer:
         self.frame_delay = 1.0 / fps
         self.streaming = False
     
+    async def capture_screenshot_with_viewport(self) -> bytes:
+        """
+        Capture screenshot and return bytes with viewport dimensions prepended.
+        
+        Frame format: [width: 4 bytes][height: 4 bytes][JPEG data]
+        - width/height are big-endian unsigned 32-bit integers
+        - This allows frontend to know the actual viewport dimensions
+        
+        Returns:
+            Bytes with viewport header + JPEG image data
+            
+        Raises:
+            RuntimeError: If page is not set
+        """
+        if not self.page:
+            raise RuntimeError("Page not set. Cannot capture screenshot.")
+        
+        # Get viewport dimensions
+        viewport = self.page.viewport_size
+        if viewport:
+            width = viewport['width']
+            height = viewport['height']
+        else:
+            # Fallback to default if viewport not available
+            width = 1920
+            height = 1080
+        
+        # Capture screenshot
+        screenshot_bytes = await self.page.screenshot(
+            type='jpeg',
+            quality=self.quality
+        )
+        
+        # Prepend viewport dimensions as 8 bytes (4 + 4)
+        width_bytes = width.to_bytes(4, 'big')
+        height_bytes = height.to_bytes(4, 'big')
+        
+        return width_bytes + height_bytes + screenshot_bytes
+    
     async def capture_screenshot(self) -> bytes:
         """
-        Capture screenshot and return raw JPEG bytes.
+        Capture screenshot and return raw JPEG bytes (legacy method).
         
         Returns:
             Raw JPEG image bytes
@@ -46,10 +85,13 @@ class ScreenshotStreamer:
         stop_event: Optional[asyncio.Event] = None
     ) -> None:
         """
-        Stream screenshots continuously.
+        Stream screenshots continuously with viewport dimensions included.
+        
+        Each frame includes an 8-byte header with viewport dimensions,
+        allowing the frontend to properly scale and map coordinates.
         
         Args:
-            send_callback: Async function to send frame data (raw bytes)
+            send_callback: Async function to send frame data (bytes with viewport header)
             stop_event: Optional event to signal stopping
         """
         self.streaming = True
@@ -65,7 +107,8 @@ class ScreenshotStreamer:
                     continue
                 
                 try:
-                    frame_bytes = await self.capture_screenshot()
+                    # Use the new method that includes viewport dimensions
+                    frame_bytes = await self.capture_screenshot_with_viewport()
                     await send_callback(frame_bytes)
                 except RuntimeError as e:
                     # Page might have been removed, wait and retry
@@ -93,4 +136,3 @@ class ScreenshotStreamer:
             page: New Playwright Page instance to stream from
         """
         self.page = page
-
