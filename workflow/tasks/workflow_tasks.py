@@ -11,6 +11,7 @@ from celery.result import AsyncResult
 from ..models import WorkFlow
 from ..services.workflow_converter import workflow_converter
 from ..services.flow_engine_service import flow_engine_service
+from ..services.redis_state_store import redis_state_store
 
 logger = structlog.get_logger(__name__)
 
@@ -101,6 +102,10 @@ def stop_workflow(self, workflow_id: str):
             execution_task = AsyncResult(workflow.task_id)
             execution_task.revoke(terminate=True, signal="SIGKILL")
             logger.info("Celery task revoked", task_id=workflow.task_id)
+        
+        # Clear Redis execution state to prevent stale data on restart
+        redis_state_store.delete_state(workflow_id)
+        logger.info("Redis execution state cleared", workflow_id=workflow_id)
         
         # Clean up workflow state
         workflow.task_id = None
