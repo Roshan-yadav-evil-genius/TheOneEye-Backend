@@ -5,6 +5,7 @@ Broadcasts workflow execution events to connected WebSocket clients.
 Uses Django Channels' channel layer for group messaging.
 """
 
+import asyncio
 import structlog
 from typing import Dict, Any
 from channels.layers import get_channel_layer
@@ -13,12 +14,23 @@ from asgiref.sync import async_to_sync
 logger = structlog.get_logger(__name__)
 
 
+def _is_async_context() -> bool:
+    """Check if we're running inside an async event loop."""
+    try:
+        asyncio.get_running_loop()
+        return True
+    except RuntimeError:
+        return False
+
+
 class WebSocketBroadcaster:
     """
     Broadcasts events to WebSocket clients subscribed to a workflow.
     
     Uses Django Channels' channel layer to send messages to groups.
     Each workflow has its own group: workflow_{workflow_id}
+    
+    Handles both sync and async contexts automatically.
     """
     
     def __init__(self):
@@ -31,6 +43,14 @@ class WebSocketBroadcaster:
             self._channel_layer = get_channel_layer()
         return self._channel_layer
     
+    async def _async_broadcast(
+        self,
+        group_name: str,
+        message: Dict[str, Any]
+    ) -> None:
+        """Async broadcast helper."""
+        await self.channel_layer.group_send(group_name, message)
+    
     def broadcast_event(
         self, 
         workflow_id: str, 
@@ -39,6 +59,9 @@ class WebSocketBroadcaster:
     ) -> None:
         """
         Broadcast an event to all clients subscribed to a workflow.
+        
+        Automatically detects if running in async or sync context and
+        uses the appropriate method.
         
         Args:
             workflow_id: The workflow ID
@@ -50,16 +73,20 @@ class WebSocketBroadcaster:
             return
         
         group_name = f"workflow_{workflow_id}"
+        message = {
+            "type": "workflow.event",  # Maps to workflow_event method in consumer
+            "event_type": event_type,
+            "data": data,
+        }
         
         try:
-            async_to_sync(self.channel_layer.group_send)(
-                group_name,
-                {
-                    "type": "workflow.event",  # Maps to workflow_event method in consumer
-                    "event_type": event_type,
-                    "data": data,
-                }
-            )
+            if _is_async_context():
+                # We're in an async context - schedule the coroutine
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._async_broadcast(group_name, message))
+            else:
+                # We're in a sync context - use async_to_sync
+                async_to_sync(self.channel_layer.group_send)(group_name, message)
             
             logger.debug(
                 "Event broadcasted",

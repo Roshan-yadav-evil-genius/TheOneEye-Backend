@@ -8,7 +8,7 @@ Provides full state sync on connect and real-time event updates.
 import json
 import structlog
 from channels.generic.websocket import AsyncWebsocketConsumer
-from .services.execution_state_manager import execution_state_manager
+from .services.redis_state_store import redis_state_store
 
 logger = structlog.get_logger(__name__)
 
@@ -86,8 +86,18 @@ class WorkflowExecutionConsumer(AsyncWebsocketConsumer):
             }))
     
     async def _send_state_sync(self):
-        """Send full execution state to this client."""
-        state = execution_state_manager.get_state(self.workflow_id)
+        """Send full execution state to this client (reads from Redis)."""
+        state = redis_state_store.get_state(self.workflow_id)
+        
+        # If no state in Redis, return idle state
+        if state is None:
+            state = {
+                "workflow_id": self.workflow_id,
+                "status": "idle",
+                "executing_nodes": {},
+                "completed_nodes": [],
+                "completed_count": 0,
+            }
         
         await self.send(text_data=json.dumps({
             'type': 'state_sync',
