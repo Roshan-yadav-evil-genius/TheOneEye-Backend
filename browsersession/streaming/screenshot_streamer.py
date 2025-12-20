@@ -1,7 +1,7 @@
 """Screenshot capture and streaming functionality."""
 import asyncio
 from typing import Awaitable, Callable, Optional
-from playwright.async_api import Page
+from playwright.async_api import Page, Error as PlaywrightError
 
 
 class ScreenshotStreamer:
@@ -79,6 +79,27 @@ class ScreenshotStreamer:
         )
         return screenshot_bytes
     
+    def _is_page_closed_error(self, error: Exception) -> bool:
+        """
+        Check if an error indicates the page was closed.
+        
+        Args:
+            error: Exception to check
+            
+        Returns:
+            True if error indicates page/context/browser was closed
+        """
+        error_message = str(error).lower()
+        closed_indicators = [
+            "target page, context or browser has been closed",
+            "page has been closed",
+            "context has been closed",
+            "browser has been closed",
+            "target closed",
+            "execution context was destroyed",
+        ]
+        return any(indicator in error_message for indicator in closed_indicators)
+    
     async def stream(
         self,
         send_callback: Callable[[bytes], Awaitable[None]],
@@ -89,6 +110,9 @@ class ScreenshotStreamer:
         
         Each frame includes an 8-byte header with viewport dimensions,
         allowing the frontend to properly scale and map coordinates.
+        
+        Handles page close events gracefully by waiting for a new page
+        to be set via set_page().
         
         Args:
             send_callback: Async function to send frame data (bytes with viewport header)
@@ -111,8 +135,26 @@ class ScreenshotStreamer:
                     frame_bytes = await self.capture_screenshot_with_viewport()
                     await send_callback(frame_bytes)
                 except RuntimeError as e:
-                    # Page might have been removed, wait and retry
+                    # Page reference is None
                     if "Page not set" in str(e):
+                        await asyncio.sleep(0.1)
+                        continue
+                    raise
+                except PlaywrightError as e:
+                    # Page was closed (e.g., popup closed after auth)
+                    if self._is_page_closed_error(e):
+                        print(f"[!] Page closed during screenshot, waiting for new page...")
+                        # Clear the stale page reference
+                        self.page = None
+                        # Wait for a new page to be set via set_page()
+                        await asyncio.sleep(0.1)
+                        continue
+                    raise
+                except Exception as e:
+                    # Catch any other page closed errors (sometimes wrapped differently)
+                    if self._is_page_closed_error(e):
+                        print(f"[!] Page closed during screenshot, waiting for new page...")
+                        self.page = None
                         await asyncio.sleep(0.1)
                         continue
                     raise
