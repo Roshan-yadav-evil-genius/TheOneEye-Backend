@@ -107,6 +107,26 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         
         return not bool(self.form._errors)
     
+    def _extract_clean_error_messages(self, form) -> str:
+        """
+        Extract clean error messages from Django form errors without HTML formatting.
+        Single responsibility: Convert form errors to a clean, readable string.
+        
+        Args:
+            form: Django form instance with validation errors
+            
+        Returns:
+            str: Formatted error message string without HTML tags
+        """
+        error_messages = []
+        for field_name, errors in form.errors.items():
+            for error in errors:
+                if field_name == '__all__':
+                    error_messages.append(str(error))
+                else:
+                    error_messages.append(f"{field_name}: {str(error)}")
+        return "; ".join(error_messages) if error_messages else "Form validation failed"
+    
     async def init(self):
         """
         Initialize the node.
@@ -154,7 +174,8 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         
         # Validate form after rendering
         if not self.form.is_valid():
-            raise FormValidationError(self.form, f"Form validation failed after rendering: {self.form.errors}")
+            clean_message = self._extract_clean_error_messages(self.form)
+            raise FormValidationError(self.form, f"Form validation failed after rendering: {clean_message}")
         else:
             self.form.validate()
             logger.info(f"Form validation passed", form=self.form.get_all_field_values(), node_id=self.node_config.id, identifier=f"{self.__class__.__name__}({self.identifier()})")
