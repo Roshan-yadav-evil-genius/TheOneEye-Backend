@@ -79,6 +79,31 @@ class NodeExecutor:
             }
             
         except Exception as e:
+            # Check if it's a FormValidationError by type name and attributes (module path may differ)
+            # Use type name check instead of isinstance due to module path differences
+            is_form_validation_error = (
+                type(e).__name__ == 'FormValidationError' and
+                hasattr(e, 'form') and
+                hasattr(e, 'message')
+            )
+            
+            if is_form_validation_error:
+                try:
+                    from Node.Core.Form.Core.FormSerializer import FormSerializer
+                    serializer = FormSerializer(e.form)
+                    form_state = serializer.to_json()
+                    
+                    return {
+                        'success': False,
+                        'error': 'Form validation failed',
+                        'error_type': 'FormValidationError',
+                        'message': e.message,
+                        'form': form_state,
+                        'identifier': node_metadata.get('identifier')
+                    }
+                except Exception:
+                    raise
+            
             traceback.print_exc()
             return {
                 'success': False,
@@ -165,6 +190,8 @@ class NodeExecutor:
         asyncio.set_event_loop(loop)
         try:
             result = loop.run_until_complete(run_async())
+        except Exception:
+            raise
         finally:
             loop.close()
         

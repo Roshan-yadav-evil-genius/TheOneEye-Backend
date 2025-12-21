@@ -77,6 +77,8 @@ class NodeExecutionService:
                 'output': result.get('output'),
                 'error': result.get('error'),
                 'error_type': result.get('error_type'),
+                'message': result.get('message'),
+                'form': result.get('form'),
                 'session_id': session_id,
             }
             

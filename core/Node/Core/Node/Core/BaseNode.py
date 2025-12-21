@@ -20,6 +20,18 @@ def contains_jinja_template(value) -> bool:
         return False
     return bool(JINJA_PATTERN.search(str(value)))
 
+
+class FormValidationError(Exception):
+    """
+    Exception raised when form validation fails after Jinja template rendering.
+    Contains the form instance so errors can be serialized and returned to frontend.
+    """
+    def __init__(self, form, message="Form validation failed after rendering"):
+        self.form = form
+        self.message = message
+        super().__init__(self.message)
+
+
 class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
     """
     Dont Use This Class Directly. Use One of the Subclasses Instead.
@@ -116,7 +128,7 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
             node_data: The NodeOutput containing runtime data for template rendering.
         
         Raises:
-            ValueError: If form validation fails after rendering.
+            FormValidationError: If form validation fails after rendering.
         """
         from jinja2 import Template
         
@@ -142,7 +154,7 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         
         # Validate form after rendering
         if not self.form.is_valid():
-            raise ValueError(f"Form validation failed after rendering: {self.form.errors}")
+            raise FormValidationError(self.form, f"Form validation failed after rendering: {self.form.errors}")
         else:
             self.form.validate()
             logger.info(f"Form validation passed", form=self.form.get_all_field_values(), node_id=self.node_config.id, identifier=f"{self.__class__.__name__}({self.identifier()})")

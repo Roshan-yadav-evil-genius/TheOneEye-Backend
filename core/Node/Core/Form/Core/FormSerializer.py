@@ -5,6 +5,8 @@ This module provides utilities for parsing Django form fields into JSON structur
 Each function follows the Single Responsibility Principle.
 """
 
+import asyncio
+import inspect
 from bs4 import BeautifulSoup
 from typing import Any, Dict, List, Optional
 
@@ -117,16 +119,51 @@ class FormSerializer:
         Returns:
             Dictionary containing parsed field information
         """
-        soup = BeautifulSoup(str(field), 'html.parser')
+        field_field = getattr(field, 'field', None)
+        choices = getattr(field_field, 'choices', None) if field_field else None
+        
+        # Fix: If choices is a coroutine, await it before rendering
+        if choices is not None and inspect.iscoroutine(choices):
+            try:
+                # We're in a synchronous context, so asyncio.run() should work
+                # It creates a new event loop and runs the coroutine
+                resolved_choices = asyncio.run(choices)
+            except RuntimeError:
+                # If asyncio.run() fails (e.g., there's already a running loop),
+                # try to get the current event loop
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # Loop is running - can't use run_until_complete
+                        # Fall back to empty choices
+                        resolved_choices = []
+                    else:
+                        resolved_choices = loop.run_until_complete(choices)
+                except RuntimeError:
+                    # No event loop available - shouldn't happen, but use empty choices
+                    resolved_choices = []
+            except Exception:
+                # Any other error - use empty choices to prevent rendering failure
+                resolved_choices = []
+            
+            # Update the field's choices with the resolved value
+            field_field.choices = resolved_choices
+        
+        field_str = str(field)
+        
+        soup = BeautifulSoup(field_str, 'html.parser')
         tag = soup.find()
         
         if not tag:
             return {}
         
+        field_errors = field.errors
+        errors_list = list(field_errors) if field_errors else []
+        
         result = {
             'tag': tag.name,
             'label': str(field.label) if field.label else '',
-            'errors': list(field.errors) if field.errors else []
+            'errors': errors_list
         }
         
         # Extract and normalize tag attributes
