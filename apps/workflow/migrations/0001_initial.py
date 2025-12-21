@@ -2,7 +2,7 @@
 
 import django.db.models.deletion
 import uuid
-import workflow.models
+import apps.workflow.models as workflow_models
 from django.db import migrations, models
 
 
@@ -175,7 +175,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "file",
-                    models.FileField(upload_to=workflow.models.node_file_upload_path),
+                    models.FileField(upload_to=workflow_models.node_file_upload_path),
                 ),
                 (
                     "node",
@@ -229,9 +229,13 @@ class Migration(migrations.Migration):
                         to="workflow.workflow",
                     ),
                 ),
+                (
+                    "source_handle",
+                    models.CharField(blank=True, default="default", max_length=50),
+                ),
             ],
             options={
-                "unique_together": {("source_node", "target_node")},
+                "unique_together": {("source_node", "target_node", "source_handle")},
             },
         ),
     ]

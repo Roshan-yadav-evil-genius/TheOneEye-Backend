@@ -127,9 +127,7 @@ CORE_DIR = BASE_DIR / 'core'
 # Additional static files directories
 # Node icons are served from core/Node/Nodes with 'nodes' prefix
 # Access pattern: /static/nodes/{Category}/{NodeName}/icon.png
-STATICFILES_DIRS = [
-    (str(CORE_DIR / 'Node' / 'Nodes'), 'nodes'),
-]
+STATICFILES_DIRS = []
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
