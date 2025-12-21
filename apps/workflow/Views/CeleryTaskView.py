@@ -2,9 +2,9 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from celery.result import AsyncResult
-import logging
+import structlog
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class CeleryTaskStatusView(APIView):
     """
@@ -55,12 +55,12 @@ class CeleryTaskStatusView(APIView):
                 if isinstance(task_result.info, dict) and 'progress' in task_result.info:
                     response_data['progress'] = task_result.info['progress']
             
-            logger.info(f"Task {task_id} status: {task_state}")
+            logger.info("Task status retrieved", task_id=task_id, task_state=task_state)
             
             return Response(response_data, status=status.HTTP_200_OK)
             
         except Exception as e:
-            logger.error(f"Error getting task status for {task_id}: {str(e)}")
+            logger.error("Error getting task status", task_id=task_id, error=str(e), exc_info=True)
             return Response({
                 'error': f'Failed to get task status: {str(e)}',
                 'task_id': task_id,

@@ -1,8 +1,11 @@
 """Page event coordination."""
 import asyncio
+import structlog
 from typing import Callable
 from .page_manager import PageManager
 from .websocket_message_sender import WebSocketMessageSender
+
+logger = structlog.get_logger(__name__)
 
 
 class PageEventCoordinator:
@@ -99,10 +102,10 @@ class PageEventCoordinator:
             
             if remaining_page_ids:
                 # Switch to the last remaining page (most recently opened)
-                print(f"[+] Active page closed, switching to: {remaining_page_ids[-1]}")
+                logger.info("Active page closed, switching to another page", new_page_id=remaining_page_ids[-1], closed_page_id=closed_page_id)
                 await self.page_manager.switch_active_page(remaining_page_ids[-1])
             else:
                 # No pages left, clear all page references
-                print("[+] All pages closed, clearing page references")
+                logger.info("All pages closed, clearing page references", closed_page_id=closed_page_id)
                 self.page_manager.interaction_manager.set_page(None)
                 self.page_manager.browser_manager.page = None

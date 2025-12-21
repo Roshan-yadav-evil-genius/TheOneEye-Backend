@@ -1,7 +1,10 @@
 """Screenshot capture and streaming functionality."""
 import asyncio
+import structlog
 from typing import Awaitable, Callable, Optional
 from playwright.async_api import Page, Error as PlaywrightError
+
+logger = structlog.get_logger(__name__)
 
 
 class ScreenshotStreamer:
@@ -143,7 +146,7 @@ class ScreenshotStreamer:
                 except PlaywrightError as e:
                     # Page was closed (e.g., popup closed after auth)
                     if self._is_page_closed_error(e):
-                        print(f"[!] Page closed during screenshot, waiting for new page...")
+                        logger.debug("Page closed during screenshot, waiting for new page")
                         # Clear the stale page reference
                         self.page = None
                         # Wait for a new page to be set via set_page()
@@ -153,7 +156,7 @@ class ScreenshotStreamer:
                 except Exception as e:
                     # Catch any other page closed errors (sometimes wrapped differently)
                     if self._is_page_closed_error(e):
-                        print(f"[!] Page closed during screenshot, waiting for new page...")
+                        logger.debug("Page closed during screenshot, waiting for new page")
                         self.page = None
                         await asyncio.sleep(0.1)
                         continue
@@ -161,7 +164,7 @@ class ScreenshotStreamer:
                 
                 await asyncio.sleep(self.frame_delay)
         except asyncio.CancelledError:
-            print("Screenshot streaming cancelled")
+            logger.info("Screenshot streaming cancelled")
             raise
         finally:
             self.streaming = False

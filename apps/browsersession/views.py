@@ -6,6 +6,9 @@ from rest_framework.permissions import AllowAny
 from django.conf import settings
 import os
 import shutil
+import structlog
+
+logger = structlog.get_logger(__name__)
 from apps.browsersession.models import BrowserSession
 from apps.browsersession.serializers import (
     BrowserSessionSerializer, 
@@ -55,7 +58,7 @@ class BrowserSessionViewSet(ModelViewSet):
                 os.makedirs(str(session_dir), exist_ok=True)
             except Exception as e:
                 # Log error but don't fail the request
-                print(f"Error creating session directory: {e}")
+                logger.error("Error creating session directory", session_id=session_id, error=str(e), exc_info=True)
         
         # Create response using the full serializer (which includes id)
         headers = self.get_success_headers(serializer.data)
@@ -77,7 +80,7 @@ class BrowserSessionViewSet(ModelViewSet):
                     shutil.rmtree(str(session_dir))
             except Exception as e:
                 # Log error but don't fail the request
-                print(f"Error deleting session directory: {e}")
+                logger.error("Error deleting session directory", session_id=session_id, error=str(e), exc_info=True)
         
         # Delete the session instance
         return super().destroy(request, *args, **kwargs)

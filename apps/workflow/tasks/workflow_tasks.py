@@ -28,7 +28,7 @@ def execute_workflow(self, workflow_config: dict):
         Dict with execution status and results
     """
     workflow_id = workflow_config.get("id", None)
-    print(f"Execution started for Workflow ID: {workflow_id}")
+    logger.info("Workflow execution started", workflow_id=workflow_id)
     
     if not workflow_id:
         logger.error("No workflow ID provided")

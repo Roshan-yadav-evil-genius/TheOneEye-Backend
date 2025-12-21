@@ -1,8 +1,11 @@
 """Message routing for WebSocket messages."""
+import structlog
 from typing import Dict, Any, Optional, Callable, Awaitable
 from ..event_handlers.mouse_handler import MouseHandler
 from ..event_handlers.keyboard_handler import KeyboardHandler
 from ..utils.validators import MessageValidator
+
+logger = structlog.get_logger(__name__)
 
 
 class MessageRouter:
@@ -51,7 +54,7 @@ class MessageRouter:
         elif message_type in ['keydown', 'keyup']:
             await self._route_keyboard_event(message_type, data)
         else:
-            print(f"Unknown message type: {message_type}")
+            logger.warning("Unknown message type", message_type=message_type)
     
     async def _route_mouse_event(self, message_type: str, data: Dict[str, Any]) -> None:
         """

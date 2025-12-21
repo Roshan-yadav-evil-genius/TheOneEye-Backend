@@ -2,6 +2,10 @@ import os
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "theoneeye.settings")
 
+# Initialize structlog before Django starts
+from theoneeye.logging_config import setup_django_logging
+setup_django_logging()
+
 # Initialize Django BEFORE importing anything that uses Django models
 import django
 django.setup()

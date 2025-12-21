@@ -1,8 +1,11 @@
 """Browser management for Playwright browser instances."""
 import uuid
+import structlog
 from pathlib import Path
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 from typing import Optional, Callable
+
+logger = structlog.get_logger(__name__)
 
 
 class BrowserManager:
@@ -44,7 +47,7 @@ class BrowserManager:
         page_id = uuid.uuid4().hex
         self.pages[page_id] = page
         self._page_to_id[page] = page_id
-        print("[+] New Page Created with Id:", page_id)
+        logger.info("New page created", page_id=page_id)
 
         # Call page_added callback if provided
         if self.page_added_callback:
@@ -56,7 +59,7 @@ class BrowserManager:
                 del self.pages[page_id]
             if page in self._page_to_id:
                 del self._page_to_id[page]
-            print("[+] Page Closed with Id:", page_id)
+            logger.info("Page closed", page_id=page_id)
 
             # Call page_removed callback if provided
             if self.page_removed_callback:
@@ -182,28 +185,28 @@ class BrowserManager:
             try:
                 await self.page.close()
             except Exception as e:
-                print(f"Error closing page: {e}")
+                logger.warning("Error closing page", error=str(e), exc_info=True)
             self.page = None
 
         if self.context:
             try:
                 await self.context.close()
             except Exception as e:
-                print(f"Error closing context: {e}")
+                logger.warning("Error closing context", error=str(e), exc_info=True)
             self.context = None
 
         if self.browser:
             try:
                 await self.browser.close()
             except Exception as e:
-                print(f"Error closing browser: {e}")
+                logger.warning("Error closing browser", error=str(e), exc_info=True)
             self.browser = None
 
         if self.playwright:
             try:
                 await self.playwright.stop()
             except Exception as e:
-                print(f"Error stopping playwright: {e}")
+                logger.warning("Error stopping playwright", error=str(e), exc_info=True)
             self.playwright = None
 
         # Clear page tracking dictionaries

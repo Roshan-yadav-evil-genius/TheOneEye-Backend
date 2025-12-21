@@ -1,7 +1,10 @@
 """WebSocket consumer for video streaming."""
 import json
 import asyncio
+import structlog
 from channels.generic.websocket import AsyncWebsocketConsumer
+
+logger = structlog.get_logger(__name__)
 from .managers import (
     BrowserManager,
     PageManager,
@@ -84,7 +87,7 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
     
     async def receive(self, text_data):
         """Handle incoming WebSocket messages and delegate to appropriate managers."""
-        print(f"Received message: {text_data}")
+        logger.debug("Received WebSocket message", message=text_data)
         
         # Let MessageRouter handle validation and routing for most messages
         # Only handle special cases that need consumer-level logic
@@ -135,10 +138,10 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
             if self.message_router:
                 await self.message_router.route(text_data)
         except json.JSONDecodeError as e:
-            print(f"Message error: {e}")
+            logger.warning("Invalid JSON in WebSocket message", error=str(e))
             await self.message_sender.send_error(f'Invalid JSON: {str(e)}')
         except Exception as e:
-            print(f"Unexpected error in receive: {e}")
+            logger.error("Unexpected error in receive", error=str(e), exc_info=True)
             await self.message_sender.send_error(f'Error processing message: {str(e)}')
 
 
@@ -211,7 +214,7 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
             )
             
         except Exception as e:
-            print(f"Error in streaming: {e}")
+            logger.error("Error in streaming", error=str(e), exc_info=True)
             await self.message_sender.send_error(f'Streaming error: {str(e)}')
         finally:
             self.streaming = False

@@ -1,8 +1,11 @@
 """Base manager class with common error handling and validation."""
+import structlog
 from typing import Optional
 from playwright.async_api import Page
 from .browser_manager import BrowserManager
 from .websocket_message_sender import WebSocketMessageSender
+
+logger = structlog.get_logger(__name__)
 
 
 class BaseManager:
@@ -90,7 +93,7 @@ class BaseManager:
             error_message: User-friendly error message
             success_message: Optional success message to print
         """
-        print(f"Error in {operation_name}: {error}")
+        logger.error("Error in operation", operation=operation_name, error=str(error), exc_info=True)
         if self.message_sender:
             await self.message_sender.send_error(error_message)
     
@@ -116,7 +119,7 @@ class BaseManager:
         try:
             await operation_func()
             if success_message:
-                print(success_message)
+                logger.info("Operation completed successfully", operation=operation_name, message=success_message)
             return True
         except Exception as e:
             error_message = error_message_template.format(operation=operation_name, error=str(e))
