@@ -137,8 +137,8 @@ class BrowserManager:
         # If session_id is provided, use persistent context
         if session_id:
             # Create directory for persistent browser data
-            base_dir = Path("browser_sessions")
-            base_dir.mkdir(exist_ok=True)
+            base_dir = Path("data") / "Browser"
+            base_dir.mkdir(parents=True, exist_ok=True)
 
             user_data_dir = base_dir / session_id
             user_data_dir.mkdir(exist_ok=True)

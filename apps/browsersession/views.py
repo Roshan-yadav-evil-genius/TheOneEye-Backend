@@ -46,8 +46,8 @@ class BrowserSessionViewSet(ModelViewSet):
         # Get the created session instance ID
         session_id = instance.id
         if session_id:
-            # Create session directory: browser_sessions/{session_id}
-            sessions_dir = settings.BASE_DIR / 'browser_sessions'
+            # Create session directory: data/Browser/{session_id}
+            sessions_dir = settings.BASE_DIR / 'data' / 'Browser'
             session_dir = sessions_dir / str(session_id)
             
             # Create directories if they don't exist
@@ -69,7 +69,7 @@ class BrowserSessionViewSet(ModelViewSet):
         
         # Delete session directory if it exists
         if session_id:
-            sessions_dir = settings.BASE_DIR / 'browser_sessions'
+            sessions_dir = settings.BASE_DIR / 'data' / 'Browser'
             session_dir = sessions_dir / str(session_id)
             
             try:

@@ -5,3 +5,4 @@ browser_sessions
 bin
 .env
 *.sqlite3
+data
