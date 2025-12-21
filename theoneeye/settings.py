@@ -120,8 +120,8 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
-# Path to core folder (sibling of backend)
-CORE_DIR = BASE_DIR.parent / 'core'
+# Path to core folder (inside backend)
+CORE_DIR = BASE_DIR / 'core'
 
 # Additional static files directories
 # Node icons are served from core/Node/Nodes with 'nodes' prefix

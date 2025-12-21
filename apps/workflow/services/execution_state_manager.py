@@ -9,9 +9,13 @@ import sys
 import structlog
 from typing import Dict, Any, Optional, TYPE_CHECKING
 from threading import Lock
+from pathlib import Path
 
 # Add core to path for imports
-sys.path.insert(0, '/home/roshan/main/TheOneEye/Attempt3/core')
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+CORE_PATH = BASE_DIR / 'core'
+if str(CORE_PATH) not in sys.path:
+    sys.path.insert(0, str(CORE_PATH))
 
 if TYPE_CHECKING:
     from Workflow.flow_engine import FlowEngine

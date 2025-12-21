@@ -5,7 +5,7 @@ from django.conf.urls.static import static
 from django.http import FileResponse, Http404
 
 # Serve node icons - defined BEFORE main urlpatterns to ensure it takes priority
-NODES_STATIC_ROOT = settings.BASE_DIR.parent / 'core' / 'Node' / 'Nodes'
+NODES_STATIC_ROOT = settings.BASE_DIR / 'core' / 'Node' / 'Nodes'
 
 def serve_node_icon(request, icon_path):
     """Serve node icon files from core/Node/Nodes directory."""

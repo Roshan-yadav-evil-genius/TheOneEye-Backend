@@ -6,13 +6,23 @@ Follows Single Responsibility Principle - only handles FlowEngine operations.
 """
 
 import sys
+import os
 import asyncio
 import structlog
 from datetime import datetime
 from typing import Dict, Any, Optional
+from pathlib import Path
 
 # Add core to path for imports
-sys.path.insert(0, '/home/roshan/main/TheOneEye/Attempt3/core')
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+CORE_PATH = BASE_DIR / 'core'
+if str(CORE_PATH) not in sys.path:
+    sys.path.insert(0, str(CORE_PATH))
+
+# Ensure Django is set up before importing Workflow (needed for model access)
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'theoneeye.settings')
+import django
+django.setup()
 
 from .websocket_broadcaster import websocket_broadcaster
 from .redis_state_store import redis_state_store

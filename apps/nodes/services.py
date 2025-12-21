@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import Optional
 
 # Add core to the Python path to import views services
-# Calculate project root: backend/apps/nodes/services.py -> Attempt3
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-CORE_PATH = PROJECT_ROOT / 'core'
+# Calculate core path: backend/apps/nodes/services.py -> backend/core
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+CORE_PATH = BASE_DIR / 'core'
 
 if str(CORE_PATH) not in sys.path:
     sys.path.insert(0, str(CORE_PATH))
@@ -36,7 +36,8 @@ class NodeServices:
     def services(self) -> ServiceContainer:
         """Get or create the ServiceContainer instance."""
         if self._services is None:
-            # Project root should be Attempt3 (where core/ is located), not core/ itself
+            # Project root should be Attempt3 (parent of backend), not backend/core itself
+            PROJECT_ROOT = BASE_DIR.parent
             self._services = create_services(PROJECT_ROOT)
         return self._services
     
