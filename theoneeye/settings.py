@@ -120,6 +120,16 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
+# Path to core folder (sibling of backend)
+CORE_DIR = BASE_DIR.parent / 'core'
+
+# Additional static files directories
+# Node icons are served from core/Node/Nodes with 'nodes' prefix
+# Access pattern: /static/nodes/{Category}/{NodeName}/icon.png
+STATICFILES_DIRS = [
+    (str(CORE_DIR / 'Node' / 'Nodes'), 'nodes'),
+]
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

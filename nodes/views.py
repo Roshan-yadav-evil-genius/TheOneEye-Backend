@@ -273,6 +273,7 @@ def _format_node_response(node: dict, include_form_class: bool = False, include_
         'description': node.get('description'),
         'has_form': node.get('has_form'),
         'category': node.get('category'),
+        'icon': node.get('icon'),  # Auto-discovered icon path (e.g., "Store/icon.png")
     }
     
     if include_form_class:

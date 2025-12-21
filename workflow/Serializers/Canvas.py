@@ -31,6 +31,7 @@ class CanvasNodeSerializer(NodeSerializer):
                 'description': node_metadata.get('description'),
                 'has_form': node_metadata.get('has_form'),
                 'category': node_metadata.get('category'),
+                'icon': node_metadata.get('icon'),  # Auto-discovered icon path
                 'input_ports': node_metadata.get('input_ports', [{'id': 'default', 'label': 'In'}]),
                 'output_ports': node_metadata.get('output_ports', [{'id': 'default', 'label': 'Out'}]),
             }
