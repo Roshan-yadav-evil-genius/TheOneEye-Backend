@@ -148,7 +148,7 @@ class FlowEngineService:
             on_stop: Whether cleanup is happening due to stop command
         """
         try:
-            from Node.Nodes.Browser.BrowserManager import BrowserManager
+            from Node.Nodes.Browser._shared.BrowserManager import BrowserManager
             browser_manager = BrowserManager()
             loop.run_until_complete(browser_manager.close())
             
