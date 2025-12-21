@@ -9,12 +9,17 @@ https://docs.djangoproject.com/en/5.2/howto/deployment/wsgi/
 
 import os
 
-# Initialize structlog before Django starts
-from theoneeye.logging_config import setup_django_logging
-setup_django_logging()
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "theoneeye.settings")
 
 from django.core.wsgi import get_wsgi_application
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "theoneeye.settings")
+# Initialize Django first
+import django
+django.setup()
+
+# Initialize unified logging with BASE_DIR from settings
+from django.conf import settings
+from app_logging.config import setup_logging
+setup_logging(settings.BASE_DIR)
 
 application = get_wsgi_application()

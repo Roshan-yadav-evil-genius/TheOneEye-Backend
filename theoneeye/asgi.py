@@ -2,13 +2,14 @@ import os
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "theoneeye.settings")
 
-# Initialize structlog before Django starts
-from theoneeye.logging_config import setup_django_logging
-setup_django_logging()
-
 # Initialize Django BEFORE importing anything that uses Django models
 import django
 django.setup()
+
+# Initialize unified logging with BASE_DIR from settings
+from django.conf import settings
+from app_logging.config import setup_logging
+setup_logging(settings.BASE_DIR)
 
 from django.core.asgi import get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter

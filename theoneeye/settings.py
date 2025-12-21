@@ -49,6 +49,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "app_logging.middleware.StructlogRequestContextMiddleware",  # Bind request context to structlog
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -182,100 +183,6 @@ GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', 'http://localhost:3000/auth/google/callback')
 
 # Logging Configuration
-import structlog
-from theoneeye.logging_config import DjangoTimedRotatingFileHandler
-
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'console': {
-            '()': structlog.stdlib.ProcessorFormatter,
-            'processor': structlog.dev.ConsoleRenderer(colors=True),
-            'foreign_pre_chain': [
-                structlog.contextvars.merge_contextvars,
-                structlog.stdlib.add_log_level,
-                structlog.stdlib.add_logger_name,
-                structlog.processors.TimeStamper(fmt="iso", utc=True),
-                structlog.processors.StackInfoRenderer(),
-                structlog.processors.format_exc_info,
-                structlog.processors.UnicodeDecoder(),
-                structlog.processors.CallsiteParameterAdder(
-                    parameters=[
-                        structlog.processors.CallsiteParameter.FILENAME,
-                        structlog.processors.CallsiteParameter.LINENO
-                    ]
-                ),
-            ],
-        },
-        'json': {
-            '()': structlog.stdlib.ProcessorFormatter,
-            'processor': structlog.processors.JSONRenderer(),
-            'foreign_pre_chain': [
-                structlog.contextvars.merge_contextvars,
-                structlog.stdlib.add_log_level,
-                structlog.stdlib.add_logger_name,
-                structlog.processors.TimeStamper(fmt="iso", utc=True),
-                structlog.processors.StackInfoRenderer(),
-                structlog.processors.format_exc_info,
-                structlog.processors.UnicodeDecoder(),
-                structlog.processors.CallsiteParameterAdder(
-                    parameters=[
-                        structlog.processors.CallsiteParameter.FILENAME,
-                        structlog.processors.CallsiteParameter.LINENO
-                    ]
-                ),
-            ],
-        },
-    },
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'console',
-            'level': 'INFO',
-        },
-        'console_debug': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'console',
-            'level': 'DEBUG',
-        },
-        'file': {
-            '()': DjangoTimedRotatingFileHandler,
-            'filename': BASE_DIR / 'logs' / 'django.jsonl',
-            'when': 'midnight',
-            'interval': 1,
-            'backupCount': 30,
-            'encoding': 'utf-8',
-            'utc': True,
-            'suffix': '%Y-%m-%d.jsonl',
-            'formatter': 'json',
-            'level': 'DEBUG',
-        },
-    },
-    'root': {
-        'handlers': ['console', 'file'],
-        'level': 'DEBUG',
-    },
-    'loggers': {
-        'django': {
-            'handlers': ['console', 'file'],
-            'level': 'INFO',
-            'propagate': False,
-        },
-        'django.request': {
-            'handlers': ['console', 'file'],
-            'level': 'WARNING',
-            'propagate': False,
-        },
-        'django.server': {
-            'handlers': ['console', 'file'],
-            'level': 'INFO',
-            'propagate': False,
-        },
-        'apps.browsersession': {
-            'handlers': ['console_debug', 'file'],
-            'level': 'DEBUG',
-            'propagate': False,
-        },
-    },
-}
+# Use unified logging configuration
+from app_logging.config import setup_logging
+LOGGING = setup_logging(BASE_DIR)
