@@ -35,11 +35,11 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "corsheaders",
     'channels',
-    "workflow",
-    "browsersession",
-    "authentication",
-    "contact",
-    "nodes",
+    "apps.workflow",
+    "apps.browsersession",
+    "apps.authentication",
+    "apps.contact",
+    "apps.nodes",
 ]
 
 MIDDLEWARE = [

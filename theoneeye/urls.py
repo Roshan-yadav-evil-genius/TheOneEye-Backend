@@ -26,10 +26,10 @@ urlpatterns = [
     # Node icons FIRST - use 'node-icons' path to avoid conflict with Django's static handling
     path("node-icons/<path:icon_path>", serve_node_icon, name='node-icon'),
     path("admin/", admin.site.urls),
-    path("api/",include("workflow.urls")),
-    path("api/", include("browsersession.urls")),
-    path("api/auth/", include("authentication.urls")),
-    path("api/contact/", include("contact.urls")),
-    path("api/nodes/", include("nodes.urls")),
+    path("api/",include("apps.workflow.urls")),
+    path("api/", include("apps.browsersession.urls")),
+    path("api/auth/", include("apps.authentication.urls")),
+    path("api/contact/", include("apps.contact.urls")),
+    path("api/nodes/", include("apps.nodes.urls")),
     
 ]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
