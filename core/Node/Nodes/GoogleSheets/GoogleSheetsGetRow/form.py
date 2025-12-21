@@ -86,7 +86,7 @@ class GoogleSheetsGetRowForm(BaseForm):
             'spreadsheet': ['sheet']            # Spreadsheet selection loads sheets
         }
     
-    def populate_field(self, field_name, parent_value, form_values=None):
+    async def populate_field(self, field_name, parent_value, form_values=None):
         """
         Provide choices for dependent fields based on parent value.
         
@@ -103,10 +103,10 @@ class GoogleSheetsGetRowForm(BaseForm):
         form_values = form_values or {}
         
         if field_name == 'spreadsheet':
-            return populate_spreadsheet_choices(parent_value)
+            return await populate_spreadsheet_choices(parent_value)
         
         elif field_name == 'sheet':
-            return populate_sheet_choices(
+            return await populate_sheet_choices(
                 spreadsheet_id=parent_value,
                 form_values=form_values
             )

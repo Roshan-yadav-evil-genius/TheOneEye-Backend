@@ -88,7 +88,7 @@ class FormLoader:
         serializer = FormSerializer(form)
         return serializer.to_json()
     
-    def get_field_options(
+    async def get_field_options(
         self, 
         node_metadata: Dict, 
         field_name: str, 
@@ -107,6 +107,9 @@ class FormLoader:
         Returns:
             List of (value, text) tuples for the field options.
         """
+        import asyncio
+        import inspect
+        
         form_values = form_values or {}
         
         try:
@@ -135,7 +138,13 @@ class FormLoader:
                     form.update_field(key, value)
             
             # Get options from the form's populate_field method
-            options = form.populate_field(field_name, parent_value, form_values)
+            # Handle both sync and async populate_field methods
+            populate_method = form.populate_field
+            if inspect.iscoroutinefunction(populate_method):
+                options = await populate_method(field_name, parent_value, form_values)
+            else:
+                options = populate_method(field_name, parent_value, form_values)
+            
             return options if options else []
             
         except Exception as e:

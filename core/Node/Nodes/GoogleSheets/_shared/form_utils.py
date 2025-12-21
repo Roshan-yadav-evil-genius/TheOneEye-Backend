@@ -13,7 +13,6 @@ This module provides reusable utilities:
 from typing import List, Tuple, Optional, Dict, Any
 from django import forms
 import structlog
-import asyncio
 
 logger = structlog.get_logger(__name__)
 
@@ -56,7 +55,7 @@ def get_google_account_choices() -> List[Tuple[str, str]]:
     return [("", "-- Select Account --")]
 
 
-def populate_spreadsheet_choices(
+async def populate_spreadsheet_choices(
     account_id: str
 ) -> List[Tuple[str, str]]:
     """
@@ -75,20 +74,7 @@ def populate_spreadsheet_choices(
     
     try:
         service = GoogleSheetsService(account_id)
-        # Run async method from sync context
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # If loop is running, we need to use a different approach
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, service.list_spreadsheets())
-                    spreadsheets = future.result()
-            else:
-                spreadsheets = loop.run_until_complete(service.list_spreadsheets())
-        except RuntimeError:
-            # No event loop, create one
-            spreadsheets = asyncio.run(service.list_spreadsheets())
+        spreadsheets = await service.list_spreadsheets()
         
         logger.debug(
             "Populated spreadsheets",
@@ -107,7 +93,7 @@ def populate_spreadsheet_choices(
         return [("", "-- Error loading spreadsheets --")]
 
 
-def populate_sheet_choices(
+async def populate_sheet_choices(
     spreadsheet_id: str,
     account_id: Optional[str] = None,
     form_values: Optional[Dict[str, Any]] = None
@@ -138,20 +124,7 @@ def populate_sheet_choices(
     
     try:
         service = GoogleSheetsService(account_id)
-        # Run async method from sync context
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # If loop is running, we need to use a different approach
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, service.list_sheets(spreadsheet_id))
-                    sheets = future.result()
-            else:
-                sheets = loop.run_until_complete(service.list_sheets(spreadsheet_id))
-        except RuntimeError:
-            # No event loop, create one
-            sheets = asyncio.run(service.list_sheets(spreadsheet_id))
+        sheets = await service.list_sheets(spreadsheet_id)
         
         logger.debug(
             "Populated sheets",

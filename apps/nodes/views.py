@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework import status
+from asgiref.sync import async_to_sync
 
 from .services import get_node_services
 
@@ -228,7 +229,8 @@ class NodeFieldOptionsView(APIView):
             )
         
         # Get field options from form, passing all form values for multi-parent access
-        options = services.form_loader.get_field_options(
+        # Use async_to_sync to call the async method from sync context
+        options = async_to_sync(services.form_loader.get_field_options)(
             node, dependent_field, parent_value, form_values
         )
         
