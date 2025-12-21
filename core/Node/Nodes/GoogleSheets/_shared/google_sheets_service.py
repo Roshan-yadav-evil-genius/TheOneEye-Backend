@@ -58,9 +58,10 @@ class GoogleSheetsService:
         
         # Fetch account from Django model using sync_to_async
         from apps.authentication.models import GoogleConnectedAccount
+        import asyncio
+        import concurrent.futures
         
-        @sync_to_async
-        def _fetch_account():
+        def _fetch_account_sync():
             try:
                 return GoogleConnectedAccount.objects.get(id=self.account_id, is_active=True)
             except GoogleConnectedAccount.DoesNotExist:
@@ -70,20 +71,37 @@ class GoogleSheetsService:
                 )
                 raise Exception(f"Google account not found or inactive: {self.account_id}")
         
-        account = await _fetch_account()
+        # Use safe async wrapper that handles CurrentThreadExecutor issue
+        async def _fetch_account_async():
+            try:
+                loop = asyncio.get_running_loop()
+                # We're in async context - use thread pool executor to avoid CurrentThreadExecutor
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    return await loop.run_in_executor(executor, _fetch_account_sync)
+            except RuntimeError:
+                # No running loop - safe to use sync_to_async
+                return await sync_to_async(_fetch_account_sync)()
+        
+        account = await _fetch_account_async()
         
         # Get client_id and client_secret from Django settings for token refresh
-        @sync_to_async
-        def _get_oauth_config():
+        def _get_oauth_config_sync():
             from django.conf import settings
             return {
                 'client_id': getattr(settings, 'GOOGLE_CLIENT_ID', ''),
                 'client_secret': getattr(settings, 'GOOGLE_CLIENT_SECRET', ''),
             }
         
+        async def _get_oauth_config_async():
+            try:
+                loop = asyncio.get_running_loop()
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    return await loop.run_in_executor(executor, _get_oauth_config_sync)
+            except RuntimeError:
+                return await sync_to_async(_get_oauth_config_sync)()
+        
         # Convert scope keys to scope URLs
-        @sync_to_async
-        def _convert_scopes():
+        def _convert_scopes_sync():
             from apps.authentication.services.google_oauth_service import GoogleOAuthService
             oauth_service = GoogleOAuthService()
             # account.scopes contains scope keys like ['sheets', 'drive_readonly']
@@ -91,8 +109,16 @@ class GoogleSheetsService:
             scope_keys = account.scopes or []
             return oauth_service.get_scope_urls(scope_keys)
         
-        oauth_config = await _get_oauth_config()
-        scope_urls = await _convert_scopes()
+        async def _convert_scopes_async():
+            try:
+                loop = asyncio.get_running_loop()
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    return await loop.run_in_executor(executor, _convert_scopes_sync)
+            except RuntimeError:
+                return await sync_to_async(_convert_scopes_sync)()
+        
+        oauth_config = await _get_oauth_config_async()
+        scope_urls = await _convert_scopes_async()
         
         # Build Credentials object for Google API client
         self._credentials = Credentials(
