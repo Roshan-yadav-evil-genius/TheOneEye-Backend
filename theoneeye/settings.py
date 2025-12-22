@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+from apps.common.config import get_env_list, get_env_bool
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,25 +22,17 @@ SECRET_KEY = os.environ.get(
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # DEBUG must be explicitly set to False in production via environment variable
-DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() in ('true', '1', 'yes')
+DEBUG = get_env_bool('DJANGO_DEBUG', True)
 
 # ALLOWED_HOSTS should be set via environment variable in production
 # Format: comma-separated list, e.g., "example.com,www.example.com"
-ALLOWED_HOSTS = [
-    host.strip() 
-    for host in os.environ.get('DJANGO_ALLOWED_HOSTS', '').split(',') 
-    if host.strip()
-]
+ALLOWED_HOSTS = get_env_list('DJANGO_ALLOWED_HOSTS', '')
 
 # CORS Configuration - should be restricted in production
-CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'True').lower() in ('true', '1', 'yes')
+CORS_ALLOW_ALL_ORIGINS = get_env_bool('CORS_ALLOW_ALL_ORIGINS', True)
 
 # CORS allowed origins (used when CORS_ALLOW_ALL_ORIGINS is False)
-CORS_ALLOWED_ORIGINS = [
-    origin.strip()
-    for origin in os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
-    if origin.strip()
-]
+CORS_ALLOWED_ORIGINS = get_env_list('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')
 
 # Application definition
 
