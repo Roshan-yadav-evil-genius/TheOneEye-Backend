@@ -26,7 +26,6 @@ class WorkFlow(BaseModel):
     last_run = DateTimeField(blank=True, null=True)
     next_run = DateTimeField(blank=True, null=True)
     runs_count = IntegerField(default=0)
-    success_rate = FloatField(default=0)
     tags = JSONField(default=list)
     created_by = CharField(max_length=100, blank=True, null=True)
     task_id = CharField(max_length=255, blank=True, null=True)  # Store Celery task ID
