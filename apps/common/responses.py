@@ -4,7 +4,7 @@ Standardized response helpers for consistent API responses.
 from typing import Dict, Any, Optional
 from rest_framework.response import Response
 from rest_framework import status
-from .exceptions import AppException
+from .exceptions import BaseAPIException, AppException
 
 
 def success_response(
@@ -60,22 +60,15 @@ def error_response(
     return Response(response_data, status=status_code)
 
 
-def exception_response(exception: AppException) -> Response:
+def exception_response(exception: BaseAPIException) -> Response:
     """
-    Create a standardized error response from an AppException.
+    Create a standardized error response from a BaseAPIException.
     
     Args:
-        exception: AppException instance
+        exception: BaseAPIException instance
         
     Returns:
         Response object
     """
-    response_data: Dict[str, Any] = {
-        'error': exception.message
-    }
-    
-    if hasattr(exception, 'errors') and exception.errors:
-        response_data['errors'] = exception.errors
-    
-    return Response(response_data, status=exception.status_code)
+    return Response(exception.to_dict(), status=exception.status_code)
 

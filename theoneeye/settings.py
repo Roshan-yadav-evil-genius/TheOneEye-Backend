@@ -210,6 +210,8 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',  # Require authentication by default
     ],
+    # Custom exception handler for consistent error responses
+    'EXCEPTION_HANDLER': 'apps.common.exception_handler.custom_exception_handler',
     # Pagination is disabled by default to maintain backward compatibility
     # Enable per-viewset if needed: pagination_class = PageNumberPagination
     # 'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',

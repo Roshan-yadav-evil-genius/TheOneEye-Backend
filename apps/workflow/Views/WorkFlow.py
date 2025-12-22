@@ -59,6 +59,7 @@ class WorkFlowViewSet(ModelViewSet):
     def execute_and_save_node(self, request, pk=None):
         """
         Execute a workflow node and save all execution data.
+        View only handles HTTP request/response, delegates to service.
         
         Request body:
         {
@@ -76,27 +77,14 @@ class WorkFlowViewSet(ModelViewSet):
         input_data = request.data.get('input_data', {})
         session_id = request.data.get('session_id')
         
-        if not node_id:
-            return Response(
-                {'error': 'node_id is required'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Delegate to service - handles all validation and execution
+        # Exceptions are handled by custom exception handler
+        result = node_execution_service.execute_and_save_node(
+            str(workflow.id),
+            node_id,
+            form_values,
+            input_data,
+            session_id
+        )
         
-        # Get the node instance
-        node = node_execution_service.get_node_for_execution(workflow.id, node_id)
-        if node is None:
-            return Response(
-                {'error': 'Node not found in this workflow'}, 
-                status=status.HTTP_404_NOT_FOUND
-            )
-        
-        # Execute the node using the service with session support
-        result = node_execution_service.execute_node(node, form_values, input_data, session_id)
-        
-        # Return appropriate response based on result
-        if result.get('error_type') == 'NodeTypeNotFound':
-            return Response(result, status=status.HTTP_404_NOT_FOUND)
-        elif not result.get('success'):
-            return Response(result, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        return Response(result)
+        return Response(result, status=status.HTTP_200_OK)

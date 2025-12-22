@@ -6,6 +6,7 @@ Follows Single Responsibility Principle - only handles node execution logic.
 """
 
 from typing import Dict, Any, Optional
+from apps.common.exceptions import ValidationError, NodeNotFoundError, NodeTypeNotFoundError
 from ..models import Node
 
 
@@ -44,6 +45,8 @@ class NodeExecutionService:
             node_metadata = services.node_registry.find_by_identifier(node.node_type)
             
             if node_metadata is None:
+                # Return error result instead of raising exception
+                # This allows execute_node to be used in contexts where exceptions aren't desired
                 return {
                     'success': False,
                     'error': f'Node type not found: {node.node_type}',
@@ -92,7 +95,7 @@ class NodeExecutionService:
             }
     
     @staticmethod
-    def get_node_for_execution(workflow_id: str, node_id: str) -> Optional[Node]:
+    def get_node_for_execution(workflow_id: str, node_id: str) -> Node:
         """
         Get a node instance for execution, verifying it belongs to the workflow.
         
@@ -101,12 +104,58 @@ class NodeExecutionService:
             node_id: The node UUID
             
         Returns:
-            Node instance if found, None otherwise
+            Node instance
+            
+        Raises:
+            NodeNotFoundError: If node is not found
         """
         try:
             return Node.objects.get(id=node_id, workflow_id=workflow_id)
         except Node.DoesNotExist:
-            return None
+            raise NodeNotFoundError(node_id, workflow_id)
+    
+    @staticmethod
+    def execute_and_save_node(
+        workflow_id: str,
+        node_id: str,
+        form_values: Dict[str, Any],
+        input_data: Dict[str, Any],
+        session_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Execute a workflow node and save all execution data.
+        This method handles the full flow including validation.
+        
+        Args:
+            workflow_id: The workflow UUID
+            node_id: The node UUID
+            form_values: Form field values for the node
+            input_data: Input data from connected nodes
+            session_id: Optional session ID for stateful execution
+            
+        Returns:
+            Dict with execution result including success status, output, and any errors
+            
+        Raises:
+            ValidationError: If node_id is not provided
+            NodeNotFoundError: If node is not found in workflow
+            NodeTypeNotFoundError: If node type is not found
+        """
+        # Validate node_id is provided
+        if not node_id:
+            raise ValidationError('node_id is required')
+        
+        # Get the node instance (raises NodeNotFoundError if not found)
+        node = NodeExecutionService.get_node_for_execution(workflow_id, node_id)
+        
+        # Execute the node
+        result = NodeExecutionService.execute_node(node, form_values, input_data, session_id)
+        
+        # Check if execution failed due to node type not found and raise exception
+        if result.get('error_type') == 'NodeTypeNotFound':
+            raise NodeTypeNotFoundError(node.node_type)
+        
+        return result
 
 
 # Global instance for convenience

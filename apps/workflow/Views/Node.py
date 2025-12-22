@@ -4,9 +4,9 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from apps.workflow.models import Node, WorkFlow
-from apps.workflow.Serializers import NodeSerializer, NodeCreateSerializer
+from apps.workflow.Serializers import NodeSerializer
 from apps.workflow.Serializers.Canvas import CanvasNodeSerializer
-from apps.workflow.services import dependency_service
+from apps.workflow.services import dependency_service, node_service
 
 
 class NodeViewSet(ModelViewSet):
@@ -28,8 +28,6 @@ class NodeViewSet(ModelViewSet):
         serializer.save(workflow=workflow)
         
     def get_serializer_class(self):
-        if self.action == 'create':
-            return NodeCreateSerializer
         return NodeSerializer
 
     @action(detail=True, methods=['get'], url_path='input')
@@ -47,50 +45,47 @@ class NodeViewSet(ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='add')
     def add_node(self, request, workflow_pk=None):
-        """Add a node to the workflow canvas"""
+        """
+        Add a node to the workflow canvas.
+        View only handles HTTP request/response, delegates to service.
+        """
         workflow = self.get_workflow()
         
-        # Get node type and position
+        # Extract request data
         node_type = request.data.get('nodeTemplate', 'custom-node')
         position = request.data.get('position', {'x': 0, 'y': 0})
+        form_values = request.data.get('form_values', {})
         
-        # Prepare data for NodeCreateSerializer
-        node_data = {
-            'node_type': node_type,
-            'x': position.get('x', 0),
-            'y': position.get('y', 0),
-            'form_values': request.data.get('form_values', {})
-        }
+        # Delegate to service (exceptions are handled by custom exception handler)
+        node = node_service.create_node(workflow, node_type, position, form_values)
         
-        # Use NodeCreateSerializer
-        serializer = NodeCreateSerializer(
-            data=node_data, 
-            context={'workflow': workflow, 'request': request}
-        )
-        
-        if serializer.is_valid():
-            node = serializer.save()
-            # Return using CanvasNodeSerializer for consistent format
-            canvas_serializer = CanvasNodeSerializer(node, context={'request': request})
-            return Response(canvas_serializer.data, status=status.HTTP_201_CREATED)
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # Return using CanvasNodeSerializer for consistent format
+        canvas_serializer = CanvasNodeSerializer(node, context={'request': request})
+        return Response(canvas_serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['patch'], url_path='position')
     def update_position(self, request, workflow_pk=None, pk=None):
-        """Update node position in the workflow"""
+        """
+        Update node position in the workflow.
+        View only handles HTTP request/response, delegates to service.
+        """
         node = self.get_object()
         position = request.data.get('position', {})
         
-        node.x = position.get('x', node.x)
-        node.y = position.get('y', node.y)
-        node.save()
+        # Delegate to service (exceptions are handled by custom exception handler)
+        updated_node = node_service.update_node_position(node, position)
         
-        return Response(NodeSerializer(node).data)
+        return Response(NodeSerializer(updated_node).data)
 
     @action(detail=True, methods=['delete'], url_path='remove')
     def remove_node(self, request, workflow_pk=None, pk=None):
-        """Remove a node from the workflow"""
+        """
+        Remove a node from the workflow.
+        View only handles HTTP request/response, delegates to service.
+        """
         node = self.get_object()
-        node.delete()
+        
+        # Delegate to service (exceptions are handled by custom exception handler)
+        node_service.delete_node(node)
+        
         return Response({'message': 'Node removed successfully'})
