@@ -16,9 +16,24 @@ class WorkFlowViewSet(ModelViewSet):
     @action(detail=True, methods=["get"])
     def start_execution(self, request, pk=None):
         """Start workflow execution"""
+        from django.db.models import F
+        from django.utils import timezone
+        
         workflow = self.get_object()
+        
+        # Update metrics synchronously before starting task
+        now = timezone.now()
+        WorkFlow.objects.filter(id=workflow.id).update(
+            last_run=now,
+            runs_count=F('runs_count') + 1
+        )
+        
+        # Refresh workflow object to get updated values (critical - prevents overwriting the update)
+        workflow.refresh_from_db()
+        
         workflow_config = RawWorkFlawSerializer(workflow).data
         result = workflow_execution_service.start_execution(workflow, workflow_config)
+        
         return Response(result)
     
     @action(detail=True, methods=["get"])

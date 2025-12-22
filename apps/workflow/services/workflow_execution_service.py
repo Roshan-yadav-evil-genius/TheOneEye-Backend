@@ -29,9 +29,10 @@ class WorkflowExecutionService:
         
         task: AsyncResult = execute_workflow.delay(workflow_config)
         
-        # Save task ID to workflow
-        workflow.task_id = task.id
-        workflow.save()
+        # Save task ID to workflow - use update() to only update task_id without overwriting other fields
+        WorkFlow.objects.filter(id=workflow.id).update(task_id=task.id)
+        # Refresh workflow object to get updated task_id
+        workflow.refresh_from_db()
         
         return {
             "task_id": task.id,
