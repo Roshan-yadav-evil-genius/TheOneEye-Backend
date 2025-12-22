@@ -33,3 +33,12 @@ urlpatterns = [
     path("api/nodes/", include("apps.nodes.urls")),
     
 ]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+# API Documentation (Swagger/OpenAPI)
+# To enable, install: pip install drf-spectacular
+# Then uncomment the following:
+# from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+# urlpatterns += [
+#     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+#     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+# ]
