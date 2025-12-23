@@ -180,6 +180,17 @@ class FormSerializer:
             options = self._extract_select_options(tag)
             result['options'] = options
         
+        # Check for JSON mode for textarea fields
+        # Look for data-json-mode attribute
+        if tag.name == 'textarea':
+            json_mode_attr = tag.get('data-json-mode')
+            if json_mode_attr is not None:
+                # Convert attribute value to boolean
+                result['json_mode'] = json_mode_attr in ('true', '1', True, 'True')
+            else:
+                # Default to False if attribute not present (backward compatibility)
+                result['json_mode'] = False
+        
         return result
     
     def _get_non_field_errors(self) -> List[str]:

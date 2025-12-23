@@ -17,6 +17,7 @@ from django import forms
 import structlog
 
 from ....Core.Form.Core.BaseForm import BaseForm
+from ....Core.Form.Core.JSONTextareaWidget import JSONTextareaWidget
 from .._shared.form_utils import (
     DynamicChoiceField,
     get_google_account_choices,
@@ -65,7 +66,7 @@ class GoogleSheetsUpdateRowForm(BaseForm):
     )
     
     row_data = forms.CharField(
-        widget=forms.Textarea(attrs={'rows': 5}),
+        widget=JSONTextareaWidget(attrs={'rows': 5}),
         required=True,
         help_text='JSON object mapping column headers to values, e.g. {"Name": "John", "Email": "john@example.com"}'
     )
