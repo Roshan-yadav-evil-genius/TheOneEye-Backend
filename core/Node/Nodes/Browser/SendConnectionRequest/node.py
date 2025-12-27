@@ -39,7 +39,7 @@ class SendConnectionRequest(BlockingNode):
 
         Form Config:
             session_name: Name of the persistent browser context/session.
-            profile_url: LinkedIn profile URL (optional, uses current page if empty).
+            profile_url: LinkedIn profile URL (required).
             send_connection_request: Whether to send a connection request.
             follow: Whether to follow the profile.
         """
@@ -51,7 +51,7 @@ class SendConnectionRequest(BlockingNode):
         logger.info(
             "Starting LinkedIn profile actions",
             session=session_name,
-            profile_url=profile_url or "(current page)",
+            profile_url=profile_url,
             send_request=send_request,
             follow=follow_profile,
             node_id=self.node_config.id,
@@ -61,13 +61,13 @@ class SendConnectionRequest(BlockingNode):
         try:
             # Get browser context
             context = await self.browser_manager.get_context(session_name)
-            # Create new page and navigate to profile URL
+            # Create new page
             page = await context.new_page()
-            await page.goto(profile_url, wait_until="load")
 
             connection_status = None
             following_status = None
             
+            # Create ProfilePage and let it handle navigation
             profile_page = ProfilePage(page, profile_url)
             await profile_page.load()
             # Perform actions based on form configuration

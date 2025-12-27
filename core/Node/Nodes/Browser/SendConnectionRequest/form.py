@@ -13,7 +13,7 @@ from .._shared.form_utils import BrowserSessionField
 class SendConnectionRequestForm(BaseForm):
     profile_url = CharField(
         required=True,
-        help_text="LinkedIn profile URL. If empty, uses the current page URL from the browser session."
+        help_text="LinkedIn profile URL."
     )
     session_name = BrowserSessionField()
     send_connection_request = BooleanField(
