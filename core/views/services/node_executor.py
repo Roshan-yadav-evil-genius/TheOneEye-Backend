@@ -95,8 +95,9 @@ class NodeExecutor:
                     form_state = serializer.to_json()
                     
                     # Raise FormValidationException instead of returning error response
+                    # Use actual error message instead of hardcoded string
                     raise FormValidationException(
-                        message='Form validation failed',
+                        message=e.message,  # Use actual error message (e.g., "Invalid JSON: ...")
                         form_data=form_state,
                         detail=e.message
                     )
