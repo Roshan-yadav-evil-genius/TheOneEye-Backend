@@ -157,20 +157,34 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         
         form_data = self.node_config.data.form or {}
         
+        # First, initialize ALL form fields with their values from form_data
+        # This ensures fields without Jinja templates are also populated
         for field_name in self.form.fields:
-            raw_value = form_data.get(field_name)
-            if raw_value is not None and contains_jinja_template(str(raw_value)):
-                # Render the Jinja template with node data
-                template = Template(str(raw_value))
-                rendered_value = template.render(data=node_data.data)
-                self.form.update_field(field_name, rendered_value)
-                logger.debug(
-                    "Rendered template field",
-                    field=field_name,
-                    raw=raw_value,
-                    rendered=rendered_value,
-                    node_id=self.node_config.id
-                )
+            if field_name in form_data:
+                raw_value = form_data.get(field_name)
+                if raw_value is not None:
+                    # Update field with the value (will be rendered if it contains Jinja)
+                    if contains_jinja_template(str(raw_value)):
+                        # Render the Jinja template with node data
+                        template = Template(str(raw_value))
+                        rendered_value = template.render(data=node_data.data)
+                        self.form.update_field(field_name, rendered_value)
+                        logger.debug(
+                            "Rendered template field",
+                            field=field_name,
+                            raw=raw_value,
+                            rendered=rendered_value,
+                            node_id=self.node_config.id
+                        )
+                    else:
+                        # No Jinja template, just set the value directly
+                        self.form.update_field(field_name, raw_value)
+                        logger.debug(
+                            "Set non-template field",
+                            field=field_name,
+                            value=raw_value,
+                            node_id=self.node_config.id
+                        )
         
         # Validate form after rendering
         if not self.form.is_valid():

@@ -783,4 +783,179 @@ class GoogleSheetsService:
                 error=error_msg
             )
             raise Exception(f"Failed to update row: {error_msg}")
+    
+    async def query_row_by_conditions(
+        self,
+        spreadsheet_id: str,
+        sheet_name: str,
+        query_conditions: List[Dict[str, Any]],
+        header_row: int = 1,
+        max_rows: int = 1000
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Query a sheet by column conditions and return the first matching row.
+        
+        Args:
+            spreadsheet_id: The Google Spreadsheet ID
+            sheet_name: Name of the sheet tab
+            query_conditions: List of condition dicts with keys:
+                - column: Column header name
+                - value: Value to match
+                - operator: "equals" or "contains"
+                - case_sensitive: Boolean
+            header_row: Row containing column headers (default: 1)
+            max_rows: Maximum number of rows to search (default: 1000)
+            
+        Returns:
+            Dict with matched row data (same format as get_row_with_headers) or None if no match
+            
+        Raises:
+            Exception: If query fails or token is expired/revoked
+        """
+        try:
+            sheets = await self._get_sheets_service()
+            
+            # Fetch header row
+            header_range = f"'{sheet_name}'!{header_row}:{header_row}"
+            header_result = sheets.spreadsheets().values().get(
+                spreadsheetId=spreadsheet_id,
+                range=header_range
+            ).execute()
+            
+            headers = header_result.get('values', [[]])[0] if header_result.get('values') else []
+            
+            if not headers:
+                raise Exception("No headers found in the specified header row")
+            
+            # Create column index map for quick lookup
+            column_index_map = {header: idx for idx, header in enumerate(headers)}
+            
+            # Validate that all query columns exist
+            for condition in query_conditions:
+                column = condition.get('column')
+                if column not in column_index_map:
+                    raise Exception(f"Column '{column}' not found in sheet headers")
+            
+            # Fetch data rows (from header_row+1 to header_row+1+max_rows)
+            start_row = header_row + 1
+            end_row = start_row + max_rows
+            data_range = f"'{sheet_name}'!{start_row}:{end_row}"
+            
+            data_result = sheets.spreadsheets().values().get(
+                spreadsheetId=spreadsheet_id,
+                range=data_range
+            ).execute()
+            
+            rows = data_result.get('values', [])
+            
+            # Iterate through rows and check conditions
+            for row_idx, row_values in enumerate(rows):
+                actual_row_number = start_row + row_idx
+                
+                # Check if all conditions match
+                all_match = True
+                
+                for condition in query_conditions:
+                    column = condition.get('column')
+                    query_value = str(condition.get('value', ''))
+                    operator = condition.get('operator', 'equals')
+                    case_sensitive = condition.get('case_sensitive', False)
+                    
+                    # Get column index
+                    col_idx = column_index_map[column]
+                    
+                    # Get cell value (empty string if column doesn't exist in row)
+                    cell_value = str(row_values[col_idx]) if col_idx < len(row_values) else ""
+                    
+                    # Apply case sensitivity
+                    if not case_sensitive:
+                        cell_value = cell_value.lower()
+                        query_value = query_value.lower()
+                    
+                    # Check condition based on operator
+                    if operator == 'equals':
+                        if cell_value != query_value:
+                            all_match = False
+                            break
+                    elif operator == 'contains':
+                        if query_value not in cell_value:
+                            all_match = False
+                            break
+                    else:
+                        raise Exception(f"Unsupported operator: {operator}. Use 'equals' or 'contains'")
+                
+                # If all conditions match, return this row
+                if all_match:
+                    # Pad row values to match header count
+                    padded_values = row_values + [""] * (len(headers) - len(row_values))
+                    
+                    # Create key-value mapping (header -> value)
+                    row_dict = {}
+                    for i, header in enumerate(headers):
+                        row_dict[header] = padded_values[i] if i < len(padded_values) else ""
+                    
+                    logger.info(
+                        "Row found matching query conditions",
+                        spreadsheet_id=spreadsheet_id,
+                        sheet_name=sheet_name,
+                        row_number=actual_row_number,
+                        header_row=header_row,
+                        conditions_count=len(query_conditions)
+                    )
+                    
+                    return {
+                        "row_number": actual_row_number,
+                        "header_row": header_row,
+                        "values": padded_values,
+                        "headers": headers,
+                        "data": row_dict,
+                        "spreadsheet_id": spreadsheet_id,
+                        "sheet_name": sheet_name
+                    }
+            
+            # No match found
+            logger.info(
+                "No row found matching query conditions",
+                spreadsheet_id=spreadsheet_id,
+                sheet_name=sheet_name,
+                conditions_count=len(query_conditions)
+            )
+            return None
+            
+        except RefreshError as e:
+            error_msg = str(e)
+            logger.error(
+                "Token refresh failed when querying row by conditions",
+                spreadsheet_id=spreadsheet_id,
+                sheet_name=sheet_name,
+                account_id=self.account_id,
+                error=error_msg
+            )
+            raise Exception(
+                f"Google account token has expired or been revoked. "
+                f"Please reconnect your Google account. Error: {error_msg}"
+            )
+        except HttpError as e:
+            error_msg = str(e)
+            # Check for invalid_grant in error details
+            if 'invalid_grant' in error_msg.lower() or 'expired' in error_msg.lower() or 'revoked' in error_msg.lower():
+                logger.error(
+                    "Token expired/revoked when querying row by conditions",
+                    spreadsheet_id=spreadsheet_id,
+                    sheet_name=sheet_name,
+                    account_id=self.account_id,
+                    error=error_msg
+                )
+                raise Exception(
+                    f"Google account token has expired or been revoked. "
+                    f"Please reconnect your Google account. Error: {error_msg}"
+                )
+            
+            logger.error(
+                "Failed to query row by conditions",
+                spreadsheet_id=spreadsheet_id,
+                sheet_name=sheet_name,
+                error=error_msg
+            )
+            raise Exception(f"Failed to query row: {error_msg}")
 
