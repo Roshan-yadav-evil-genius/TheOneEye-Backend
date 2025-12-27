@@ -5,8 +5,11 @@ Loads and serializes node forms.
 
 import traceback
 from typing import Dict, List, Optional
+import structlog
 
 from .node_loader import NodeLoader
+
+logger = structlog.get_logger(__name__)
 
 
 class FormLoader:
@@ -148,7 +151,14 @@ class FormLoader:
             return options if options else []
             
         except Exception as e:
-            print(f"Error getting field options: {e}")
-            traceback.print_exc()
-            return []
+            # Let exceptions propagate - they will be caught by DRF exception handler
+            # This allows ValidationError and other exceptions to be properly handled
+            # Log the error for debugging, but let it propagate
+            logger.error(
+                "Error getting field options",
+                field_name=field_name,
+                parent_value=parent_value,
+                error=str(e)
+            )
+            raise
 

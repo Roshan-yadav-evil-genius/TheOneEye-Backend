@@ -7,6 +7,7 @@ import asyncio
 import traceback
 from typing import Any, Dict, Optional
 
+from apps.common.exceptions import FormValidationException
 from .node_loader import NodeLoader
 from .node_session_store import NodeSessionStore
 
@@ -93,25 +94,22 @@ class NodeExecutor:
                     serializer = FormSerializer(e.form)
                     form_state = serializer.to_json()
                     
-                    return {
-                        'success': False,
-                        'error': 'Form validation failed',
-                        'error_type': 'FormValidationError',
-                        'message': e.message,
-                        'form': form_state,
-                        'identifier': node_metadata.get('identifier')
-                    }
+                    # Raise FormValidationException instead of returning error response
+                    raise FormValidationException(
+                        message='Form validation failed',
+                        form_data=form_state,
+                        detail=e.message
+                    )
+                except FormValidationException:
+                    # Re-raise FormValidationException
+                    raise
                 except Exception:
+                    # If serialization fails, raise the original exception
                     raise
             
+            # For other exceptions, re-raise them (let DRF exception handler deal with them)
             traceback.print_exc()
-            return {
-                'success': False,
-                'error': 'Execution failed',
-                'error_type': type(e).__name__,
-                'details': str(e),
-                'identifier': node_metadata.get('identifier')
-            }
+            raise
     
     def clear_session(self, session_id: str) -> bool:
         """

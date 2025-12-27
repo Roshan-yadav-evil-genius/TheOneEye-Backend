@@ -6,7 +6,7 @@ Follows Single Responsibility Principle - only handles node execution logic.
 """
 
 from typing import Dict, Any, Optional
-from apps.common.exceptions import ValidationError, NodeNotFoundError, NodeTypeNotFoundError
+from apps.common.exceptions import ValidationError, NodeNotFoundError, NodeTypeNotFoundError, FormValidationException
 from ..models import Node
 
 
@@ -85,7 +85,12 @@ class NodeExecutionService:
                 'session_id': session_id,
             }
             
+        except FormValidationException as e:
+            # Let FormValidationException propagate - it will be handled by DRF exception handler
+            raise
         except Exception as e:
+            # For other exceptions, still return error dict for backward compatibility
+            # But in the future, these should also be raised as exceptions
             return {
                 'success': False,
                 'error': str(e),

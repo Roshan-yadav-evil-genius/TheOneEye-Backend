@@ -8,7 +8,7 @@ exceptions to consistent API responses.
 from rest_framework.views import exception_handler
 from rest_framework.response import Response
 from rest_framework import status
-from .exceptions import BaseAPIException
+from .exceptions import BaseAPIException, FormValidationException
 
 
 def custom_exception_handler(exc, context):
@@ -24,8 +24,16 @@ def custom_exception_handler(exc, context):
     """
     # Handle our custom exceptions
     if isinstance(exc, BaseAPIException):
+        response_data = exc.to_dict()
+        
+        # For FormValidationException, ensure form data is included in response
+        if isinstance(exc, FormValidationException):
+            # Form data is already in extra_data, but ensure it's at top level for frontend
+            if 'form' not in response_data and exc.form_data:
+                response_data['form'] = exc.form_data
+        
         return Response(
-            exc.to_dict(),
+            response_data,
             status=exc.status_code
         )
     

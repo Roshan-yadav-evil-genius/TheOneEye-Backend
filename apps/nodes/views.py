@@ -139,13 +139,14 @@ class NodeExecuteView(APIView):
         session_id = request.data.get('session_id')
         
         # Execute the node with session support
+        # Exceptions (like FormValidationException) will be caught by DRF exception handler
         result = services.node_executor.execute(
             node, input_data, form_data, session_id
         )
         
-        if not result.get('success'):
-            return Response(result, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+        # If execution was successful, return the result
+        # If FormValidationException was raised, it will be caught by exception handler
+        # and converted to HTTP 400 with form data
         return Response(result)
 
 

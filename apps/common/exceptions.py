@@ -63,6 +63,29 @@ class ValidationError(BaseAPIException):
         super().__init__(message, detail, 400, 'ValidationError', extra_data)
 
 
+class FormValidationException(ValidationError):
+    """
+    Exception for form validation errors (400 Bad Request).
+    Includes serialized form data with field-level errors.
+    """
+    
+    def __init__(self, message: str, form_data: Dict[str, Any], detail: Optional[str] = None):
+        """
+        Initialize form validation exception.
+        
+        Args:
+            message: Human-readable error message
+            form_data: Serialized form data with field errors
+            detail: Detailed error information
+        """
+        extra_data = {
+            'form': form_data,
+            'error_type': 'FormValidationError'
+        }
+        super().__init__(message, detail, extra_data)
+        self.form_data = form_data
+
+
 class NotFoundError(BaseAPIException):
     """Exception for resource not found errors (404 Not Found)."""
     

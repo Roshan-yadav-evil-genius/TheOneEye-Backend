@@ -15,6 +15,7 @@ from django import forms
 import structlog
 from asgiref.sync import sync_to_async
 from google.auth.exceptions import RefreshError
+from apps.common.exceptions import ValidationError
 
 logger = structlog.get_logger(__name__)
 
@@ -124,7 +125,11 @@ async def populate_spreadsheet_choices(
             account_id=account_id,
             error=error_msg
         )
-        return [("", "-- ⚠️ Account token expired. Please reconnect your Google account --")]
+        raise ValidationError(
+            "Google account token has expired or been revoked. Please reconnect your Google account.",
+            detail=f"Account ID: {account_id}. Error: {error_msg}",
+            extra_data={'account_id': account_id, 'error_type': 'token_expired'}
+        )
     except Exception as e:
         error_msg = str(e)
         # Check for invalid_grant in error message
@@ -134,14 +139,22 @@ async def populate_spreadsheet_choices(
                 account_id=account_id,
                 error=error_msg
             )
-            return [("", "-- ⚠️ Account token expired. Please reconnect your Google account --")]
+            raise ValidationError(
+                "Google account token has expired or been revoked. Please reconnect your Google account.",
+                detail=f"Account ID: {account_id}. Error: {error_msg}",
+                extra_data={'account_id': account_id, 'error_type': 'token_expired'}
+            )
         
         logger.error(
             "Failed to load spreadsheets",
             account_id=account_id,
             error=error_msg
         )
-        return [("", "-- Error loading spreadsheets --")]
+        raise ValidationError(
+            "Failed to load spreadsheets from Google account.",
+            detail=f"Account ID: {account_id}. Error: {error_msg}",
+            extra_data={'account_id': account_id}
+        )
 
 
 async def populate_sheet_choices(
@@ -198,7 +211,11 @@ async def populate_sheet_choices(
             account_id=account_id,
             error=error_msg
         )
-        return [("", "-- ⚠️ Account token expired. Please reconnect your Google account --")]
+        raise ValidationError(
+            "Google account token has expired or been revoked. Please reconnect your Google account.",
+            detail=f"Account ID: {account_id}, Spreadsheet ID: {spreadsheet_id}. Error: {error_msg}",
+            extra_data={'account_id': account_id, 'spreadsheet_id': spreadsheet_id, 'error_type': 'token_expired'}
+        )
     except Exception as e:
         error_msg = str(e)
         # Check for invalid_grant in error message
@@ -209,12 +226,20 @@ async def populate_sheet_choices(
                 account_id=account_id,
                 error=error_msg
             )
-            return [("", "-- ⚠️ Account token expired. Please reconnect your Google account --")]
+            raise ValidationError(
+                "Google account token has expired or been revoked. Please reconnect your Google account.",
+                detail=f"Account ID: {account_id}, Spreadsheet ID: {spreadsheet_id}. Error: {error_msg}",
+                extra_data={'account_id': account_id, 'spreadsheet_id': spreadsheet_id, 'error_type': 'token_expired'}
+            )
         
         logger.error(
             "Failed to load sheets",
             spreadsheet_id=spreadsheet_id,
             error=error_msg
         )
-        return [("", "-- Error loading sheets --")]
+        raise ValidationError(
+            "Failed to load sheets from Google Spreadsheet.",
+            detail=f"Account ID: {account_id}, Spreadsheet ID: {spreadsheet_id}. Error: {error_msg}",
+            extra_data={'account_id': account_id, 'spreadsheet_id': spreadsheet_id}
+        )
 
