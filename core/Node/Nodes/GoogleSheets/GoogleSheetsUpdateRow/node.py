@@ -151,13 +151,30 @@ class GoogleSheetsUpdateRowNode(BlockingNode):
             )
             
         except Exception as e:
+            error_msg = str(e)
+            
+            # Check if it's a token expiration error
+            if 'expired' in error_msg.lower() or 'revoked' in error_msg.lower() or 'invalid_grant' in error_msg.lower():
+                logger.error(
+                    "Google account token expired or revoked",
+                    node_id=self.node_config.id,
+                    spreadsheet_id=spreadsheet_id,
+                    account_id=account_id,
+                    error=error_msg
+                )
+                raise Exception(
+                    f"Google account authentication failed: Your Google account token has expired or been revoked. "
+                    f"Please reconnect your Google account in the account settings and try again. "
+                    f"Original error: {error_msg}"
+                )
+            
             logger.error(
                 "Failed to update row",
                 node_id=self.node_config.id,
                 spreadsheet_id=spreadsheet_id,
                 sheet_name=sheet_name,
                 row_number=row_number,
-                error=str(e)
+                error=error_msg
             )
             raise
 

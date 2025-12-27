@@ -14,6 +14,7 @@ from typing import List, Tuple, Optional, Dict, Any
 from django import forms
 import structlog
 from asgiref.sync import sync_to_async
+from google.auth.exceptions import RefreshError
 
 logger = structlog.get_logger(__name__)
 
@@ -115,11 +116,30 @@ async def populate_spreadsheet_choices(
         
         return [("", "-- Select Spreadsheet --")] + list(spreadsheets)
         
+    except RefreshError as e:
+        # Token refresh failed - account needs reconnection
+        error_msg = str(e)
+        logger.error(
+            "Google account token expired or revoked",
+            account_id=account_id,
+            error=error_msg
+        )
+        return [("", "-- ⚠️ Account token expired. Please reconnect your Google account --")]
     except Exception as e:
+        error_msg = str(e)
+        # Check for invalid_grant in error message
+        if 'invalid_grant' in error_msg.lower() or 'expired' in error_msg.lower() or 'revoked' in error_msg.lower():
+            logger.error(
+                "Google account token expired or revoked",
+                account_id=account_id,
+                error=error_msg
+            )
+            return [("", "-- ⚠️ Account token expired. Please reconnect your Google account --")]
+        
         logger.error(
             "Failed to load spreadsheets",
             account_id=account_id,
-            error=str(e)
+            error=error_msg
         )
         return [("", "-- Error loading spreadsheets --")]
 
@@ -169,11 +189,32 @@ async def populate_sheet_choices(
             (name, name) for sheet_id, name in sheets
         ]
         
+    except RefreshError as e:
+        # Token refresh failed - account needs reconnection
+        error_msg = str(e)
+        logger.error(
+            "Google account token expired or revoked",
+            spreadsheet_id=spreadsheet_id,
+            account_id=account_id,
+            error=error_msg
+        )
+        return [("", "-- ⚠️ Account token expired. Please reconnect your Google account --")]
     except Exception as e:
+        error_msg = str(e)
+        # Check for invalid_grant in error message
+        if 'invalid_grant' in error_msg.lower() or 'expired' in error_msg.lower() or 'revoked' in error_msg.lower():
+            logger.error(
+                "Google account token expired or revoked",
+                spreadsheet_id=spreadsheet_id,
+                account_id=account_id,
+                error=error_msg
+            )
+            return [("", "-- ⚠️ Account token expired. Please reconnect your Google account --")]
+        
         logger.error(
             "Failed to load sheets",
             spreadsheet_id=spreadsheet_id,
-            error=str(e)
+            error=error_msg
         )
         return [("", "-- Error loading sheets --")]
 

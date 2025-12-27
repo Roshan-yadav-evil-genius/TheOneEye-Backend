@@ -16,6 +16,7 @@ from asgiref.sync import sync_to_async
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from google.auth.exceptions import RefreshError
 
 logger = structlog.get_logger(__name__)
 
@@ -83,6 +84,42 @@ class GoogleSheetsService:
                 return await sync_to_async(_fetch_account_sync)()
         
         account = await _fetch_account_async()
+        
+        # Proactively refresh token if needed using OAuth service
+        def _refresh_token_if_needed_sync():
+            from apps.authentication.services.google_oauth_service import GoogleOAuthService
+            oauth_service = GoogleOAuthService()
+            try:
+                # This will refresh if expired, or return existing if valid
+                access_token, was_refreshed = oauth_service.get_valid_credentials(account)
+                # Reload account to get updated token
+                account.refresh_from_db()
+                return account
+            except Exception as e:
+                error_msg = str(e)
+                if 'invalid_grant' in error_msg.lower() or 'expired' in error_msg.lower() or 'revoked' in error_msg.lower():
+                    logger.error(
+                        "Google account token expired or revoked - reconnection required",
+                        account_id=self.account_id,
+                        error=error_msg
+                    )
+                    raise Exception(
+                        f"Google account token has expired or been revoked. "
+                        f"Please reconnect your Google account (ID: {self.account_id}). "
+                        f"Error: {error_msg}"
+                    )
+                raise
+        
+        async def _refresh_token_if_needed_async():
+            try:
+                loop = asyncio.get_running_loop()
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    return await loop.run_in_executor(executor, _refresh_token_if_needed_sync)
+            except RuntimeError:
+                return await sync_to_async(_refresh_token_if_needed_sync)()
+        
+        # Refresh token proactively
+        account = await _refresh_token_if_needed_async()
         
         # Get client_id and client_secret from Django settings for token refresh
         def _get_oauth_config_sync():
@@ -170,6 +207,9 @@ class GoogleSheetsService:
         
         Returns:
             List of (spreadsheet_id, name) tuples, sorted by modification time
+            
+        Raises:
+            Exception: If token is expired/revoked with actionable error message
         """
         try:
             drive = await self._get_drive_service()
@@ -191,13 +231,37 @@ class GoogleSheetsService:
             
             return [(f['id'], f['name']) for f in files]
             
+        except RefreshError as e:
+            error_msg = str(e)
+            logger.error(
+                "Token refresh failed when listing spreadsheets",
+                account_id=self.account_id,
+                error=error_msg
+            )
+            raise Exception(
+                f"Google account token has expired or been revoked. "
+                f"Please reconnect your Google account. Error: {error_msg}"
+            )
         except HttpError as e:
+            error_msg = str(e)
+            # Check for invalid_grant in error details
+            if 'invalid_grant' in error_msg.lower() or 'expired' in error_msg.lower() or 'revoked' in error_msg.lower():
+                logger.error(
+                    "Token expired/revoked when listing spreadsheets",
+                    account_id=self.account_id,
+                    error=error_msg
+                )
+                raise Exception(
+                    f"Google account token has expired or been revoked. "
+                    f"Please reconnect your Google account. Error: {error_msg}"
+                )
+            
             logger.error(
                 "Failed to list spreadsheets",
                 account_id=self.account_id,
-                error=str(e)
+                error=error_msg
             )
-            return []
+            raise Exception(f"Failed to list spreadsheets: {error_msg}")
     
     async def list_sheets(self, spreadsheet_id: str) -> List[Tuple[str, str]]:
         """
@@ -208,6 +272,9 @@ class GoogleSheetsService:
             
         Returns:
             List of (sheet_id, sheet_title) tuples
+            
+        Raises:
+            Exception: If token is expired/revoked with actionable error message
         """
         try:
             sheets = await self._get_sheets_service()
@@ -230,13 +297,39 @@ class GoogleSheetsService:
                 for s in sheet_list
             ]
             
+        except RefreshError as e:
+            error_msg = str(e)
+            logger.error(
+                "Token refresh failed when listing sheets",
+                spreadsheet_id=spreadsheet_id,
+                account_id=self.account_id,
+                error=error_msg
+            )
+            raise Exception(
+                f"Google account token has expired or been revoked. "
+                f"Please reconnect your Google account. Error: {error_msg}"
+            )
         except HttpError as e:
+            error_msg = str(e)
+            # Check for invalid_grant in error details
+            if 'invalid_grant' in error_msg.lower() or 'expired' in error_msg.lower() or 'revoked' in error_msg.lower():
+                logger.error(
+                    "Token expired/revoked when listing sheets",
+                    spreadsheet_id=spreadsheet_id,
+                    account_id=self.account_id,
+                    error=error_msg
+                )
+                raise Exception(
+                    f"Google account token has expired or been revoked. "
+                    f"Please reconnect your Google account. Error: {error_msg}"
+                )
+            
             logger.error(
                 "Failed to list sheets",
                 spreadsheet_id=spreadsheet_id,
-                error=str(e)
+                error=error_msg
             )
-            return []
+            raise Exception(f"Failed to list sheets: {error_msg}")
     
     async def get_row(self, spreadsheet_id: str, sheet_name: str, row_number: int) -> Dict[str, Any]:
         """
@@ -288,15 +381,45 @@ class GoogleSheetsService:
                 "sheet_name": sheet_name
             }
             
+        except RefreshError as e:
+            error_msg = str(e)
+            logger.error(
+                "Token refresh failed when getting row",
+                spreadsheet_id=spreadsheet_id,
+                sheet_name=sheet_name,
+                row_number=row_number,
+                account_id=self.account_id,
+                error=error_msg
+            )
+            raise Exception(
+                f"Google account token has expired or been revoked. "
+                f"Please reconnect your Google account. Error: {error_msg}"
+            )
         except HttpError as e:
+            error_msg = str(e)
+            # Check for invalid_grant in error details
+            if 'invalid_grant' in error_msg.lower() or 'expired' in error_msg.lower() or 'revoked' in error_msg.lower():
+                logger.error(
+                    "Token expired/revoked when getting row",
+                    spreadsheet_id=spreadsheet_id,
+                    sheet_name=sheet_name,
+                    row_number=row_number,
+                    account_id=self.account_id,
+                    error=error_msg
+                )
+                raise Exception(
+                    f"Google account token has expired or been revoked. "
+                    f"Please reconnect your Google account. Error: {error_msg}"
+                )
+            
             logger.error(
                 "Failed to get row",
                 spreadsheet_id=spreadsheet_id,
                 sheet_name=sheet_name,
                 row_number=row_number,
-                error=str(e)
+                error=error_msg
             )
-            raise Exception(f"Failed to get row: {e}")
+            raise Exception(f"Failed to get row: {error_msg}")
     
     async def get_row_with_headers(
         self, 
@@ -380,15 +503,45 @@ class GoogleSheetsService:
                 "sheet_name": sheet_name
             }
             
+        except RefreshError as e:
+            error_msg = str(e)
+            logger.error(
+                "Token refresh failed when getting row with headers",
+                spreadsheet_id=spreadsheet_id,
+                sheet_name=sheet_name,
+                row_number=row_number,
+                account_id=self.account_id,
+                error=error_msg
+            )
+            raise Exception(
+                f"Google account token has expired or been revoked. "
+                f"Please reconnect your Google account. Error: {error_msg}"
+            )
         except HttpError as e:
+            error_msg = str(e)
+            # Check for invalid_grant in error details
+            if 'invalid_grant' in error_msg.lower() or 'expired' in error_msg.lower() or 'revoked' in error_msg.lower():
+                logger.error(
+                    "Token expired/revoked when getting row with headers",
+                    spreadsheet_id=spreadsheet_id,
+                    sheet_name=sheet_name,
+                    row_number=row_number,
+                    account_id=self.account_id,
+                    error=error_msg
+                )
+                raise Exception(
+                    f"Google account token has expired or been revoked. "
+                    f"Please reconnect your Google account. Error: {error_msg}"
+                )
+            
             logger.error(
                 "Failed to get row with headers",
                 spreadsheet_id=spreadsheet_id,
                 sheet_name=sheet_name,
                 row_number=row_number,
-                error=str(e)
+                error=error_msg
             )
-            raise Exception(f"Failed to get row: {e}")
+            raise Exception(f"Failed to get row: {error_msg}")
     
     async def update_row(
         self,
@@ -458,15 +611,45 @@ class GoogleSheetsService:
                 "sheet_name": sheet_name
             }
             
+        except RefreshError as e:
+            error_msg = str(e)
+            logger.error(
+                "Token refresh failed when updating row",
+                spreadsheet_id=spreadsheet_id,
+                sheet_name=sheet_name,
+                row_number=row_number,
+                account_id=self.account_id,
+                error=error_msg
+            )
+            raise Exception(
+                f"Google account token has expired or been revoked. "
+                f"Please reconnect your Google account. Error: {error_msg}"
+            )
         except HttpError as e:
+            error_msg = str(e)
+            # Check for invalid_grant in error details
+            if 'invalid_grant' in error_msg.lower() or 'expired' in error_msg.lower() or 'revoked' in error_msg.lower():
+                logger.error(
+                    "Token expired/revoked when updating row",
+                    spreadsheet_id=spreadsheet_id,
+                    sheet_name=sheet_name,
+                    row_number=row_number,
+                    account_id=self.account_id,
+                    error=error_msg
+                )
+                raise Exception(
+                    f"Google account token has expired or been revoked. "
+                    f"Please reconnect your Google account. Error: {error_msg}"
+                )
+            
             logger.error(
                 "Failed to update row",
                 spreadsheet_id=spreadsheet_id,
                 sheet_name=sheet_name,
                 row_number=row_number,
-                error=str(e)
+                error=error_msg
             )
-            raise Exception(f"Failed to update row: {e}")
+            raise Exception(f"Failed to update row: {error_msg}")
     
     async def update_row_by_headers(
         self,
@@ -561,13 +744,43 @@ class GoogleSheetsService:
                 "sheet_name": sheet_name
             }
             
+        except RefreshError as e:
+            error_msg = str(e)
+            logger.error(
+                "Token refresh failed when updating row by headers",
+                spreadsheet_id=spreadsheet_id,
+                sheet_name=sheet_name,
+                row_number=row_number,
+                account_id=self.account_id,
+                error=error_msg
+            )
+            raise Exception(
+                f"Google account token has expired or been revoked. "
+                f"Please reconnect your Google account. Error: {error_msg}"
+            )
         except HttpError as e:
+            error_msg = str(e)
+            # Check for invalid_grant in error details
+            if 'invalid_grant' in error_msg.lower() or 'expired' in error_msg.lower() or 'revoked' in error_msg.lower():
+                logger.error(
+                    "Token expired/revoked when updating row by headers",
+                    spreadsheet_id=spreadsheet_id,
+                    sheet_name=sheet_name,
+                    row_number=row_number,
+                    account_id=self.account_id,
+                    error=error_msg
+                )
+                raise Exception(
+                    f"Google account token has expired or been revoked. "
+                    f"Please reconnect your Google account. Error: {error_msg}"
+                )
+            
             logger.error(
                 "Failed to update row by headers",
                 spreadsheet_id=spreadsheet_id,
                 sheet_name=sheet_name,
                 row_number=row_number,
-                error=str(e)
+                error=error_msg
             )
-            raise Exception(f"Failed to update row: {e}")
+            raise Exception(f"Failed to update row: {error_msg}")
 

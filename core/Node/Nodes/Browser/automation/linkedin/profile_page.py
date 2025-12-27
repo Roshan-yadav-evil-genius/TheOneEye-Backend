@@ -95,8 +95,6 @@ class ProfilePage:
         logger.info("Withdrawing connection request")
         pending_btn = self.profile.pending_button()
 
-        await self.page.wait_for_timeout(10000)
-
         if not await self._click_or_expand_more_menu(pending_btn, "Pending"):
             return
 
