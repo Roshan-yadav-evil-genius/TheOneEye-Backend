@@ -139,15 +139,23 @@ PROFILE_REGISTRY = {
     # ═══════════════════════════════════════════════════════════════
     ProfileKey.FOLLOWERS: {
         "selectors": [
-            '//li//span[contains(text(), "followers")]/text()',
+            # Find list item containing "followers" and extract the bold number from it
+            '//li[contains(., "followers")]//span[contains(@class, "t-bold")]/text()',
+            # Fallback: find span with followers text and get preceding bold sibling
+            '//span[contains(text(), "followers")]/preceding-sibling::span[contains(@class, "t-bold")]/text()',
+            # Last resort: any bold element containing followers
             '//*[contains(@class, "t-bold") and contains(text(), "followers")]/text()',
         ],
         "parent": None,
     },
     ProfileKey.CONNECTIONS: {
         "selectors": [
-            '//span[contains(@class, "t-bold") and contains(text(), "500+")]/text()',
-            '//span[contains(text(), "connections")]/text()',
+            # Find list item containing "connections" and extract the bold number from it
+            '//li[contains(., "connections")]//span[contains(@class, "t-bold")]/text()',
+            # Fallback: find span with connections text and get preceding bold sibling
+            '//span[contains(text(), "connections")]/preceding-sibling::span[contains(@class, "t-bold")]/text()',
+            # Last resort: any bold element containing connections
+            '//*[contains(@class, "t-bold") and contains(text(), "connections")]/text()',
         ],
         "parent": None,
     },
