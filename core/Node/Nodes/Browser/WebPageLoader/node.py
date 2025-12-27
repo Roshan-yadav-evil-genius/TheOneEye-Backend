@@ -63,6 +63,7 @@ class WebPageLoader(BlockingNode):
             node_id=self.node_config.id,
         )
 
+        page = None
         try:
             # Get context (creates if doesn't exist)
             context = await self.browser_manager.get_context(session_name)
@@ -95,4 +96,12 @@ class WebPageLoader(BlockingNode):
         except Exception as e:
             logger.error("Failed to load webpage", url=url, error=str(e))
             raise e
+        finally:
+            # Always close the page to free resources
+            if page:
+                try:
+                    await page.close()
+                    logger.debug("Page closed", url=url)
+                except Exception as close_error:
+                    logger.warning("Error closing page", url=url, error=str(close_error))
 

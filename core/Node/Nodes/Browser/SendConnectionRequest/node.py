@@ -57,6 +57,7 @@ class SendConnectionRequest(BlockingNode):
             node_id=self.node_config.id,
         )
 
+        page = None
         try:
             # Get browser context
             context = await self.browser_manager.get_context(session_name)
@@ -96,4 +97,12 @@ class SendConnectionRequest(BlockingNode):
                 error=str(e),
             )
             raise e
+        finally:
+            # Always close the page to free resources
+            if page:
+                try:
+                    await page.close()
+                    logger.debug("Page closed", url=profile_url)
+                except Exception as close_error:
+                    logger.warning("Error closing page", url=profile_url, error=str(close_error))
 
