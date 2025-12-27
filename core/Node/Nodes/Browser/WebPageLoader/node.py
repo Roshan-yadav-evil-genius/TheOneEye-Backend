@@ -67,12 +67,9 @@ class WebPageLoader(BlockingNode):
             # Get context (creates if doesn't exist)
             context = await self.browser_manager.get_context(session_name)
 
-            # Pass wait_mode to navigation
-            page = await self.browser_manager.get_or_create_page(
-                context, 
-                url, 
-                wait_strategy=wait_mode
-            )
+            # Create new page and navigate to URL
+            page = await context.new_page()
+            await page.goto(url, wait_until=wait_mode)
 
             # (Redundant waits removed as goto handles it via wait_strategy)
 
