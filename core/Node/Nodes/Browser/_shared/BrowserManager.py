@@ -17,6 +17,7 @@ from playwright.async_api import (
 import structlog
 
 from .services.session_config_service import SessionConfigService
+from .services.path_service import PathService
 
 logger = structlog.get_logger(__name__)
 
@@ -169,16 +170,8 @@ class BrowserManager:
         # Fallback to default path if not in config
         if not user_data_dir:
             # Use backend/data/Browser/{session_id} as default
-            from asgiref.sync import sync_to_async
-            
-            @sync_to_async
-            def _get_default_path():
-                from django.conf import settings
-                from pathlib import Path
-                base_dir = Path(settings.BASE_DIR)
-                return str(base_dir / 'data' / 'Browser' / session_id)
-            
-            user_data_dir = await _get_default_path()
+            # No async wrapper needed - Django settings are just Python objects
+            user_data_dir = PathService.get_browser_session_path(session_id)
         
         # Ensure directory exists
         Path(user_data_dir).mkdir(parents=True, exist_ok=True)

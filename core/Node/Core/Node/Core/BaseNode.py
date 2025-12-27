@@ -52,7 +52,7 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         if self.form is not None:
             for key, value in self.node_config.data.form.items():
                 self.form.update_field(key, value)
-            logger.info(f"Form Populated", form=self.form.get_all_field_values(), node_id=self.node_config.id, identifier=f"{self.__class__.__name__}({self.identifier()})")
+            # logger.info(f"Form Populated", form=self.form.get_all_field_values(), node_id=self.node_config.id, identifier=f"{self.__class__.__name__}({self.identifier()})")
 
     def is_ready(self) -> bool:
         """

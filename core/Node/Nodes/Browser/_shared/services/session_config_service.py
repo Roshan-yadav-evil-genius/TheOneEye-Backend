@@ -1,6 +1,8 @@
 from typing import Optional, Dict, Any
 import structlog
-from asgiref.sync import sync_to_async
+from channels.db import database_sync_to_async
+
+from .path_service import PathService
 
 logger = structlog.get_logger(__name__)
 
@@ -23,7 +25,7 @@ class SessionConfigService:
         try:
             from apps.browsersession.models import BrowserSession
             
-            @sync_to_async
+            @database_sync_to_async
             def _fetch_session():
                 try:
                     return BrowserSession.objects.get(id=session_id)
@@ -39,14 +41,9 @@ class SessionConfigService:
                 return None
             
             # Calculate user_persistent_directory path
-            @sync_to_async
-            def _get_base_dir():
-                from django.conf import settings
-                return settings.BASE_DIR
-            
-            base_dir = await _get_base_dir()
-            # Use backend/data/Browser/{session_id} as the persistent directory
-            user_persistent_directory = str(base_dir / 'data' / 'Browser' / str(session.id))
+            # No async wrapper needed - Django settings are just Python objects
+            # Use PathService for consistent path construction
+            user_persistent_directory = PathService.get_browser_session_path(str(session.id))
             
             config = {
                 'browser_type': session.browser_type,
