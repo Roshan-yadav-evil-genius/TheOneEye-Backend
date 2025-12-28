@@ -36,145 +36,101 @@ Authorization: Bearer <token>
 
 Start a workflow in Production Mode.
 
-**Endpoint**: `POST /api/workflows/{workflow_id}/start`
-
-**Request**:
-```json
-{
-  "workflow_json": {
-    "nodes": [...],
-    "edges": [...]
-  }
-}
-```
+**Endpoint**: `GET /api/workflow/{workflow_id}/start_execution/`
 
 **Response**: `200 OK`
 ```json
 {
-  "status": "started",
-  "workflow_id": "workflow_123",
-  "runners": 2
+  "task_id": "celery-task-id-123",
+  "status": "PENDING"
 }
 ```
 
 **Description**:
-- Loads workflow from JSON
-- Creates FlowRunners for each ProducerNode
-- Starts all loops concurrently
-- Returns immediately (execution continues asynchronously)
+- Starts workflow execution as a Celery task
+- Returns task ID for status tracking
+- Execution happens asynchronously via Celery
+- Workflow configuration is loaded from database
 
 ### Stop Workflow Execution
 
 Stop a running workflow.
 
-**Endpoint**: `POST /api/workflows/{workflow_id}/stop`
+**Endpoint**: `GET /api/workflow/{workflow_id}/stop_execution/`
 
 **Response**: `200 OK`
 ```json
 {
-  "status": "stopped",
-  "workflow_id": "workflow_123"
+  "task_id": "celery-task-id-456",
+  "status": "REVOKED"
 }
 ```
 
 **Description**:
-- Gracefully stops all FlowRunners
-- Waits for current iterations to complete
-- Releases resources
+- Stops workflow execution via Celery task
+- Returns task ID and final status
+- Waits for task completion (default 5 seconds timeout)
 
-### Force Shutdown
+### Get Task Status
 
-Forcefully terminate workflow execution.
+Get the status of a workflow execution task.
 
-**Endpoint**: `POST /api/workflows/{workflow_id}/force-shutdown`
+**Endpoint**: `GET /api/workflow/{workflow_id}/task_status/`
 
 **Response**: `200 OK`
 ```json
 {
-  "status": "force_shutdown",
-  "workflow_id": "workflow_123"
+  "task_id": "celery-task-id-123",
+  "status": "SUCCESS"
 }
 ```
 
 **Description**:
-- Immediately cancels all running tasks
-- Does not wait for completion
-- Use only when necessary
+- Returns current Celery task status
+- Status values: PENDING, STARTED, SUCCESS, FAILURE, REVOKED
 
-## Development Mode API
+## Node Execution API
 
-### Execute Single Node
+### Execute and Save Node
 
-Execute a single node in Development Mode.
+Execute a single node and save execution data.
 
-**Endpoint**: `POST /api/dev/execute`
+**Endpoint**: `POST /api/workflow/{workflow_id}/execute_and_save_node/`
 
 **Request**:
 ```json
 {
-  "node_id": "node_1",
+  "node_id": "node-uuid",
+  "form_values": {
+    "field_name": "value"
+  },
   "input_data": {
     "key": "value"
-  }
-}
-```
-
-**Response**: `200 OK`
-```json
-{
-  "node_id": "node_1",
-  "output": {
-    "result": "processed_data"
   },
-  "execution_time": 0.123
+  "session_id": "optional-session-id"
 }
 ```
-
-**Description**:
-- Executes single node with provided input
-- Uses Redis cache for dependency resolution
-- Stores output in cache for downstream nodes
-- Returns node output immediately
-
-### Get Cached Output
-
-Get cached output from a previously executed node.
-
-**Endpoint**: `GET /api/dev/cache/{node_id}`
 
 **Response**: `200 OK`
 ```json
 {
-  "node_id": "node_1",
+  "success": true,
+  "node_id": "node-uuid",
+  "node_type": "http-request",
+  "input_data": {...},
+  "form_values": {...},
   "output": {
-    "data": "cached_data"
+    "data": {...}
   },
-  "cached_at": "2024-01-01T12:00:00Z"
+  "session_id": "session-id"
 }
 ```
 
 **Description**:
-- Retrieves cached node output
-- Used for debugging and inspection
-- Returns `404` if not found
-
-### Clear Cache
-
-Clear all cached node outputs.
-
-**Endpoint**: `DELETE /api/dev/cache`
-
-**Response**: `200 OK`
-```json
-{
-  "status": "cleared",
-  "cleared_keys": 5
-}
-```
-
-**Description**:
-- Clears all development mode cache entries
-- Useful for starting fresh debugging session
+- Executes a single node with provided form values and input data
+- Saves execution data to database (form_values, input_data, output_data)
+- Supports session-based stateful execution
+- Returns execution result with success status
 
 ## Workflow Management API
 
@@ -182,24 +138,20 @@ Clear all cached node outputs.
 
 Create a new workflow.
 
-**Endpoint**: `POST /api/workflows`
+**Endpoint**: `POST /api/workflow/`
 
 **Request**:
 ```json
 {
   "name": "My Workflow",
-  "description": "Workflow description",
-  "workflow_json": {
-    "nodes": [...],
-    "edges": [...]
-  }
+  "description": "Workflow description"
 }
 ```
 
 **Response**: `201 Created`
 ```json
 {
-  "id": "workflow_123",
+  "id": "workflow-uuid",
   "name": "My Workflow",
   "created_at": "2024-01-01T12:00:00Z"
 }
@@ -209,14 +161,13 @@ Create a new workflow.
 
 Get workflow details.
 
-**Endpoint**: `GET /api/workflows/{workflow_id}`
+**Endpoint**: `GET /api/workflow/{workflow_id}/`
 
 **Response**: `200 OK`
 ```json
 {
-  "id": "workflow_123",
+  "id": "workflow-uuid",
   "name": "My Workflow",
-  "workflow_json": {...},
   "created_at": "2024-01-01T12:00:00Z",
   "updated_at": "2024-01-01T12:00:00Z"
 }
@@ -226,20 +177,19 @@ Get workflow details.
 
 Update an existing workflow.
 
-**Endpoint**: `PUT /api/workflows/{workflow_id}`
+**Endpoint**: `PUT /api/workflow/{workflow_id}/` or `PATCH /api/workflow/{workflow_id}/`
 
 **Request**:
 ```json
 {
-  "name": "Updated Workflow",
-  "workflow_json": {...}
+  "name": "Updated Workflow"
 }
 ```
 
 **Response**: `200 OK`
 ```json
 {
-  "id": "workflow_123",
+  "id": "workflow-uuid",
   "name": "Updated Workflow",
   "updated_at": "2024-01-01T12:00:00Z"
 }
@@ -249,7 +199,7 @@ Update an existing workflow.
 
 Delete a workflow.
 
-**Endpoint**: `DELETE /api/workflows/{workflow_id}`
+**Endpoint**: `DELETE /api/workflow/{workflow_id}/`
 
 **Response**: `204 No Content`
 
@@ -257,64 +207,117 @@ Delete a workflow.
 
 Get list of all workflows.
 
-**Endpoint**: `GET /api/workflows`
+**Endpoint**: `GET /api/workflow/`
+
+**Response**: `200 OK`
+```json
+[
+  {
+    "id": "workflow-uuid",
+    "name": "My Workflow",
+    "created_at": "2024-01-01T12:00:00Z"
+  }
+]
+```
+
+### Get Canvas Data
+
+Get workflow canvas data with full node information.
+
+**Endpoint**: `GET /api/workflow/{workflow_id}/canvas_data/`
 
 **Response**: `200 OK`
 ```json
 {
-  "workflows": [
-    {
-      "id": "workflow_123",
-      "name": "My Workflow",
-      "created_at": "2024-01-01T12:00:00Z"
-    }
-  ],
-  "total": 10
+  "id": "workflow-uuid",
+  "nodes": [...],
+  "edges": [...]
 }
 ```
 
-## Node Discovery API
+## Node Management API
 
-### Get Available Nodes
+### Add Node to Workflow
 
-Get list of all available node types.
+Add a node to the workflow canvas.
 
-**Endpoint**: `GET /api/nodes`
+**Endpoint**: `POST /api/workflow/{workflow_id}/nodes/add/`
 
-**Response**: `200 OK`
+**Request**:
 ```json
 {
-  "nodes": [
-    {
-      "identifier": "http-request",
-      "label": "HTTP Request",
-      "description": "Makes an HTTP request",
-      "type": "BlockingNode",
-      "execution_pool": "ASYNC",
-      "form_schema": {...}
-    }
-  ]
+  "nodeTemplate": "http-request",
+  "position": {"x": 100, "y": 200},
+  "form_values": {}
 }
 ```
 
-### Get Node Details
+**Response**: `201 Created`
+```json
+{
+  "id": "node-uuid",
+  "node_type": "http-request",
+  "position": {"x": 100, "y": 200}
+}
+```
 
-Get detailed information about a specific node type.
+### Get Node Input
 
-**Endpoint**: `GET /api/nodes/{node_identifier}`
+Get aggregated input data from all connected source nodes.
+
+**Endpoint**: `GET /api/workflow/{workflow_id}/nodes/{node_id}/input/`
 
 **Response**: `200 OK`
 ```json
 {
-  "identifier": "http-request",
-  "label": "HTTP Request",
-  "description": "Makes an HTTP request to a specified URL",
-  "type": "BlockingNode",
-  "execution_pool": "ASYNC",
-  "form_schema": {
-    "fields": [...]
-  },
-  "examples": [...]
+  "input_data": {...}
+}
+```
+
+### Get Node Output
+
+Get the output data for a node.
+
+**Endpoint**: `GET /api/workflow/{workflow_id}/nodes/{node_id}/output/`
+
+**Response**: `200 OK`
+```json
+{
+  "output_data": {...}
+}
+```
+
+### Update Node Position
+
+Update node position in the workflow canvas.
+
+**Endpoint**: `PATCH /api/workflow/{workflow_id}/nodes/{node_id}/position/`
+
+**Request**:
+```json
+{
+  "position": {"x": 150, "y": 250}
+}
+```
+
+**Response**: `200 OK`
+```json
+{
+  "id": "node-uuid",
+  "position": {"x": 150, "y": 250}
+}
+```
+
+### Remove Node
+
+Remove a node from the workflow.
+
+**Endpoint**: `DELETE /api/workflow/{workflow_id}/nodes/{node_id}/remove/`
+
+**Response**: `200 OK`
+```json
+{
+  "message": "Node removed successfully"
 }
 ```
 
@@ -324,19 +327,55 @@ Real-time workflow execution updates via WebSocket.
 
 ### Connection
 
-**Endpoint**: `ws://127.0.0.1:7878/ws/workflow/{workflow_id}`
+**Endpoint**: `ws://127.0.0.1:7878/ws/workflow/{workflow_id}/`
+
+**Connection Flow**:
+1. Client connects to WebSocket endpoint
+2. Server sends current workflow state on connection
+3. Server broadcasts events as workflow executes
+4. Client can send messages to request state updates
 
 ### Event Types
+
+#### State Sync (On Connect)
+
+Sent automatically when client connects or requests state.
+
+```json
+{
+  "type": "state_sync",
+  "state": {
+    "workflow_id": "workflow-uuid",
+    "status": "running",
+    "executing_nodes": {
+      "node_1": {
+        "node_id": "node_1",
+        "node_type": "http-request",
+        "started_at": "2024-01-01T12:00:00Z",
+        "duration_seconds": 1.5
+      }
+    },
+    "completed_nodes": [
+      {
+        "node_id": "node_0",
+        "node_type": "queue-reader",
+        "completed_at": "2024-01-01T12:00:00Z",
+        "duration_seconds": 0.5
+      }
+    ],
+    "completed_count": 1
+  }
+}
+```
 
 #### Node Started
 
 ```json
 {
   "type": "node_started",
-  "workflow_id": "workflow_123",
+  "workflow_id": "workflow-uuid",
   "node_id": "node_1",
-  "node_type": "http-request",
-  "timestamp": "2024-01-01T12:00:00Z"
+  "node_type": "http-request"
 }
 ```
 
@@ -345,12 +384,10 @@ Real-time workflow execution updates via WebSocket.
 ```json
 {
   "type": "node_completed",
-  "workflow_id": "workflow_123",
+  "workflow_id": "workflow-uuid",
   "node_id": "node_1",
   "node_type": "http-request",
-  "route": "default",
-  "output_data": {...},
-  "timestamp": "2024-01-01T12:00:00Z"
+  "route": "default"
 }
 ```
 
@@ -359,21 +396,10 @@ Real-time workflow execution updates via WebSocket.
 ```json
 {
   "type": "node_failed",
-  "workflow_id": "workflow_123",
+  "workflow_id": "workflow-uuid",
   "node_id": "node_1",
   "node_type": "http-request",
-  "error": "Connection timeout",
-  "timestamp": "2024-01-01T12:00:00Z"
-}
-```
-
-#### Workflow Started
-
-```json
-{
-  "type": "workflow_started",
-  "workflow_id": "workflow_123",
-  "timestamp": "2024-01-01T12:00:00Z"
+  "error": "Connection timeout"
 }
 ```
 
@@ -382,8 +408,7 @@ Real-time workflow execution updates via WebSocket.
 ```json
 {
   "type": "workflow_completed",
-  "workflow_id": "workflow_123",
-  "timestamp": "2024-01-01T12:00:00Z"
+  "workflow_id": "workflow-uuid"
 }
 ```
 
@@ -392,10 +417,23 @@ Real-time workflow execution updates via WebSocket.
 ```json
 {
   "type": "workflow_failed",
-  "workflow_id": "workflow_123",
-  "error": "Workflow execution failed",
-  "timestamp": "2024-01-01T12:00:00Z"
+  "workflow_id": "workflow-uuid",
+  "error": "Workflow execution failed"
 }
+```
+
+### Client Messages
+
+Clients can send messages to the WebSocket:
+
+**Ping**:
+```json
+{"type": "ping"}
+```
+
+**Request State**:
+```json
+{"type": "request_state"}
 ```
 
 ## Error Responses
@@ -439,59 +477,48 @@ Real-time workflow execution updates via WebSocket.
 
 **1. Create Workflow**:
 ```bash
-curl -X POST http://127.0.0.1:7878/api/workflows \
+curl -X POST http://127.0.0.1:7878/api/workflow/ \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "My Workflow",
-    "workflow_json": {
-      "nodes": [
-        {"id": "node_1", "type": "queue-reader", "data": {...}},
-        {"id": "node_2", "type": "http-request", "data": {...}}
-      ],
-      "edges": [
-        {"source": "node_1", "target": "node_2"}
-      ]
-    }
+    "name": "My Workflow"
   }'
 ```
 
-**2. Start Execution**:
+**2. Add Nodes** (via frontend or API):
 ```bash
-curl -X POST http://127.0.0.1:7878/api/workflows/workflow_123/start \
-  -H "Content-Type: application/json"
+curl -X POST http://127.0.0.1:7878/api/workflow/{workflow_id}/nodes/add/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nodeTemplate": "http-request",
+    "position": {"x": 100, "y": 200}
+  }'
 ```
 
-**3. Monitor via WebSocket**:
+**3. Start Execution**:
+```bash
+curl -X GET http://127.0.0.1:7878/api/workflow/{workflow_id}/start_execution/
+```
+
+**4. Monitor via WebSocket**:
 ```javascript
-const ws = new WebSocket('ws://127.0.0.1:7878/ws/workflow/workflow_123');
+const ws = new WebSocket('ws://127.0.0.1:7878/ws/workflow/{workflow_id}/');
 ws.onmessage = (event) => {
   const data = JSON.parse(event.data);
   console.log('Event:', data.type, data);
 };
 ```
 
-### Development Mode Execution
+### Node Execution
 
-**1. Execute Node**:
+**Execute Single Node**:
 ```bash
-curl -X POST http://127.0.0.1:7878/api/dev/execute \
+curl -X POST http://127.0.0.1:7878/api/workflow/{workflow_id}/execute_and_save_node/ \
   -H "Content-Type: application/json" \
   -d '{
-    "node_id": "node_1",
-    "input_data": {
-      "key": "value"
-    }
+    "node_id": "node-uuid",
+    "form_values": {"url": "https://api.example.com"},
+    "input_data": {"key": "value"}
   }'
-```
-
-**2. Check Cache**:
-```bash
-curl http://127.0.0.1:7878/api/dev/cache/node_1
-```
-
-**3. Clear Cache**:
-```bash
-curl -X DELETE http://127.0.0.1:7878/api/dev/cache
 ```
 
 ## Rate Limiting

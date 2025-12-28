@@ -223,7 +223,7 @@ flow_node.next = {
     "default": [node_10, node_14]
 }
 
-# LogicalNode with yes/no branches
+# ConditionalNode with yes/no branches
 logical_node.next = {
     "yes": [success_node],
     "no": [failure_node]
@@ -247,8 +247,8 @@ class FlowNode:
 ### Branch Keys
 
 - **"default"**: Normal flow connections (sourceHandle is null)
-- **"yes"**: LogicalNode true branch
-- **"no"**: LogicalNode false branch
+- **"yes"**: ConditionalNode true branch
+- **"no"**: ConditionalNode false branch
 
 Branch keys are normalized by `BranchKeyNormalizer`:
 - `null` → `"default"`
@@ -335,7 +335,7 @@ Provides graph traversal and analysis operations. Follows SRP by only handling t
 | `get_producer_nodes()` | Find all ProducerNode instances |
 | `get_first_node_id()` | Find entry point (node with no incoming edges) |
 | `find_non_blocking_nodes()` | Find all NonBlockingNode instances |
-| `find_loops()` | Find all (Producer, EndingNode) pairs |
+| `find_loops()` | Find all (Producer, NonBlockingNode) pairs |
 | `build_chain_from_start_to_end(start, end)` | Build execution chain between two nodes |
 
 ### Finding Loops
@@ -380,7 +380,7 @@ flowchart LR
 
 ### Post-Processors
 
-1. **QueueMapper**: Automatically assigns unique queue names to QueueNode-QueueReader pairs
+1. **QueueMapper**: Automatically assigns unique queue names to QueueWriter-QueueReader pairs
 2. **NodeValidator**: Validates all nodes are ready for execution
 
 **Related Documentation**: [Post-Processing](08-Post-Processing.md)

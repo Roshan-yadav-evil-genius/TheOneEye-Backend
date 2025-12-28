@@ -23,38 +23,43 @@ Development Mode enables iterative, step-by-step execution of individual nodes f
 
 ### Enabling Development Mode
 
-Development Mode is automatically used when executing individual nodes via the API:
+Individual node execution is available via the API:
 
 ```python
-# API endpoint: POST /api/dev/execute
+# API endpoint: POST /api/workflow/{workflow_id}/execute_and_save_node/
 {
-    "node_id": "node_1",
+    "node_id": "node-uuid",
+    "form_values": {
+        "field_name": "value"
+    },
     "input_data": {
         "key": "value"
-    }
+    },
+    "session_id": "optional-session-id"
 }
 ```
 
-### Development Mode Flow
+### Node Execution Flow
 
 ```mermaid
 sequenceDiagram
     participant Dev as Developer
-    participant API as API
-    participant FE as FlowEngine
-    participant Cache as CacheStore
+    participant API as API Endpoint
+    participant Service as NodeExecutionService
+    participant NodeExecutor as NodeExecutor
     participant Node as Node
+    participant DB as Database
 
-    Dev->>API: Execute node_2
-    API->>FE: run_development_node("node_2", input_data)
-    FE->>FE: Get upstream nodes
-    FE->>Cache: get("node_1_output")
-    Cache-->>FE: Cached output
-    FE->>Node: await run(cached_input)
-    Node-->>FE: NodeOutput
-    FE->>Cache: set("node_2_output", output)
-    FE-->>API: NodeOutput
-    API-->>Dev: Result
+    Dev->>API: POST execute_and_save_node
+    API->>Service: execute_and_save_node()
+    Service->>DB: Save form_values, input_data
+    Service->>NodeExecutor: execute(node, input_data, form_values)
+    NodeExecutor->>Node: Execute node
+    Node-->>NodeExecutor: NodeOutput
+    NodeExecutor-->>Service: Result
+    Service->>DB: Save output_data
+    Service-->>API: Execution result
+    API-->>Dev: Response with output
 ```
 
 ### Using Development Mode
@@ -64,13 +69,14 @@ sequenceDiagram
 3. **Iterate Quickly**: Make changes and re-execute
 4. **Debug Issues**: Identify problems at specific nodes
 
-### Cache Management
+### Execution Data Storage
 
-Development Mode uses Redis cache to store node outputs:
+Node execution data is stored in the database:
 
-- **Cache Keys**: `{node_id}_output`
-- **TTL**: Optional expiration
-- **Access**: Via CacheStore API
+- **form_values**: Form field values used for execution
+- **input_data**: Input data from connected nodes
+- **output_data**: Output data from node execution
+- **session_id**: Optional session ID for stateful execution
 
 ## Debugging Workflows
 

@@ -91,12 +91,12 @@ class FlowEngine:
 
 ## QueueMapper
 
-Automatically assigns unique queue names to connected `QueueNode`-`QueueReader` pairs.
+Automatically assigns unique queue names to connected `QueueWriter`-`QueueReader` pairs.
 
 ### Purpose
 
 - **Automatic Queue Assignment**: Eliminates manual queue name configuration
-- **Unique Naming**: Ensures each QueueNode-QueueReader pair has a unique queue
+- **Unique Naming**: Ensures each QueueWriter-QueueReader pair has a unique queue
 - **Graph Analysis**: Traverses graph to find connected queue nodes
 
 ### Process
@@ -104,11 +104,11 @@ Automatically assigns unique queue names to connected `QueueNode`-`QueueReader` 
 ```mermaid
 flowchart TD
     A[QueueMapper.execute] --> B[Iterate All Nodes]
-    B --> C{QueueNode?}
+    B --> C{QueueWriter?}
     C -->|Yes| D[Find Connected QueueReaders]
     C -->|No| B
     D --> E[Generate Queue Name]
-    E --> F[Assign to QueueNode]
+    E --> F[Assign to QueueWriter]
     F --> G[Assign to QueueReader]
     G --> B
     B --> H[Done]
@@ -119,7 +119,7 @@ flowchart TD
 **Pattern**: `queue_{source_id}_{target_id}`
 
 **Example**:
-- QueueNode "node_5" → QueueReader "node_8"
+- QueueWriter "node_5" → QueueReader "node_8"
 - Generated queue name: `"queue_node_5_node_8"`
 
 ### Implementation
@@ -128,7 +128,7 @@ flowchart TD
 class QueueMapper(PostProcessor):
     def execute(self) -> None:
         for node_id, flow_node in self.graph.node_map.items():
-            if isinstance(flow_node.instance, QueueNode):
+            if isinstance(flow_node.instance, QueueWriter):
                 # Find connected QueueReader nodes
                 queue_readers = self._find_queue_readers(flow_node)
                 
@@ -145,7 +145,7 @@ class QueueMapper(PostProcessor):
 
 ```mermaid
 flowchart TD
-    A[QueueNode] --> B[Traverse Graph]
+    A[QueueWriter] --> B[Traverse Graph]
     B --> C[Find All Reachable Nodes]
     C --> D{QueueReader?}
     D -->|Yes| E[Add to List]

@@ -91,8 +91,8 @@ The system executes workflows as **loops** - continuous execution tracks control
 
 - **ProducerNode**: Starts loop iterations (e.g., QueueReader)
 - **BlockingNode**: Must complete before continuing (sequential operations)
-- **NonBlockingNode**: Marks loop end, doesn't block producer (async boundaries)
-- **LogicalNode**: Conditional branching (extends BlockingNode)
+- **NonBlockingNode**: Creates async boundaries, doesn't block downstream processing
+- **ConditionalNode**: Conditional branching (extends BlockingNode)
 
 ### Execution Pools
 
@@ -133,10 +133,8 @@ For detailed guidelines, see [Development Workflow](10-Development-Workflow.md).
 
 ## Related Resources
 
-- **Architecture Specification**: `backend/core/docs/architecture.md`
-- **C4 Model Diagrams**: `backend/core/docs/c4-level-*.md`
-- **Sequence Diagrams**: `backend/core/docs/sequence-diagrams.md`
-- **Architecture Decision Records**: `backend/core/docs/adr/`
+- **Core Documentation**: This documentation set in `backend/docs/`
+- **Code Implementation**: `backend/core/Workflow/` and `backend/core/Node/`
 
 ---
 

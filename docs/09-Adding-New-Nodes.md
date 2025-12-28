@@ -25,7 +25,7 @@ Select the appropriate base class based on your node's behavior:
 |-----------|----------|---------|
 | **ProducerNode** | Starts loop iterations | QueueReader, TimerNode |
 | **BlockingNode** | Sequential operations | HttpRequestNode, DatabaseQueryNode |
-| **NonBlockingNode** | Async boundaries, loop end | QueueNode, NotificationNode |
+| **NonBlockingNode** | Async boundaries, non-blocking | QueueWriter, NotificationNode |
 | **ConditionalNode** | Conditional branching | IfCondition, CompareNode |
 
 ## Step 2: Create Node Directory

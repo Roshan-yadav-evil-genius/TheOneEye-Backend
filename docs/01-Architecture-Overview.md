@@ -161,7 +161,7 @@ The extensible node architecture that allows developers to create custom workflo
 - **ProducerNode**: Starts loop iterations
 - **BlockingNode**: Sequential operations
 - **NonBlockingNode**: Async boundaries
-- **LogicalNode**: Conditional branching
+- **ConditionalNode**: Conditional branching
 
 **Related Documentation:**
 - [Node System](04-Node-System.md) - Node architecture and lifecycle
@@ -238,7 +238,7 @@ flowchart TD
     H --> I[BlockingNodes]
     I --> J[NonBlockingNode]
     J --> H
-    H --> K[QueueNode]
+    H --> K[QueueWriter]
     K --> L[Redis Queue]
     L --> M[QueueReader]
     M --> N[Another Loop]

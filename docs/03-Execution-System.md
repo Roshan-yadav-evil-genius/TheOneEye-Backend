@@ -102,7 +102,7 @@ sequenceDiagram
         NBN-->>PE: NodeOutput
         PE-->>FR: NodeOutput
         
-        Note over FR: Iteration complete,<br/>return to Producer
+        Note over FR: Continue processing<br/>(NonBlockingNode doesn't stop iteration)
     end
 ```
 

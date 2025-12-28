@@ -151,7 +151,7 @@ System nodes provide system-level operations and utilities.
 ### Example Nodes
 
 - **QueueReader**: Reads from Redis queue (ProducerNode)
-- **QueueNode**: Writes to Redis queue (NonBlockingNode)
+- **QueueWriter**: Writes to Redis queue (NonBlockingNode)
 - **DelayNode**: Introduces delays in workflow
 - **CounterNode**: Maintains counters
 
@@ -162,7 +162,7 @@ Store nodes handle queue operations for cross-loop communication.
 ### Category Overview
 
 - **Purpose**: Cross-loop communication via Redis queues
-- **Node Types**: QueueReader (ProducerNode), QueueNode (NonBlockingNode)
+- **Node Types**: QueueReader (ProducerNode), QueueWriter (NonBlockingNode)
 - **Execution Pool**: ASYNC
 - **Common Use Cases**: Decoupling loops, data passing between workflows
 
@@ -182,25 +182,26 @@ flowchart LR
     E --> F[Process Data]
 ```
 
-### QueueNode (NonBlockingNode)
+### QueueWriter (NonBlockingNode)
 
-- **Purpose**: Writes data to Redis queue (marks loop end)
+- **Purpose**: Writes data to Redis queue
 - **Type**: NonBlockingNode
-- **Behavior**: Pushes data to queue, iteration ends
+- **Behavior**: Pushes data to queue, execution continues
+- **Identifier**: `"queue-node-writer"`
 
 ```mermaid
 flowchart LR
-    A[Process Data] --> B[QueueNode]
+    A[Process Data] --> B[QueueWriter]
     B --> C[Push to Redis Queue]
-    C --> D[Iteration Ends]
-    D --> E[Return to Producer]
+    C --> D[Continue Processing]
+    D --> E[Next Node]
 ```
 
 ### Cross-Loop Communication
 
 ```mermaid
 flowchart TD
-    A[Loop 1] --> B[QueueNode]
+    A[Loop 1] --> B[QueueWriter]
     B --> C[Redis Queue]
     C --> D[QueueReader]
     D --> E[Loop 2]
@@ -292,7 +293,7 @@ Delay nodes introduce timing and delays in workflows.
 | Web automation | Browser nodes |
 | Data processing | Data nodes |
 | Conditional logic | Logical nodes |
-| Cross-loop communication | Store nodes (QueueReader/QueueNode) |
+| Cross-loop communication | Store nodes (QueueReader/QueueWriter) |
 | Spreadsheet operations | Google Sheets nodes |
 | Web scraping | WebPageParsers nodes |
 | Counting/iteration | Counter nodes |

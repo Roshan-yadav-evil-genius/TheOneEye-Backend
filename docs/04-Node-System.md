@@ -112,16 +112,16 @@ flowchart LR
 
 ### NonBlockingNode
 
-**Purpose**: Marks loop-end in the execution model. Creates async boundaries.
+**Purpose**: Creates async boundaries. Does not block downstream processing.
 
 **Characteristics**:
-- Semantically marks iteration end
 - Does not force Producer to wait
-- From FlowRunner's perspective: awaits node execution, then iteration ends
+- From FlowRunner's perspective: awaits node execution, then continues processing
+- Execution continues after NonBlockingNode (uses `continue` not `break`)
 - Useful for offloading long side-effects asynchronously
 
 **Examples**:
-- `QueueNode`: Writes to Redis queue (loop end marker)
+- `QueueWriter`: Writes to Redis queue
 - `NotificationNode`: Sends notifications
 - `LogNode`: Logging operations
 
@@ -130,12 +130,11 @@ flowchart LR
 flowchart LR
     A[NonBlockingNode] --> B[Execute]
     B --> C[Complete]
-    C --> D[Iteration Ends]
-    D --> E[Return to Producer]
-    E --> F[Next Iteration]
+    C --> D[Continue Processing]
+    D --> E[Next Node]
 ```
 
-### ConditionalNode (LogicalNode)
+### ConditionalNode
 
 **Purpose**: Conditional branching operations. Extends BlockingNode.
 
@@ -144,6 +143,7 @@ flowchart LR
 - Provides `set_output(bool)` method
 - Routes execution to "yes" or "no" branch
 - `output` property holds branch direction ("yes" or "no")
+- Has `output_ports` property with "yes" and "no" branches
 
 **Examples**:
 - `IfCondition`: Evaluates conditions and routes accordingly

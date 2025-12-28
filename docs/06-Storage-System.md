@@ -150,12 +150,12 @@ flowchart LR
 
 ```mermaid
 sequenceDiagram
-    participant QN as QueueNode
+    participant QW as QueueWriter
     participant QS as QueueStore
     participant Redis as Redis List
     participant QR as QueueReader
 
-    QN->>QS: push("queue_name", data)
+    QW->>QS: push("queue_name", data)
     QS->>Redis: LPUSH queue:queue_name
     Redis-->>QS: OK
     
@@ -190,7 +190,7 @@ async def pop(self, queue_name: str, timeout: Optional[float] = None):
 
 ### Use Cases
 
-- **Cross-Loop Communication**: QueueNode pushes, QueueReader pops
+- **Cross-Loop Communication**: QueueWriter pushes, QueueReader pops
 - **Job Queues**: Distributing work across multiple loops
 - **Event Processing**: Asynchronous event handling
 
@@ -324,7 +324,7 @@ class RedisConnection:
     async def ensure_connection(self):
         """Get or create async Redis connection."""
         if self._connection is None:
-            self._connection = await coredis.Redis(
+            self._connection = await asyncio_redis.Connection.create(
                 host=self._host,
                 port=self._port,
                 db=self._db,
@@ -369,7 +369,7 @@ QueueStore enables decoupled communication between isolated execution loops.
 
 ```mermaid
 flowchart TD
-    A[Loop 1] --> B[QueueNode]
+    A[Loop 1] --> B[QueueWriter]
     B --> C[QueueStore.push]
     C --> D[Redis Queue]
     D --> E[QueueReader]
@@ -387,7 +387,7 @@ Queue names are automatically assigned by QueueMapper post-processor:
 
 - **Pattern**: `queue_{source_id}_{target_id}`
 - **Example**: `queue_node_5_node_8`
-- **Uniqueness**: Each QueueNode-QueueReader pair gets unique name
+- **Uniqueness**: Each QueueWriter-QueueReader pair gets unique name
 
 **Related Documentation**: [Post-Processing](08-Post-Processing.md)
 
