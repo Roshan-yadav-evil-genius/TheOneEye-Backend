@@ -36,12 +36,9 @@ class ProfilePage:
     # ─────────────────────────────────────────────────────────────
 
     async def load(self):
-        if self.page.url != self.profile_url:
-            logger.debug("Loading profile page: %s", self.profile_url)
-            await self.page.goto(self.profile_url, wait_until="load")
-            logger.info("Profile page loaded: %s", self.profile_url)
-        else:
-            logger.info("Profile page already loaded: %s", self.profile_url)
+        logger.debug("Loading profile page: %s", self.profile_url)
+        await self.page.goto(self.profile_url, wait_until="load")
+        logger.info("Profile page loaded: %s", self.profile_url)
 
     async def follow_profile(self):
         following_status = await self._get_following_status()
