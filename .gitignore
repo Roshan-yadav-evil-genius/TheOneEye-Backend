@@ -3,6 +3,7 @@ media
 db.sqlite3
 browser_sessions
 bin
+venv
 .env
 *.sqlite3
 data
