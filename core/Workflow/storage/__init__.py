@@ -8,6 +8,7 @@ the Single Responsibility Principle:
 - QueueStore: Queue operations (push/pop/length)
 - CacheStore: Cache operations (set/get/delete/exists)
 - DataStore: Facade providing unified access to all services
+- WebhookPubSubStore: Webhook pub/sub operations
 - utils: Shared serialization utilities
 """
 
@@ -15,6 +16,7 @@ from .redis_connection import RedisConnection
 from .queue_store import QueueStore
 from .cache_store import CacheStore
 from .data_store import DataStore
+from .webhook_pubsub_store import WebhookPubSubStore, webhook_pubsub_store
 from .utils import serialize, deserialize
 
 __all__ = [
@@ -22,6 +24,8 @@ __all__ = [
     "QueueStore",
     "CacheStore",
     "DataStore",
+    "WebhookPubSubStore",
+    "webhook_pubsub_store",
     "serialize",
     "deserialize",
 ]

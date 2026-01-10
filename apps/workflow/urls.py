@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_nested.routers import NestedDefaultRouter
 from apps.workflow.Views import ConnectionViewSet, NodeViewSet, WorkFlowViewSet, NodeFileViewSet, DemoRequestViewSet
 from apps.workflow.Views.CeleryTaskView import CeleryTaskStatusView
+from apps.workflow.Views.WebhookReceiver import WebhookReceiverView
 
 router = DefaultRouter()
 router.register("workflow", WorkFlowViewSet, basename="workflow")
@@ -19,4 +20,6 @@ node_router.register("files", NodeFileViewSet, basename='node-files')
 urlpatterns = [
     # Celery task status endpoint
     path('celery/task/<str:task_id>/status/', CeleryTaskStatusView.as_view(), name='celery-task-status'),
+    # Webhook receiver endpoint
+    path('webhooks/<str:webhook_id>/', WebhookReceiverView.as_view(), name='webhook-receiver'),
 ] + router.urls + workflow_router.urls + node_router.urls
