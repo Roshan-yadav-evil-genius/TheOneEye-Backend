@@ -81,7 +81,8 @@ class WorkFlowViewSet(ModelViewSet):
             "node_id": "uuid",
             "form_values": { ... },
             "input_data": { ... },
-            "session_id": "optional session id for stateful execution"
+            "session_id": "optional session id for stateful execution",
+            "timeout": 300  // optional timeout in seconds (default: 300)
         }
         """
         from apps.workflow.services import node_execution_service
@@ -91,6 +92,7 @@ class WorkFlowViewSet(ModelViewSet):
         form_values = request.data.get('form_values', {})
         input_data = request.data.get('input_data', {})
         session_id = request.data.get('session_id')
+        timeout = request.data.get('timeout', 300)  # Default 300 seconds (5 minutes)
         
         # Delegate to service - handles all validation and execution
         # Exceptions are handled by custom exception handler
@@ -99,7 +101,8 @@ class WorkFlowViewSet(ModelViewSet):
             node_id,
             form_values,
             input_data,
-            session_id
+            session_id,
+            timeout
         )
         
         return Response(result, status=status.HTTP_200_OK)

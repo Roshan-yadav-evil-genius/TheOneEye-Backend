@@ -18,7 +18,8 @@ class NodeExecutionService:
         node: Node,
         form_values: Dict[str, Any],
         input_data: Dict[str, Any],
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
+        timeout: Optional[float] = None
     ) -> Dict[str, Any]:
         """
         Execute a node with given form values and input data.
@@ -28,6 +29,7 @@ class NodeExecutionService:
             form_values: Form field values for the node
             input_data: Input data from connected nodes
             session_id: Optional session ID for stateful execution
+            timeout: Optional timeout in seconds (default: None, no timeout)
             
         Returns:
             Dict with execution result including success status, output, and any errors
@@ -57,7 +59,7 @@ class NodeExecutionService:
             
             # Execute the node with session support
             result = services.node_executor.execute(
-                node_metadata, input_data, form_values, session_id
+                node_metadata, input_data, form_values, session_id, timeout
             )
             
             # Save output_data if execution was successful
@@ -125,7 +127,8 @@ class NodeExecutionService:
         node_id: str,
         form_values: Dict[str, Any],
         input_data: Dict[str, Any],
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
+        timeout: Optional[float] = None
     ) -> Dict[str, Any]:
         """
         Execute a workflow node and save all execution data.
@@ -137,6 +140,7 @@ class NodeExecutionService:
             form_values: Form field values for the node
             input_data: Input data from connected nodes
             session_id: Optional session ID for stateful execution
+            timeout: Optional timeout in seconds (default: None, no timeout)
             
         Returns:
             Dict with execution result including success status, output, and any errors
@@ -154,7 +158,7 @@ class NodeExecutionService:
         node = NodeExecutionService.get_node_for_execution(workflow_id, node_id)
         
         # Execute the node
-        result = NodeExecutionService.execute_node(node, form_values, input_data, session_id)
+        result = NodeExecutionService.execute_node(node, form_values, input_data, session_id, timeout)
         
         # Check if execution failed due to node type not found and raise exception
         if result.get('error_type') == 'NodeTypeNotFound':

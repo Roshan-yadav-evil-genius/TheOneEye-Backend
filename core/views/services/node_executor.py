@@ -7,7 +7,7 @@ import asyncio
 import traceback
 from typing import Any, Dict, Optional
 
-from apps.common.exceptions import FormValidationException
+from apps.common.exceptions import FormValidationException, ExecutionTimeoutException
 from .node_loader import NodeLoader
 from .node_session_store import NodeSessionStore
 
@@ -38,7 +38,8 @@ class NodeExecutor:
         node_metadata: Dict, 
         input_data: Dict, 
         form_data: Dict,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
+        timeout: Optional[float] = None
     ) -> Dict:
         """
         Execute a node with the given input and form data.
@@ -48,6 +49,7 @@ class NodeExecutor:
             input_data: Input data to pass to the node.
             form_data: Form field values.
             session_id: Session ID for stateful execution (reuses instance).
+            timeout: Optional timeout in seconds (default: None, no timeout).
             
         Returns:
             Dict with execution result or error information.
@@ -64,7 +66,7 @@ class NodeExecutor:
         
         try:
             result = self._run_node(
-                node_class, node_metadata, input_data, form_data, session_id
+                node_class, node_metadata, input_data, form_data, session_id, timeout
             )
             
             return {
@@ -79,6 +81,18 @@ class NodeExecutor:
                 'output': result.model_dump() if hasattr(result, 'model_dump') else result
             }
             
+        except asyncio.TimeoutError:
+            # Handle timeout - clean up and raise ExecutionTimeoutException
+            if session_id:
+                # Clear session on timeout
+                self._session_store.clear(session_id)
+            raise ExecutionTimeoutException(
+                timeout=timeout or 0,
+                detail=f'Node execution exceeded timeout of {timeout} seconds'
+            )
+        except ExecutionTimeoutException:
+            # Re-raise ExecutionTimeoutException
+            raise
         except Exception as e:
             # Check if it's a FormValidationError by type name and attributes (module path may differ)
             # Use type name check instead of isinstance due to module path differences
@@ -130,12 +144,14 @@ class NodeExecutor:
         node_metadata: Dict, 
         input_data: Dict, 
         form_data: Dict,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
+        timeout: Optional[float] = None
     ) -> Any:
         """
         Run the node asynchronously and return the result.
         
         If session_id is provided, reuses existing instance or creates new one.
+        If timeout is provided, execution will be cancelled after timeout seconds.
         """
         from Node.Core.Node.Core.Data import NodeConfig, NodeConfigData, NodeOutput
         
@@ -184,15 +200,73 @@ class NodeExecutor:
             
             return result
         
-        # Execute in asyncio event loop
+        # Execute in asyncio event loop with optional timeout
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+        task = None
         try:
-            result = loop.run_until_complete(run_async())
+            if timeout is not None and timeout > 0:
+                # Create task explicitly so we can cancel it forcefully
+                task = loop.create_task(run_async())
+                try:
+                    # Use wait_for to enforce timeout
+                    result = loop.run_until_complete(
+                        asyncio.wait_for(task, timeout=timeout)
+                    )
+                except asyncio.TimeoutError:
+                    # Timeout occurred - kill the task immediately
+                    # Cancel the main task
+                    if task and not task.done():
+                        task.cancel()
+                    
+                    # Cancel ALL pending tasks in the loop immediately
+                    try:
+                        all_tasks = asyncio.all_tasks(loop)
+                        for pending_task in all_tasks:
+                            if not pending_task.done():
+                                pending_task.cancel()
+                    except Exception:
+                        pass
+                    
+                    # Clear session immediately (don't wait for cleanup)
+                    if session_id:
+                        self._session_store.clear(session_id)
+                    
+                    # Re-raise as TimeoutError to be caught by execute()
+                    # Loop will be closed in finally block
+                    raise
+            else:
+                # No timeout, run normally
+                result = loop.run_until_complete(run_async())
+        except asyncio.TimeoutError:
+            # Clear session on timeout
+            if session_id:
+                self._session_store.clear(session_id)
+            raise
+        except asyncio.CancelledError:
+            # Handle cancellation (can occur during timeout cleanup)
+            # Clear session on cancellation
+            if session_id:
+                self._session_store.clear(session_id)
+            raise asyncio.TimeoutError("Node execution was cancelled due to timeout")
         except Exception:
             raise
         finally:
-            loop.close()
+            # Ensure loop is closed
+            try:
+                if not loop.is_closed():
+                    # Cancel any remaining tasks
+                    try:
+                        all_tasks = asyncio.all_tasks(loop)
+                        for pending_task in all_tasks:
+                            if not pending_task.done():
+                                pending_task.cancel()
+                    except Exception:
+                        pass
+                    loop.close()
+            except Exception:
+                # Ignore errors during cleanup
+                pass
         
         return result
 

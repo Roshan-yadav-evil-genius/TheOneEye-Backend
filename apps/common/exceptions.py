@@ -151,5 +151,18 @@ class WorkflowNotFoundError(NotFoundError):
         self.workflow_id = workflow_id
 
 
+class ExecutionTimeoutException(BaseAPIException):
+    """Exception for execution timeout errors (408 Request Timeout)."""
+    
+    def __init__(self, timeout: float, detail: Optional[str] = None):
+        message = f'Node execution timed out after {timeout} seconds'
+        extra_data = {
+            'timeout': timeout,
+            'error_type': 'ExecutionTimeout'
+        }
+        super().__init__(message, detail or message, 408, 'ExecutionTimeout', extra_data)
+        self.timeout = timeout
+
+
 # Backward compatibility alias
 AppException = BaseAPIException

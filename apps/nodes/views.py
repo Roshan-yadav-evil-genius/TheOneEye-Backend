@@ -116,7 +116,8 @@ class NodeExecuteView(APIView):
     {
         "input_data": { ... },
         "form_data": { ... },
-        "session_id": "uuid"  // For stateful execution
+        "session_id": "uuid",  // For stateful execution
+        "timeout": 300  // optional timeout in seconds (default: 300)
     }
     """
     permission_classes = [AllowAny]
@@ -137,11 +138,12 @@ class NodeExecuteView(APIView):
         input_data = request.data.get('input_data', {})
         form_data = request.data.get('form_data', {})
         session_id = request.data.get('session_id')
+        timeout = request.data.get('timeout', 300)  # Default 300 seconds (5 minutes)
         
         # Execute the node with session support
         # Exceptions (like FormValidationException) will be caught by DRF exception handler
         result = services.node_executor.execute(
-            node, input_data, form_data, session_id
+            node, input_data, form_data, session_id, timeout
         )
         
         # If execution was successful, return the result
