@@ -40,29 +40,14 @@ def execute_workflow(self, workflow_config: dict):
         # Update workflow metrics and status
         # Use atomic update for runs_count to avoid race conditions
         now = timezone.now()
-        # #region agent log
-        with open('/home/roshan/main/TheOneEye/Attempt3/.cursor/debug.log', 'a') as f:
-            import json
-            f.write(json.dumps({"location":"workflow_tasks.py:42","message":"Before workflow update","data":{"workflow_id":str(workflow_id),"now":str(now),"hypothesisId":"A"},"timestamp":int(timezone.now().timestamp()*1000),"sessionId":"debug-session","runId":"run1"})+"\n")
-        # #endregion
         rows_updated = WorkFlow.objects.filter(id=workflow_id).update(
             last_run=now,
             runs_count=F('runs_count') + 1,
             status='active'
         )
-        # #region agent log
-        with open('/home/roshan/main/TheOneEye/Attempt3/.cursor/debug.log', 'a') as f:
-            import json
-            f.write(json.dumps({"location":"workflow_tasks.py:50","message":"After workflow update","data":{"workflow_id":str(workflow_id),"rows_updated":rows_updated,"hypothesisId":"A"},"timestamp":int(timezone.now().timestamp()*1000),"sessionId":"debug-session","runId":"run1"})+"\n")
-        # #endregion
         
         # Get workflow for further operations
         workflow = WorkFlow.objects.get(id=workflow_id)
-        # #region agent log
-        with open('/home/roshan/main/TheOneEye/Attempt3/.cursor/debug.log', 'a') as f:
-            import json
-            f.write(json.dumps({"location":"workflow_tasks.py:54","message":"Workflow retrieved after update","data":{"workflow_id":str(workflow_id),"last_run":str(workflow.last_run) if workflow.last_run else None,"runs_count":workflow.runs_count,"status":workflow.status,"hypothesisId":"A"},"timestamp":int(timezone.now().timestamp()*1000),"sessionId":"debug-session","runId":"run1"})+"\n")
-        # #endregion
         
         logger.info("Workflow execution started", workflow_id=workflow_id, last_run=now)
         self.update_state(
