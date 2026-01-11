@@ -6,6 +6,7 @@ This document provides comprehensive API endpoint documentation for the Workflow
 
 - [← Back to Development Documentation](Development.md)
 - [← Previous: Development Workflow](10-Development-Workflow.md)
+- [Next: Webhook Node →](12-Webhook-Node.md)
 
 ## Overview
 
@@ -539,5 +540,5 @@ X-RateLimit-Reset: 1609459200
 
 ---
 
-[← Back to Development Documentation](Development.md) | [← Previous: Development Workflow](10-Development-Workflow.md)
+[← Back to Development Documentation](Development.md) | [← Previous: Development Workflow](10-Development-Workflow.md) | [Next: Webhook Node →](12-Webhook-Node.md)
 

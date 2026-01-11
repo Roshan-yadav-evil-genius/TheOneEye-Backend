@@ -48,6 +48,9 @@ C4Context
 - **[10. Development Workflow](10-Development-Workflow.md)** - Development practices, debugging, and testing
 - **[11. API Reference](11-API-Reference.md)** - API endpoints and usage documentation
 
+### Specialized Topics
+- **[12. Webhook Node](12-Webhook-Node.md)** - Webhook architecture, data flow, and integration with different node types
+
 ## Getting Started
 
 ### Prerequisites
@@ -111,6 +114,7 @@ This documentation is organized hierarchically:
 1. **Architecture & Design** (01-02): System structure and core components
 2. **Implementation Details** (03-08): Specific subsystems and their operation
 3. **Development Guides** (09-11): Practical guides for extending and using the system
+4. **Specialized Topics** (12+): Deep dives into specific node implementations and features
 
 Each document includes:
 - Visual Mermaid diagrams
