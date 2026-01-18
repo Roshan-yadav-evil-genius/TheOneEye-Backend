@@ -95,6 +95,47 @@ class WorkFlowViewSet(ModelViewSet):
             "message": f"Workflow '{workflow.name}' is no longer accepting requests"
         })
 
+    @action(detail=True, methods=["post"])
+    def duplicate(self, request, pk=None):
+        """Duplicate a workflow with all its nodes and connections"""
+        from apps.workflow.models import Node, Connection
+        
+        workflow = self.get_object()
+        
+        # Create new workflow copy
+        new_workflow = WorkFlow.objects.create(
+            name=f"{workflow.name} (Copy)",
+            description=workflow.description,
+            category=workflow.category,
+            workflow_type=workflow.workflow_type,
+            status='inactive',
+            tags=workflow.tags.copy() if workflow.tags else [],
+        )
+        
+        # Copy nodes and build ID mapping
+        node_mapping = {}
+        for node in workflow.nodes.all():
+            new_node = Node.objects.create(
+                workflow=new_workflow,
+                node_type=node.node_type,
+                x=node.x,
+                y=node.y,
+                form_values=node.form_values.copy() if node.form_values else {},
+                config=node.config.copy() if node.config else {},
+            )
+            node_mapping[str(node.id)] = new_node
+        
+        # Copy connections with remapped node references
+        for conn in workflow.connections.all():
+            Connection.objects.create(
+                workflow=new_workflow,
+                source_node=node_mapping[str(conn.source_node.id)],
+                target_node=node_mapping[str(conn.target_node.id)],
+                source_handle=conn.source_handle,
+            )
+        
+        return Response(WorkFlowSerializer(new_workflow).data, status=status.HTTP_201_CREATED)
+
     @action(detail=True, methods=["get"])
     def task_status(self, request, pk=None):
         """Get workflow execution task status"""
