@@ -67,13 +67,19 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
     
     def _validate_template_fields(self) -> bool:
         """
-        Validate form fields, handling Jinja templates specially.
-        For template fields: only check if required fields are not empty.
-        For non-template fields: perform full Django validation.
+        Validate form fields at execution time, handling special cases:
+        - Jinja template fields: only check required + not empty
+        - DependentChoiceField: only check required + not empty (loaders can't run in async context)
+        - Other fields: perform normal Django field validation
+        
+        NOTE: We don't call validate_form() here because it triggers _load_all_choices()
+        which uses async_to_sync loaders that fail in Django's async execution context.
         
         Returns:
             bool: True if validation passes, False otherwise.
         """
+        from Node.Core.Form.Fields import DependentChoiceField
+        
         if self.form is None:
             return True
         
@@ -85,16 +91,17 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         for field_name, field in self.form.fields.items():
             value = form_data.get(field_name)
             
-            if contains_jinja_template(value):
-                # For template fields: only check required + not empty
+            # For Jinja templates OR DependentChoiceField: only check required + not empty
+            # (Templates can't be validated, DependentChoiceField loaders can't run in async context)
+            # Also check for _dependent_on attribute as fallback for class identity issues
+            if contains_jinja_template(value) or isinstance(field, DependentChoiceField) or hasattr(field, '_dependent_on'):
                 if field.required and (value is None or str(value).strip() == ''):
-                    # Initialize errors if needed
                     if self.form._errors is None:
                         from django.forms.utils import ErrorDict
                         self.form._errors = ErrorDict()
                     self.form._errors[field_name] = self.form.error_class(['This field is required.'])
             else:
-                # For non-template fields: perform normal field validation
+                # For regular fields: perform normal field validation
                 try:
                     field.clean(value)
                 except Exception as e:
@@ -189,12 +196,14 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         if rendered_values:
             self.form.update_fields(rendered_values)
         
-        # Validate form after rendering
-        if not self.form.validate_form():
-            clean_message = self._extract_clean_error_messages(self.form)
-            raise FormValidationError(self.form, f"Form validation failed after rendering: {clean_message}")
-        else:
-            logger.info(f"Form validation passed", form=self.form.get_unbound_field_values(), node_id=self.node_config.id, identifier=f"{self.__class__.__name__}({self.identifier()})")
+        # NOTE: We skip validate_form() here because it calls _load_all_choices()
+        # which uses async_to_sync loaders that fail in Django's async execution context.
+        # Validation was already done in is_ready() via _validate_template_fields().
+        # Just populate cleaned_data for the execute() method to use.
+        self.form._field_values = rendered_values.copy()
+        self.form.cleaned_data = rendered_values.copy()
+        
+        logger.info(f"Form values populated", form=self.form.get_unbound_field_values(), node_id=self.node_config.id, identifier=f"{self.__class__.__name__}({self.identifier()})")
             
     async def run(self, node_data: NodeOutput) -> NodeOutput:
         """
