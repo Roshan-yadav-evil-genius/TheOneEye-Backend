@@ -2,9 +2,13 @@
 QueueWriter Node
 
 Single Responsibility: Push workflow data to queues.
+
+This node is production-only because it writes to queues that are consumed
+by production workflows, which is incompatible with request-response (API) workflows.
 """
 
 import structlog
+from typing import List
 
 from ....Core.Node.Core import NonBlockingNode, NodeOutput, PoolType
 from Workflow.storage.data_store import DataStore
@@ -20,6 +24,16 @@ class QueueWriter(NonBlockingNode):
     @property
     def execution_pool(self) -> PoolType:
         return PoolType.ASYNC
+
+    @property
+    def supported_workflow_types(self) -> List[str]:
+        """
+        QueueWriter only supports production workflows.
+        
+        This node writes to queues that are consumed by production workflows,
+        which is incompatible with request-response (API) workflows.
+        """
+        return ['production']
 
     async def setup(self):
         """Initialize the DataStore connection once during node setup."""

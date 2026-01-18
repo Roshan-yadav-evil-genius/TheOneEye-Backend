@@ -1,7 +1,19 @@
-from django.db.models import Model, JSONField, UUIDField, CharField, TextField, DateTimeField, FloatField, IntegerField, ForeignKey, CASCADE, FileField
+from django.db.models import Model, JSONField, UUIDField, CharField, TextField, DateTimeField, FloatField, IntegerField, ForeignKey, CASCADE, FileField, TextChoices
 from django.core.exceptions import ValidationError
 import uuid
 import os
+
+
+class WorkflowType(TextChoices):
+    """
+    Workflow type enum defining different workflow execution modes.
+    
+    PRODUCTION: Workflows that run continuously in a loop (e.g., queue-based processing)
+    API: Request-response workflows triggered via API calls
+    """
+    PRODUCTION = 'production', 'Production Workflow'
+    API = 'api', 'API Workflow'
+
 
 class BaseModel(Model):
     id = UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -18,6 +30,12 @@ class WorkFlow(BaseModel):
     name = CharField(max_length=100)
     description = CharField(max_length=255, blank=True, null=True)
     category = CharField(max_length=50, blank=True, null=True)
+    workflow_type = CharField(
+        max_length=20,
+        choices=WorkflowType.choices,
+        default=WorkflowType.PRODUCTION,
+        help_text="Type of workflow: 'production' for continuous/loop-based, 'api' for request-response"
+    )
     status = CharField(max_length=20, choices=[
         ('active', 'Active'),
         ('inactive', 'Inactive'),

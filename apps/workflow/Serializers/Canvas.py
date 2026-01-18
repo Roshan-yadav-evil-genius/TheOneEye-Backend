@@ -80,6 +80,7 @@ class CanvasDataSerializer(ModelSerializer):
             'name': obj.name,
             'description': obj.description,
             'status': obj.status,
+            'workflow_type': obj.workflow_type,
             'runs_count': obj.runs_count,
             'last_run': obj.last_run.isoformat() if obj.last_run else None,
         }

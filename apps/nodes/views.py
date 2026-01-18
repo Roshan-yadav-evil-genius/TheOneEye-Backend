@@ -269,6 +269,8 @@ class NodeDetailView(APIView):
 def _format_node_response(node: dict, include_form_class: bool = False, include_file_path: bool = False) -> dict:
     """
     Format node metadata for API response.
+    
+    Includes supported_workflow_types by loading the node class and getting the property.
     """
     response = {
         'name': node.get('name'),
@@ -279,6 +281,7 @@ def _format_node_response(node: dict, include_form_class: bool = False, include_
         'has_form': node.get('has_form'),
         'category': node.get('category'),
         'icon': node.get('icon'),  # Auto-discovered icon path (e.g., "Store/icon.png")
+        'supported_workflow_types': _get_node_supported_workflow_types(node),
     }
     
     if include_form_class:
@@ -288,3 +291,48 @@ def _format_node_response(node: dict, include_form_class: bool = False, include_
         response['file_path'] = node.get('file_path')
     
     return response
+
+
+def _get_node_supported_workflow_types(node: dict) -> list:
+    """
+    Get the supported workflow types for a node by loading its class and getting the property.
+    
+    Args:
+        node: Node metadata dict containing file_path and name.
+        
+    Returns:
+        List of supported workflow type identifiers, or ['production', 'api'] if property 
+        doesn't exist (backward compatibility).
+    """
+    try:
+        services = get_node_services()
+        node_loader = services.services.node_loader
+        node_class = node_loader.load_class(node)
+        
+        if node_class is None:
+            # Fallback: assume all types supported for backward compatibility
+            return ['production', 'api']
+        
+        # Create a dummy instance to access the property
+        from Node.Core.Node.Core.Data import NodeConfig, NodeConfigData
+        
+        dummy_config = NodeConfig(
+            id="temp",
+            type=node.get('identifier', 'unknown'),
+            data=NodeConfigData(form={})
+        )
+        
+        instance = node_class(dummy_config)
+        
+        # Get supported_workflow_types property
+        if hasattr(instance, 'supported_workflow_types'):
+            workflow_types = instance.supported_workflow_types
+            if workflow_types is not None and len(workflow_types) > 0:
+                return workflow_types
+        
+        # Fallback: assume all types supported
+        return ['production', 'api']
+        
+    except Exception:
+        # On any error, assume all types supported for backward compatibility
+        return ['production', 'api']

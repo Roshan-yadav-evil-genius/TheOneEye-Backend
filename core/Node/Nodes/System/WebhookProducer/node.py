@@ -7,10 +7,13 @@ This node handles:
 - Subscribing to a webhook channel based on webhook_id
 - Blocking indefinitely until data arrives (all execution modes)
 - Returning received data to downstream nodes
+
+This node supports both production and API workflow types as it can adapt its
+behavior based on the workflow execution mode.
 """
 
 import structlog
-from typing import Optional
+from typing import Optional, List
 
 from ....Core.Node.Core import ProducerNode, NodeOutput, PoolType, ExecutionCompleted
 from ....Core.Form.Core.BaseForm import BaseForm
@@ -64,6 +67,16 @@ class WebhookProducerNode(ProducerNode):
     def icon(self) -> str:
         """Icon identifier for UI display."""
         return "webhook"
+
+    @property
+    def supported_workflow_types(self) -> List[str]:
+        """
+        WebhookProducerNode supports both production and API workflows.
+        
+        In production mode: Blocks indefinitely waiting for webhook data.
+        In API mode: Receives webhook data as part of request-response flow.
+        """
+        return ['production', 'api']
     
     def get_form(self) -> Optional[BaseForm]:
         """Return the form instance for this node."""

@@ -2,9 +2,13 @@
 QueueReader Node
 
 Single Responsibility: Pop workflow data from queues.
+
+This node is production-only because it operates with infinite blocking queues,
+which is incompatible with request-response (API) workflows.
 """
 
 import structlog
+from typing import List
 
 from Workflow.flow_utils import node_type
 from ....Core.Node.Core import ProducerNode, NodeOutput, PoolType
@@ -22,6 +26,17 @@ class QueueReader(ProducerNode):
     @property
     def execution_pool(self) -> PoolType:
         return PoolType.ASYNC
+
+    @property
+    def supported_workflow_types(self) -> List[str]:
+        """
+        QueueReader only supports production workflows.
+        
+        This node blocks indefinitely waiting for queue data, which is
+        incompatible with request-response (API) workflows that require
+        bounded execution time.
+        """
+        return ['production']
 
     async def setup(self):
         """Initialize the DataStore connection once during node setup."""
