@@ -44,6 +44,57 @@ class WorkFlowViewSet(ModelViewSet):
         result = workflow_execution_service.stop_execution(workflow)
         return Response(result)
 
+    @action(detail=True, methods=["post"])
+    def activate(self, request, pk=None):
+        """
+        Activate an API workflow (mark as ready to receive requests).
+        
+        This endpoint is for API workflows only. When activated, the workflow
+        will accept requests via the /execute/ endpoint.
+        
+        Note: This does NOT start a Celery task or WebSocket connection.
+        It simply marks the workflow as 'active'.
+        """
+        workflow = self.get_object()
+        
+        if workflow.workflow_type != 'api':
+            return Response(
+                {"error": "Only API workflows can be activated via this endpoint. Use start_execution for production workflows."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        workflow.status = 'active'
+        workflow.save()
+        
+        return Response({
+            "status": "active",
+            "message": f"Workflow '{workflow.name}' is now accepting requests via /execute/"
+        })
+
+    @action(detail=True, methods=["post"])
+    def deactivate(self, request, pk=None):
+        """
+        Deactivate an API workflow (stop accepting requests).
+        
+        This endpoint is for API workflows only. When deactivated, the workflow
+        will reject requests via the /execute/ endpoint.
+        """
+        workflow = self.get_object()
+        
+        if workflow.workflow_type != 'api':
+            return Response(
+                {"error": "Only API workflows can be deactivated via this endpoint. Use stop_execution for production workflows."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        workflow.status = 'inactive'
+        workflow.save()
+        
+        return Response({
+            "status": "inactive",
+            "message": f"Workflow '{workflow.name}' is no longer accepting requests"
+        })
+
     @action(detail=True, methods=["get"])
     def task_status(self, request, pk=None):
         """Get workflow execution task status"""

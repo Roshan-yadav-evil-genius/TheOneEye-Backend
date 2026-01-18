@@ -97,6 +97,30 @@ class APIExecutionService:
                     'execution_time_ms': int((time.time() - start_time) * 1000)
                 }
             
+            # Validate workflow is active (accepting requests)
+            if workflow.status != 'active':
+                logger.warning(
+                    "Attempted to execute inactive API workflow",
+                    workflow_id=workflow_id,
+                    workflow_status=workflow.status
+                )
+                return {
+                    'success': False,
+                    'error': f"Workflow '{workflow.name}' is not active. "
+                             f"Activate it first via the /activate/ endpoint before sending requests.",
+                    'workflow_id': str(workflow_id),
+                    'execution_time_ms': int((time.time() - start_time) * 1000)
+                }
+            
+            # Update workflow metrics (runs_count, last_run) for each API execution
+            from django.db.models import F
+            from django.utils import timezone
+            
+            WorkFlow.objects.filter(id=workflow_id).update(
+                last_run=timezone.now(),
+                runs_count=F('runs_count') + 1
+            )
+            
             logger.info(
                 "Starting API workflow execution",
                 workflow_id=workflow_id,
