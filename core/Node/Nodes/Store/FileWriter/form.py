@@ -6,7 +6,7 @@ Single Responsibility: Form field definitions for the FileWriter node.
 
 from django.forms import CharField, ChoiceField
 
-from ....Core.Form.Core.BaseForm import BaseForm
+from ....Core.Form import BaseForm
 
 
 class FileWriterForm(BaseForm):

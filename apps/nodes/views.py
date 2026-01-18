@@ -8,7 +8,6 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework import status
-from asgiref.sync import async_to_sync
 
 from .services import get_node_services
 
@@ -186,6 +185,56 @@ class NodeResetSessionView(APIView):
         })
 
 
+class NodeFormUpdateView(APIView):
+    """
+    Update form with field values and return updated form schema.
+    
+    POST /api/nodes/<identifier>/form/update/
+    
+    Request body:
+    {
+        "field_values": {"country": "india", "state": "maharashtra", ...}
+    }
+    
+    Returns:
+    {
+        "node": { ... },
+        "form": { ... }  // Updated form schema
+    }
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request, identifier):
+        services = get_node_services()
+        
+        # Find the node by identifier
+        node = services.node_registry.find_by_identifier(identifier)
+        
+        if node is None:
+            return Response(
+                {'error': 'Node not found', 'identifier': identifier},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check if node has a form
+        if not node.get('has_form'):
+            return Response({
+                'node': _format_node_response(node),
+                'form': None,
+                'message': 'This node does not have a form'
+            })
+        
+        field_values = request.data.get('field_values', {})
+        
+        # Update form and get serialized schema
+        form_json = services.form_loader.update_form(node, field_values)
+        
+        return Response({
+            'node': _format_node_response(node, include_form_class=True),
+            'form': form_json
+        })
+
+
 class NodeFieldOptionsView(APIView):
     """
     Get options for a dependent field based on parent field value.
@@ -232,8 +281,7 @@ class NodeFieldOptionsView(APIView):
             )
         
         # Get field options from form, passing all form values for multi-parent access
-        # Use async_to_sync to call the async method from sync context
-        options = async_to_sync(services.form_loader.get_field_options)(
+        options = services.form_loader.get_field_options(
             node, dependent_field, parent_value, form_values
         )
         

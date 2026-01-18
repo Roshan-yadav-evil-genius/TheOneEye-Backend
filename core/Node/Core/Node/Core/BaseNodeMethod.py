@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
-from Node.Core.Form.Core.BaseForm import BaseForm
+if TYPE_CHECKING:
+    from Node.Core.Form import BaseForm
 
 from .Data import NodeOutput
 
@@ -37,7 +38,7 @@ class BaseNodeMethod(ABC):
         """
         pass
 
-    def get_form(self) -> Optional[BaseForm]:
+    def get_form(self) -> Optional["BaseForm"]:
         """
         Get the associated form for this node.
         Default implementation returns None.

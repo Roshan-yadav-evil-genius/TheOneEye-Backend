@@ -1,254 +1,187 @@
-"""
-Base Form Module
+from django.forms import Form
+from .DependencyFormMetaClass import DependencyFormMetaClass
+from typing import TYPE_CHECKING
 
-This module provides the base form class that combines Django's Form functionality
-with cascading field dependency support.
-
-Architecture (SRP-compliant):
-- BaseForm: Core form functionality (validation, field values, rebinding)
-- DependencyHandler: Manages field dependency cascading (separate class)
-- DependencyInjector: Interface for dependency configuration (abstract mixin)
-"""
-
-import django
-from django.conf import settings
-from django import forms
-from django.forms.forms import DeclarativeFieldsMetaclass
-from abc import ABCMeta
-from .DependencyInjector import DependencyInjector
-from .DependencyHandler import DependencyHandler
-
-# Configure Django settings
-if not settings.configured:
-    settings.configure(
-        DEBUG=True,
-        SECRET_KEY='dummy-secret-key-for-testing',
-        INSTALLED_APPS=[
-            'django.contrib.contenttypes',
-            'django.contrib.auth',
-        ],
-    )
-    django.setup()
+if TYPE_CHECKING:
+    from .SchemaBuilder import FormSchemaBuilder
 
 
-# Create a custom metaclass that combines Django's form metaclass with ABCMeta
-class FormABCMeta(DeclarativeFieldsMetaclass, ABCMeta):
-    """Metaclass that combines Django's form metaclass with ABCMeta."""
-    pass
-
-
-class BaseForm(DependencyInjector, forms.Form, metaclass=FormABCMeta):
+class BaseForm(Form, metaclass=DependencyFormMetaClass):
     """
-    Base form class that provides cascading field dependency functionality.
-    All forms with dependent fields should inherit from this class.
-    
-    Architecture:
-    - This class handles: field values, validation, form rebinding
-    - DependencyHandler handles: cascading field dependencies
-    
-    Child forms MUST implement:
-    1. get_field_dependencies() - Returns mapping of parent fields to dependent fields
-    2. populate_field(field_name, parent_value) - Returns choices for dependent field
+    In short: BaseForm is a Django form with added dependency tracking and resolution. 
+    Form provides the base form functionality, and the metaclass and _field_values add dependency management.
     """
-    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._incremental_data = {}
-        # Initialize dependency handler (SRP: separate class for dependencies)
-        self._dependency_handler = DependencyHandler(self)
-        self._dependency_handler.initialize_dependencies()
-    
-    def get_field_dependencies(self):
-        """
-        REQUIRED: Define which fields depend on which parent fields.
-        """
-        pass
+        self._field_values = {}
+        # You need _field_values because Django forms have two states and you need to track values before binding/validation.
 
-    def populate_field(self, field_name, parent_value, form_values=None):
-        """
-        REQUIRED: Provide choices for dependent fields based on parent value.
-        
-        Args:
-            field_name: Name of the dependent field to populate
-            parent_value: Value of the immediate parent field
-            form_values: All current form values for multi-parent access (optional)
-            
-        Returns:
-            list: List of (value, label) tuples for field choices
-        """
-        return []
-    
-    def _get_field_value(self, field_name):
-        """
-        Helper method to get field value from data (bound forms) or initial (unbound forms).
-        
-        Args:
-            field_name: Name of the field to retrieve
-            
-        Returns:
-            Field value if found, None otherwise
-        """
-        if self.is_bound and self.data and field_name in self.data:
-            return self.data.get(field_name)
-        elif field_name in self.initial:
-            return self.initial.get(field_name)
-        return None
-    
-    def _update_incremental_data(self, field_name, value):
-        """
-        Manage incremental data storage.
-        Single responsibility: Store field values for incremental updates.
-        
-        Args:
-            field_name: Name of the field to update
-            value: Value to store for the field
-        """
-        self._incremental_data[field_name] = value
-    
-    def _rebind_form(self):
-        """
-        Rebind form with updated data.
-        Single responsibility: Merge incremental data with existing form data and rebind.
-        """
-        # Merge incremental data with existing data
-        updated_data = {}
-        if self.is_bound and self.data:
-            # Convert QueryDict to dict if needed
-            if hasattr(self.data, 'dict'):
-                updated_data.update(self.data.dict())
-            else:
-                updated_data.update(dict(self.data))
-        updated_data.update(self._incremental_data)
-        
-        # Rebind the form with updated data
-        self.data = updated_data
-        self.is_bound = True
-    
-    def _is_value_changed(self, field_name, new_value):
-        """
-        Check if the new value differs from current value.
-        Single responsibility: Compare new value with current field value.
-        
-        Args:
-            field_name: Name of the field to check
-            new_value: The new value to compare
-            
-        Returns:
-            bool: True if value changed, False if same
-        """
-        # Get current value (before updating)
-        current_value = self.get_field_value(field_name)
-        
-        # Handle None vs empty string comparisons
-        # Normalize None and empty string to None for comparison
-        normalized_current = None if (current_value is None or current_value == '') else current_value
-        normalized_new = None if (new_value is None or new_value == '') else new_value
-        
-        # Compare normalized values
-        return normalized_current != normalized_new
-    
-    def update_field(self, field_name, value):
-        """
-        Public interface for updating fields incrementally.
-        Automatically handles dependent field updates.
-        Single responsibility: Orchestrate the update process by calling specialized methods.
-        
-        Args:
-            field_name: Name of the field to update
-            value: Value to set for the field
-        """
-        # Check if value actually changed
-        value_changed = self._is_value_changed(field_name, value)
-        
-        # Store the value (always update for consistency)
-        self._update_incremental_data(field_name, value)
-        # Rebind form with updated data (always rebind for consistency)
-        self._rebind_form()
-        
-        # Only handle dependent fields and validate if value actually changed
-        if value_changed:
-            # Delegate dependency handling to DependencyHandler (SRP)
-            self._dependency_handler.handle_field_change(field_name, value)
-            # Validate the updated field
-            self._validate_field(field_name)
-    
+    def get_unbound_field_values(self):
+        return self._field_values
+
     def get_field_value(self, field_name):
         """
-        Get current field value from any source.
-        Single responsibility: Retrieve field value, checking incremental data first.
+        Get the value of a specific field.
         
         Args:
-            field_name: Name of the field to retrieve
+            field_name: Name of the field to get value for.
             
         Returns:
-            Field value if found, None otherwise
+            The field value, or None if not set.
         """
-        # Check incremental data first (most recent)
-        if field_name in self._incremental_data:
-            return self._incremental_data[field_name]
-        # Fall back to regular field value retrieval
-        return self._get_field_value(field_name)
-    
-    def get_all_field_values(self):
+        return self._field_values.get(field_name)
+
+    # ==================== Field Value Management Methods ====================
+
+    def _set_field_value(self, field_name, value):
+        """Set a field's value in both _field_values and field's initial."""
+        self._field_values[field_name] = value
+
+
+    def _set_multiple_field_values(self, field_data):
+        """Set multiple field values at once."""
+        for field_name, value in field_data.items():
+            self._set_field_value(field_name, value)
+        return set(field_data.keys())
+
+    # ==================== Dependency Checking Methods ====================
+
+    def _are_dependencies_satisfied(self, field_name):
+        """Check if all dependencies for a field have values."""
+        dependencies = self._field_dependencies.get(field_name, {}).get("dependent_on", [])
+        return all(dep in self._field_values for dep in dependencies)
+
+    def _get_dependency_values(self, field_name):
+        """Extract dependency values for a field in order."""
+        dependencies = self._field_dependencies.get(field_name, {}).get("dependent_on", [])
+        return [self._field_values[dep] for dep in dependencies]
+
+    def _should_skip_loader(self, dep_field, provided_fields):
+        """Determine if loader should be skipped for a dependent field."""
+        if provided_fields is None:
+            return False
+        return dep_field in provided_fields
+
+    # ==================== Loader Management Methods ====================
+
+    def _call_field_loader(self, dep_field, meta):
+        """Call the loader function for a dependent field."""
+        loader = meta["loader"]
+        return loader(self)
+
+    def _populate_field_choices(self, dep_field, choices, provided_fields=None):
+        """Set choices for a field, auto-select if single choice, and update dependents."""
+        # Clear stale value unless user just provided it in this update
+        if dep_field not in (provided_fields or set()):
+            self._field_values.pop(dep_field, None)
+        
+        self.fields[dep_field].choices = choices
+        
+        # Auto-select if exactly one choice and not user-provided
+        if len(choices) == 1 and dep_field not in (provided_fields or set()):
+            self._set_field_value(dep_field, choices[0][0])
+        
+        self._update_dependents(dep_field, provided_fields=provided_fields)
+
+    def _clear_dependent_field(self, dep_field):
+        """Clear choices AND value when dependencies not met."""
+        self.fields[dep_field].choices = []
+        self._field_values.pop(dep_field, None)
+
+    def _load_all_choices(self):
+        """Load choices for ALL dependent fields without modifying values.
+        Called before validation to ensure choices are available."""
+        for dep_field, meta in self._field_dependencies.items():
+            if self._are_dependencies_satisfied(dep_field):
+                choices = self._call_field_loader(dep_field, meta)
+                self.fields[dep_field].choices = choices
+
+    # ==================== Update Methods ====================
+
+    def update_fields(self, field_data):
         """
-        Get all field values from the form.
-        """
-        return {field_name: self.get_field_value(field_name) for field_name in self.fields}
-    
-    def _validate_field(self, field_name):
-        """
-        Validate a single field.
-        Single responsibility: Validate a specific field and store errors.
+        Update multiple fields at once (public method).
+        If a dependent field already has a value in field_data, skip its loader.
+        Only call loaders for fields that don't have values yet.
         
         Args:
-            field_name: Name of the field to validate
+            field_data: dict of {field_name: value}
+        """
+        # Set all provided field values
+        provided_fields = self._set_multiple_field_values(field_data)
+        
+        # Update dependents for all changed fields with smart loader logic
+        for field_name in provided_fields:
+            self._update_dependents(field_name, provided_fields=provided_fields)
+
+    def validate_form(self):
+        """
+        Bind the form with current _field_values and validate.
+        Returns True if form is valid, False otherwise.
+        """
+        # 1. Load all choices for dependent fields (for validation)
+        self._load_all_choices()
+        
+        # 2. Create bound form for validation
+        bound_form = self.__class__(data=self._field_values.copy())
+        
+        # 3. Copy loaded choices to bound form (new instance has empty defaults)
+        for field_name, field in self.fields.items():
+            if hasattr(field, 'choices'):
+                bound_form.fields[field_name].choices = field.choices
+        
+        # 4. Validate and copy errors back
+        is_valid = bound_form.is_valid()
+        if hasattr(bound_form, '_errors'):
+            self._errors = bound_form._errors
+        if hasattr(bound_form, 'data'):
+            self.data = bound_form.data
+        # Copy cleaned_data for nodes that access it
+        if hasattr(bound_form, 'cleaned_data'):
+            self.cleaned_data = bound_form.cleaned_data
+        
+        return is_valid
+
+    def _update_dependents(self, field_name, provided_fields=None):
+        """
+        Recursively update dependent fields with smart loader skipping.
+        
+        Args:
+            field_name: Field that was updated
+            provided_fields: Set of fields with user-provided values (None = always load)
+        """
+        for dep_field, meta in self._field_dependencies.items():
+            if field_name not in meta["dependent_on"]:
+                continue
+
+            if self._are_dependencies_satisfied(dep_field):
+                # Dependencies satisfied - check if we should skip loader
+                if self._should_skip_loader(dep_field, provided_fields):
+                    # User provided value, skip loader, just recurse to update dependents
+                    self._update_dependents(dep_field, provided_fields=provided_fields)
+                else:
+                    # Need to call loader
+                    choices = self._call_field_loader(dep_field, meta)
+                    self._populate_field_choices(dep_field, choices, provided_fields=provided_fields)
+            else:
+                # Dependencies not met, clear choices AND value, then recurse for full cascade
+                self._clear_dependent_field(dep_field)
+                self._update_dependents(dep_field, provided_fields=provided_fields)
+
+    # ==================== Schema Generation ====================
+
+    def get_form_schema(self, builder: "FormSchemaBuilder" = None) -> dict:
+        """
+        Returns comprehensive form schema with all details needed for frontend rendering.
+        Includes field metadata, widget information, validation rules, dependencies, and state.
+        
+        Args:
+            builder: Optional custom schema builder. Uses DefaultFormSchemaBuilder if not provided.
             
         Returns:
-            bool: True if field is valid, False otherwise
+            dict: The generated form schema
         """
-        if field_name not in self.fields:
-            return False
-        
-        # Get the field value
-        field_value = self.get_field_value(field_name)
-        
-        # Clear previous errors for this field
-        # Access _errors directly to avoid triggering full validation
-        if hasattr(self, '_errors') and self._errors and field_name in self._errors:
-            del self._errors[field_name]
-        
-        # Validate the field
-        try:
-            # Use Django's field validation
-            self.fields[field_name].clean(field_value)
-            return True
-        except forms.ValidationError as e:
-            # Store validation errors
-            # Initialize _errors if it doesn't exist
-            if not hasattr(self, '_errors') or self._errors is None:
-                from django.forms.utils import ErrorDict
-                self._errors = ErrorDict()
-            # Store the error messages
-            self._errors[field_name] = self.error_class(e.messages)
-            return False
-    
-    def validate(self):
-        """
-        Trigger full form validation.
-        Single responsibility: Validate all form fields.
-        
-        Returns:
-            bool: True if form is valid, False otherwise
-        """
-        self.full_clean()
-        return self.is_valid()
-    
-    def get_errors(self):
-        """
-        Get all form errors after validation.
-        Single responsibility: Retrieve validation errors.
-        
-        Returns:
-            dict: Dictionary of field names to error lists
-        """
-        return self.errors
+        if builder is None:
+            from .SchemaBuilder import DefaultFormSchemaBuilder
+            builder = DefaultFormSchemaBuilder()
+        return builder.build(self)

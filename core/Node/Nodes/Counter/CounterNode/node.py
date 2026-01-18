@@ -13,7 +13,7 @@ import structlog
 from typing import Optional
 
 from ....Core.Node.Core import ProducerNode, NodeOutput, PoolType, ExecutionCompleted
-from ....Core.Form.Core.BaseForm import BaseForm
+from ....Core.Form import BaseForm
 from .form import CounterForm
 
 logger = structlog.get_logger(__name__)

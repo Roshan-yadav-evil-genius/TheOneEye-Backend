@@ -13,7 +13,7 @@ import structlog
 from typing import Optional, List
 
 from ....Core.Node.Core import BlockingNode, NodeOutput, PoolType
-from ....Core.Form.Core.BaseForm import BaseForm
+from ....Core.Form import BaseForm
 from .form import DynamicDelayForm
 from .._shared.constants import TIME_UNIT_TO_SECONDS
 from Workflow.storage.data_store import DataStore

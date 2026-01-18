@@ -4,37 +4,18 @@ Google Sheets Form Utilities
 Single Responsibility: Shared form components for Google Sheets nodes.
 
 This module provides reusable utilities:
-- DynamicChoiceField: ChoiceField that skips validation for dynamic options
 - get_google_account_choices(): Fetches Google accounts from backend API
 - populate_spreadsheet_choices(): Shared logic for spreadsheet dropdown
 - populate_sheet_choices(): Shared logic for sheet dropdown
 """
 
 from typing import List, Tuple, Optional, Dict, Any
-from django import forms
 import structlog
 from asgiref.sync import sync_to_async
 from google.auth.exceptions import RefreshError
 from apps.common.exceptions import ValidationError
 
 logger = structlog.get_logger(__name__)
-
-
-class DynamicChoiceField(forms.ChoiceField):
-    """
-    ChoiceField that skips choice validation for dynamically populated options.
-    
-    Use this for fields whose choices are loaded dynamically (e.g., from API)
-    and aren't available at form instantiation time during node execution.
-    """
-    
-    def validate(self, value):
-        """Skip choice validation - only check if required."""
-        if value in self.empty_values and self.required:
-            raise forms.ValidationError(
-                self.error_messages['required'], 
-                code='required'
-            )
 
 
 def get_google_account_choices() -> List[Tuple[str, str]]:

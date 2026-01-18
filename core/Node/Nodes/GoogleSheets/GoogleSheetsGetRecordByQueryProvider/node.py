@@ -10,7 +10,7 @@ import structlog
 from typing import Optional
 
 from ....Core.Node.Core import ProducerNode, NodeOutput, PoolType
-from ....Core.Form.Core.BaseForm import BaseForm
+from ....Core.Form import BaseForm
 from ..GoogleSheetsGetRecordByQuery.form import GoogleSheetsGetRecordByQueryForm
 from ..GoogleSheetsGetRecordByQuery._shared import GoogleSheetsGetRecordByQueryMixin
 

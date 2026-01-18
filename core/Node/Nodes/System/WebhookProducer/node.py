@@ -19,7 +19,7 @@ from datetime import datetime
 from typing import Optional, List
 
 from ....Core.Node.Core import ProducerNode, NodeOutput, PoolType, ExecutionCompleted
-from ....Core.Form.Core.BaseForm import BaseForm
+from ....Core.Form import BaseForm
 from Workflow.storage.webhook_pubsub_store import webhook_pubsub_store
 from .form import WebhookProducerForm
 

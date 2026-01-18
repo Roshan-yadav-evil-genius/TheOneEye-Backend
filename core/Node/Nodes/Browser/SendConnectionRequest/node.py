@@ -8,7 +8,7 @@ from typing import Optional
 import structlog
 
 from ....Core.Node.Core import BlockingNode, NodeOutput, PoolType
-from ....Core.Form.Core.BaseForm import BaseForm
+from ....Core.Form import BaseForm
 from .form import SendConnectionRequestForm
 from .._shared.BrowserManager import BrowserManager
 from ..automation.linkedin.profile_page import ProfilePage

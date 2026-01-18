@@ -10,6 +10,7 @@ from .views import (
     NodeCountView,
     NodeRefreshView,
     NodeFormView,
+    NodeFormUpdateView,
     NodeExecuteView,
     NodeResetSessionView,
     NodeFieldOptionsView,
@@ -26,6 +27,7 @@ urlpatterns = [
     # Detail endpoints (must come after list endpoints)
     path('<str:identifier>/', NodeDetailView.as_view(), name='node-detail'),
     path('<str:identifier>/form/', NodeFormView.as_view(), name='node-form'),
+    path('<str:identifier>/form/update/', NodeFormUpdateView.as_view(), name='node-form-update'),
     path('<str:identifier>/execute/', NodeExecuteView.as_view(), name='node-execute'),
     path('<str:identifier>/reset-session/', NodeResetSessionView.as_view(), name='node-reset-session'),
     path('<str:identifier>/field-options/', NodeFieldOptionsView.as_view(), name='node-field-options'),

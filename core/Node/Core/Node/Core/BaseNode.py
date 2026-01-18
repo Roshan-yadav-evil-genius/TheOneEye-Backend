@@ -3,7 +3,6 @@ from typing import Optional
 import re
 
 import structlog
-from Node.Core.Form.Core.FormSerializer import FormSerializer
 from .Data import NodeConfig, NodeOutput, ExecutionCompleted
 from .BaseNodeProperty import BaseNodeProperty
 from .BaseNodeMethod import BaseNodeMethod
@@ -49,10 +48,9 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         """
         Populate the form with the data from the config.
         """
-        if self.form is not None:
-            for key, value in self.node_config.data.form.items():
-                self.form.update_field(key, value)
-            # logger.info(f"Form Populated", form=self.form.get_all_field_values(), node_id=self.node_config.id, identifier=f"{self.__class__.__name__}({self.identifier()})")
+        if self.form is not None and self.node_config.data.form:
+            self.form.update_fields(self.node_config.data.form)
+            # logger.info(f"Form Populated", form=self.form.get_unbound_field_values(), node_id=self.node_config.id, identifier=f"{self.__class__.__name__}({self.identifier()})")
 
     def is_ready(self) -> bool:
         """
@@ -156,6 +154,7 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
             return
         
         form_data = self.node_config.data.form or {}
+        rendered_values = {}
         
         # First, initialize ALL form fields with their values from form_data
         # This ensures fields without Jinja templates are also populated
@@ -168,7 +167,7 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
                         # Render the Jinja template with node data
                         template = Template(str(raw_value))
                         rendered_value = template.render(data=node_data.data)
-                        self.form.update_field(field_name, rendered_value)
+                        rendered_values[field_name] = rendered_value
                         logger.debug(
                             "Rendered template field",
                             field=field_name,
@@ -178,7 +177,7 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
                         )
                     else:
                         # No Jinja template, just set the value directly
-                        self.form.update_field(field_name, raw_value)
+                        rendered_values[field_name] = raw_value
                         logger.debug(
                             "Set non-template field",
                             field=field_name,
@@ -186,13 +185,16 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
                             node_id=self.node_config.id
                         )
         
+        # Update all fields at once
+        if rendered_values:
+            self.form.update_fields(rendered_values)
+        
         # Validate form after rendering
-        if not self.form.is_valid():
+        if not self.form.validate_form():
             clean_message = self._extract_clean_error_messages(self.form)
             raise FormValidationError(self.form, f"Form validation failed after rendering: {clean_message}")
         else:
-            self.form.validate()
-            logger.info(f"Form validation passed", form=self.form.get_all_field_values(), node_id=self.node_config.id, identifier=f"{self.__class__.__name__}({self.identifier()})")
+            logger.info(f"Form validation passed", form=self.form.get_unbound_field_values(), node_id=self.node_config.id, identifier=f"{self.__class__.__name__}({self.identifier()})")
             
     async def run(self, node_data: NodeOutput) -> NodeOutput:
         """

@@ -7,7 +7,7 @@ Single Responsibility: Evaluate conditional expressions for workflow branching.
 import structlog
 
 from ....Core.Node.Core import ConditionalNode, NodeOutput, PoolType
-from ....Core.Form.Core.BaseForm import BaseForm
+from ....Core.Form import BaseForm
 from .form import IfConditionForm
 
 logger = structlog.get_logger(__name__)

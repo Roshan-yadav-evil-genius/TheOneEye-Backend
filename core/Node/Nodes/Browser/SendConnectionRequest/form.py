@@ -6,7 +6,7 @@ Single Responsibility: Form field definitions for the SendConnectionRequest node
 
 from django.forms import CharField, BooleanField
 
-from ....Core.Form.Core.BaseForm import BaseForm
+from ....Core.Form import BaseForm
 from .._shared.form_utils import BrowserSessionField
 
 

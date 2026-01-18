@@ -6,7 +6,7 @@ Single Responsibility: Form field definitions for the WebPageLoader node.
 
 from django.forms import URLField, ChoiceField
 
-from ....Core.Form.Core.BaseForm import BaseForm
+from ....Core.Form import BaseForm
 from .._shared.form_utils import BrowserSessionField
 
 

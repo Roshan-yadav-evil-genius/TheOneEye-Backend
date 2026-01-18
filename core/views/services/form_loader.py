@@ -86,12 +86,9 @@ class FormLoader:
         """
         Serialize a form instance to JSON.
         """
-        from Node.Core.Form.Core.FormSerializer import FormSerializer
-        
-        serializer = FormSerializer(form)
-        return serializer.to_json()
+        return form.get_form_schema()
     
-    async def get_field_options(
+    def get_field_options(
         self, 
         node_metadata: Dict, 
         field_name: str, 
@@ -110,9 +107,6 @@ class FormLoader:
         Returns:
             List of (value, text) tuples for the field options.
         """
-        import asyncio
-        import inspect
-        
         form_values = form_values or {}
         
         try:
@@ -131,24 +125,20 @@ class FormLoader:
             if form is None:
                 return []
             
-            # Check if form has populate_field method
-            if not hasattr(form, 'populate_field'):
+            # Populate form with current values - this triggers loaders for dependent fields
+            if form_values:
+                form.update_fields(form_values)
+            
+            # Get the field's choices after update_fields triggered the loaders
+            field = form.fields.get(field_name)
+            if field is None:
                 return []
             
-            # Populate form with current values for multi-parent access
-            if form_values and hasattr(form, 'update_field'):
-                for key, value in form_values.items():
-                    form.update_field(key, value)
+            # Return choices from the field
+            if hasattr(field, 'choices'):
+                return list(field.choices)
             
-            # Get options from the form's populate_field method
-            # Handle both sync and async populate_field methods
-            populate_method = form.populate_field
-            if inspect.iscoroutinefunction(populate_method):
-                options = await populate_method(field_name, parent_value, form_values)
-            else:
-                options = populate_method(field_name, parent_value, form_values)
-            
-            return options if options else []
+            return []
             
         except Exception as e:
             # Let exceptions propagate - they will be caught by DRF exception handler
@@ -162,3 +152,46 @@ class FormLoader:
             )
             raise
 
+    def update_form(self, node_metadata: Dict, field_values: Dict = None) -> Optional[Dict]:
+        """
+        Update form with field values and return serialized form.
+        
+        Args:
+            node_metadata: Node metadata dict.
+            field_values: Dict of field values to update.
+            
+        Returns:
+            Serialized form JSON or None if no form.
+        """
+        field_values = field_values or {}
+        
+        try:
+            node_class = self._node_loader.load_class(node_metadata)
+            if node_class is None:
+                return None
+            
+            # Check if the class has get_form method
+            if not hasattr(node_class, 'get_form'):
+                return None
+            
+            # Create a dummy instance to get the form
+            instance = self._create_dummy_instance(node_class, node_metadata)
+            form = instance.get_form()
+            
+            if form is None:
+                return None
+            
+            # Update form with provided values - this triggers loaders for dependent fields
+            if field_values:
+                form.update_fields(field_values)
+            
+            # Return serialized form with updated state
+            return self._serialize_form(form)
+            
+        except Exception as e:
+            logger.error(
+                "Error updating form",
+                field_values=field_values,
+                error=str(e)
+            )
+            raise

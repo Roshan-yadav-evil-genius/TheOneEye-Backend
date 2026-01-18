@@ -7,7 +7,7 @@ Single Responsibility: Form field definitions for the IfCondition node.
 from django.forms import CharField
 from django.forms.widgets import Textarea
 
-from ....Core.Form.Core.BaseForm import BaseForm
+from ....Core.Form import BaseForm
 
 
 class IfConditionForm(BaseForm):

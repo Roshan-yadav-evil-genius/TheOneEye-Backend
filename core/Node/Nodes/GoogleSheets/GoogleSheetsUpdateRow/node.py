@@ -13,7 +13,7 @@ import structlog
 from typing import Optional
 
 from ....Core.Node.Core import BlockingNode, NodeOutput, PoolType
-from ....Core.Form.Core.BaseForm import BaseForm
+from ....Core.Form import BaseForm
 from .form import GoogleSheetsUpdateRowForm
 from .._shared.google_sheets_service import GoogleSheetsService
 

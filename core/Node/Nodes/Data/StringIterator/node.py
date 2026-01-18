@@ -9,7 +9,7 @@ import structlog
 
 from ....Core.Node.Core import ProducerNode, NodeOutput, PoolType
 from ....Core.Node.Core.Data import ExecutionCompleted
-from ....Core.Form.Core.BaseForm import BaseForm
+from ....Core.Form import BaseForm
 from .form import StringIteratorForm
 
 logger = structlog.get_logger(__name__)

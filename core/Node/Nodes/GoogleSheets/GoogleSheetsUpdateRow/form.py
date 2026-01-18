@@ -15,11 +15,11 @@ This form handles:
 import json
 from django import forms
 import structlog
+from asgiref.sync import async_to_sync
 
-from ....Core.Form.Core.BaseForm import BaseForm
-from ....Core.Form.Core.JSONTextareaWidget import JSONTextareaWidget
+from ....Core.Form import BaseForm
+from ....Core.Form.Fields import DependentChoiceField, JSONTextareaWidget
 from .._shared.form_utils import (
-    DynamicChoiceField,
     get_google_account_choices,
     populate_spreadsheet_choices,
     populate_sheet_choices
@@ -35,9 +35,6 @@ class GoogleSheetsUpdateRowForm(BaseForm):
     Field Dependencies:
     - google_account -> spreadsheet (selecting account loads spreadsheets)
     - spreadsheet -> sheet (selecting spreadsheet loads sheets)
-    
-    The form uses the existing BaseForm dependency system to handle
-    cascading field updates via the frontend.
     """
     
     google_account = forms.ChoiceField(
@@ -46,17 +43,18 @@ class GoogleSheetsUpdateRowForm(BaseForm):
         help_text="Select a connected Google account"
     )
     
-    # Use DynamicChoiceField for fields populated via cascading API calls
-    spreadsheet = DynamicChoiceField(
+    spreadsheet = DependentChoiceField(
         choices=[("", "-- Select Spreadsheet --")],
         required=True,
-        help_text="Select a Google Spreadsheet"
+        help_text="Select a Google Spreadsheet",
+        dependent_on=["google_account"]
     )
     
-    sheet = DynamicChoiceField(
+    sheet = DependentChoiceField(
         choices=[("", "-- Select Sheet --")],
         required=True,
-        help_text="Select a sheet within the spreadsheet"
+        help_text="Select a sheet within the spreadsheet",
+        dependent_on=["google_account", "spreadsheet"]
     )
     
     row_number = forms.IntegerField(
@@ -83,44 +81,35 @@ class GoogleSheetsUpdateRowForm(BaseForm):
         # Dynamically populate Google account choices from backend API
         self.fields['google_account'].choices = get_google_account_choices()
     
-    def get_field_dependencies(self):
+    def spreadsheet_loader(self):
         """
-        Define cascading field dependencies.
+        Load spreadsheet choices based on selected Google account.
+        Called by the form dependency system when google_account changes.
+        """
+        account_id = self._field_values.get('google_account')
+        if not account_id:
+            return [("", "-- Select Spreadsheet --")]
         
-        Returns:
-            Dict mapping parent field -> list of dependent fields
-        """
-        return {
-            'google_account': ['spreadsheet'],  # Account selection loads spreadsheets
-            'spreadsheet': ['sheet']            # Spreadsheet selection loads sheets
-        }
+        # Use async_to_sync to call the async function
+        return async_to_sync(populate_spreadsheet_choices)(account_id)
     
-    async def populate_field(self, field_name, parent_value, form_values=None):
+    def sheet_loader(self):
         """
-        Provide choices for dependent fields based on parent value.
-        
-        Called by the form dependency system when a parent field changes.
-        
-        Args:
-            field_name: Name of the dependent field to populate
-            parent_value: Value of the immediate parent field
-            form_values: All current form values for multi-parent access
-            
-        Returns:
-            List of (value, text) tuples for the field choices
+        Load sheet choices based on selected spreadsheet.
+        Called by the form dependency system when spreadsheet changes.
         """
-        form_values = form_values or {}
+        spreadsheet_id = self._field_values.get('spreadsheet')
+        account_id = self._field_values.get('google_account')
         
-        if field_name == 'spreadsheet':
-            return await populate_spreadsheet_choices(parent_value)
+        if not spreadsheet_id or not account_id:
+            return [("", "-- Select Sheet --")]
         
-        elif field_name == 'sheet':
-            return await populate_sheet_choices(
-                spreadsheet_id=parent_value,
-                form_values=form_values
-            )
-        
-        return []
+        # Use async_to_sync to call the async function
+        form_values = {'google_account': account_id}
+        return async_to_sync(populate_sheet_choices)(
+            spreadsheet_id=spreadsheet_id,
+            form_values=form_values
+        )
     
     def clean_row_data(self):
         """
@@ -143,4 +132,3 @@ class GoogleSheetsUpdateRowForm(BaseForm):
             return parsed
         except json.JSONDecodeError as e:
             raise forms.ValidationError(f"Invalid JSON: {e}")
-

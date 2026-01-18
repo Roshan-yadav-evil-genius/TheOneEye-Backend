@@ -11,7 +11,7 @@ import structlog
 from typing import Optional
 
 from ....Core.Node.Core import BlockingNode, NodeOutput, PoolType
-from ....Core.Form.Core.BaseForm import BaseForm
+from ....Core.Form import BaseForm
 from .form import StaticDelayForm
 from .._shared.constants import TIME_UNIT_TO_SECONDS
 

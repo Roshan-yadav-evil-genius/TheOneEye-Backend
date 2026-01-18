@@ -10,7 +10,7 @@ This form handles:
 
 from django import forms
 
-from ....Core.Form.Core.BaseForm import BaseForm
+from ....Core.Form import BaseForm
 
 
 class WebhookProducerForm(BaseForm):

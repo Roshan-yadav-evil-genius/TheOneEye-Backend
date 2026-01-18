@@ -8,7 +8,7 @@ Provides a single JSON template field with Jinja expression support.
 from django.forms import CharField
 from django.forms.widgets import Textarea
 
-from ....Core.Form.Core.BaseForm import BaseForm
+from ....Core.Form import BaseForm
 
 
 class DataTransformerForm(BaseForm):

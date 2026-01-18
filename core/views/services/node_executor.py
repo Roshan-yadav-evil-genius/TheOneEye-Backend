@@ -104,9 +104,7 @@ class NodeExecutor:
             
             if is_form_validation_error:
                 try:
-                    from Node.Core.Form.Core.FormSerializer import FormSerializer
-                    serializer = FormSerializer(e.form)
-                    form_state = serializer.to_json()
+                    form_state = e.form.get_form_schema()
                     
                     # Raise FormValidationException instead of returning error response
                     # Use actual error message instead of hardcoded string

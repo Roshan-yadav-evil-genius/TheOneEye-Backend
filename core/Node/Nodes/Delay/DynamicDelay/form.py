@@ -6,7 +6,7 @@ Single Responsibility: Form field definitions for the DynamicDelay node.
 
 from django import forms
 
-from ....Core.Form.Core.BaseForm import BaseForm
+from ....Core.Form import BaseForm
 from .._shared.constants import UNIT_CHOICES
 
 

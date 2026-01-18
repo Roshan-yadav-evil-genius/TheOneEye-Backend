@@ -11,7 +11,7 @@ import aiofiles
 import structlog
 
 from ....Core.Node.Core import BlockingNode, NodeOutput, PoolType
-from ....Core.Form.Core.BaseForm import BaseForm
+from ....Core.Form import BaseForm
 from .form import FileWriterForm
 
 logger = structlog.get_logger(__name__)
