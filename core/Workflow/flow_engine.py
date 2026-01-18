@@ -12,6 +12,8 @@ from .PostProcessing import PostProcessor
 from .PostProcessing.queue_mapper import QueueMapper
 from .PostProcessing.node_validator import NodeValidator
 from .execution.flow_runner import FlowRunner
+from .execution.api_flow_runner import APIFlowRunner
+from .execution.pool_executor import PoolExecutor
 from .storage.data_store import DataStore
 from .events import WorkflowEventEmitter, ExecutionStateTracker
 
@@ -137,6 +139,98 @@ class FlowEngine:
             raise ValueError(f"Node {node_id} not found")
         result = await node.run(input_data)
         return result
+
+    async def run_api(
+        self, 
+        input_data: Dict[str, Any], 
+        timeout: int = 300,
+        request_context: Optional[Dict[str, Any]] = None
+    ) -> NodeOutput:
+        """
+        Execute workflow once for API request-response.
+        
+        This method is designed for API workflows that need synchronous execution.
+        It runs the workflow from start to finish once and returns the final output.
+        
+        Args:
+            input_data: Data from HTTP request body to pass to the first node
+            timeout: Maximum execution time in seconds (default: 300)
+            request_context: Optional HTTP request context containing:
+                - headers: Dict of HTTP headers
+                - query_params: Dict of URL query parameters
+                - method: HTTP method (GET, POST, etc.)
+            
+        Returns:
+            NodeOutput from the last executed node
+            
+        Raises:
+            ValueError: If workflow doesn't start with WebhookProducer node
+            asyncio.TimeoutError: If execution exceeds timeout
+        """
+        logger.info("Starting API Mode execution...", workflow_id=self.workflow_id)
+        
+        # Find first node (must be WebhookProducer for API workflows)
+        first_node_id = self.flow_analyzer.get_first_node_id()
+        if not first_node_id:
+            raise ValueError("No first node found in workflow")
+        
+        first_node = self.flow_graph.node_map[first_node_id]
+        
+        # Validate first node is WebhookProducer
+        if first_node.instance.identifier() != 'webhook-producer':
+            raise ValueError(
+                f"API workflows must start with WebhookProducer node. "
+                f"Found: {first_node.instance.identifier()}"
+            )
+        
+        logger.info(
+            "API Mode: First node validated",
+            workflow_id=self.workflow_id,
+            first_node_id=first_node_id,
+            node_type=first_node.instance.identifier()
+        )
+        
+        # Create API runner with fresh executor
+        runner = APIFlowRunner(
+            start_node=first_node,
+            executor=PoolExecutor(),
+            events=self.events
+        )
+        
+        # Build metadata with API mode marker and request context
+        metadata = {
+            '__api_mode__': True,
+            '__request_context__': request_context or {}
+        }
+        
+        # Wrap input in NodeOutput with API mode marker and request context
+        node_input = NodeOutput(
+            data=input_data,
+            metadata=metadata
+        )
+        
+        # Execute with timeout
+        try:
+            result = await asyncio.wait_for(
+                runner.run(node_input),
+                timeout=timeout
+            )
+            
+            logger.info(
+                "API Mode: Execution completed successfully",
+                workflow_id=self.workflow_id,
+                output_keys=list(result.data.keys()) if result and result.data else []
+            )
+            
+            return result
+            
+        except asyncio.TimeoutError:
+            logger.error(
+                "API Mode: Execution timeout",
+                workflow_id=self.workflow_id,
+                timeout=timeout
+            )
+            raise
 
     def load_workflow(self, workflow_json: Dict[str, Any]):
         self.flow_builder.load_workflow(workflow_json)

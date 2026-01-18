@@ -2,6 +2,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny
 from apps.workflow.models import WorkFlow
 from apps.workflow.Serializers import WorkFlowSerializer
 from apps.workflow.Serializers.WorkFlow import RawWorkFlawSerializer
@@ -106,3 +107,62 @@ class WorkFlowViewSet(ModelViewSet):
         )
         
         return Response(result, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], authentication_classes=[], permission_classes=[AllowAny])
+    def execute(self, request, pk=None):
+        """
+        Execute an API workflow synchronously (Public endpoint - no authentication required).
+        
+        This endpoint is for API workflows only. It executes the workflow
+        from start to finish and returns the output from the last node.
+        
+        The workflow must:
+        - Be of type 'api' (workflow_type == 'api')
+        - Start with a WebhookProducer node
+        
+        Request body:
+        {
+            "input": { ... },  // Input data to pass to the workflow
+            "timeout": 300     // Optional timeout in seconds (default: 300)
+        }
+        
+        Response (success):
+        {
+            "success": true,
+            "workflow_id": "uuid",
+            "output": { ... },  // Output from the last executed node
+            "execution_time_ms": 523
+        }
+        
+        Response (error):
+        {
+            "success": false,
+            "error": "Error message",
+            "workflow_id": "uuid",
+            "execution_time_ms": 100
+        }
+        """
+        from apps.workflow.services import api_execution_service
+        
+        workflow = self.get_object()
+        input_data = request.data.get('input', {})
+        timeout = request.data.get('timeout', 300)  # Default 300 seconds (5 minutes)
+        
+        # Capture request context (headers, query params, method) for webhook node
+        request_context = {
+            'headers': dict(request.headers),
+            'query_params': dict(request.query_params),
+            'method': request.method
+        }
+        
+        # Delegate to service - handles validation and execution
+        result = api_execution_service.execute_workflow(
+            str(workflow.id),
+            input_data,
+            timeout,
+            request_context=request_context
+        )
+        
+        # Return appropriate status code based on success
+        status_code = status.HTTP_200_OK if result.get('success') else status.HTTP_400_BAD_REQUEST
+        return Response(result, status=status_code)
