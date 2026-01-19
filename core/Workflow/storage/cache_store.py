@@ -42,7 +42,7 @@ class CacheStore:
         """Get Redis key for cache."""
         return f"{self._prefix}cache:{key}"
     
-    async def set(self, key: str, value: Any, ttl: Optional[int] = None):
+    def set(self, key: str, value: Any, ttl: Optional[int] = None):
         """
         Set a value in the cache.
         
@@ -57,15 +57,15 @@ class CacheStore:
         Raises:
             Exception: If set operation fails
         """
-        conn = await self._connection.ensure_connection()
+        conn = self._connection.ensure_connection()
         cache_key = self._cache_key(key)
         serialized_value = serialize(value)
         
         try:
             if ttl is not None:
-                await conn.setex(cache_key, ttl, serialized_value)
+                conn.setex(cache_key, ttl, serialized_value)
             else:
-                await conn.set(cache_key, serialized_value)
+                conn.set(cache_key, serialized_value)
             logger.debug(f"Set cache key '{key}'")
         except Exception as e:
             logger.error(
@@ -74,7 +74,7 @@ class CacheStore:
             )
             raise
     
-    async def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Optional[Any]:
         """
         Get a value from the cache.
         
@@ -90,11 +90,11 @@ class CacheStore:
         Raises:
             Exception: If get operation fails
         """
-        conn = await self._connection.ensure_connection()
+        conn = self._connection.ensure_connection()
         cache_key = self._cache_key(key)
         
         try:
-            serialized_value = await conn.get(cache_key)
+            serialized_value = conn.get(cache_key)
             if serialized_value is None:
                 return None
             return deserialize(serialized_value)
@@ -105,7 +105,7 @@ class CacheStore:
             )
             raise
     
-    async def delete(self, key: str):
+    def delete(self, key: str):
         """
         Delete a value from the cache.
         
@@ -115,11 +115,11 @@ class CacheStore:
         Raises:
             Exception: If delete operation fails
         """
-        conn = await self._connection.ensure_connection()
+        conn = self._connection.ensure_connection()
         cache_key = self._cache_key(key)
         
         try:
-            await conn.delete([cache_key])
+            conn.delete(cache_key)
             logger.debug(f"Deleted cache key '{key}'")
         except Exception as e:
             logger.error(
@@ -128,7 +128,7 @@ class CacheStore:
             )
             raise
     
-    async def exists(self, key: str) -> bool:
+    def exists(self, key: str) -> bool:
         """
         Check if a cache key exists.
         
@@ -141,11 +141,11 @@ class CacheStore:
         Raises:
             Exception: If exists check fails
         """
-        conn = await self._connection.ensure_connection()
+        conn = self._connection.ensure_connection()
         cache_key = self._cache_key(key)
         
         try:
-            exists = await conn.exists(cache_key)
+            exists = conn.exists(cache_key)
             return bool(exists)
         except Exception as e:
             logger.error(
@@ -153,4 +153,3 @@ class CacheStore:
                 exc_info=True
             )
             raise
-

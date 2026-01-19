@@ -1,4 +1,4 @@
-from playwright.async_api import Page, Locator
+from playwright.sync_api import Page, Locator
 from .core.profile_page import PROFILE_PAGE_SELECTORS
 from .core.keys.profile_page import ProfilePageKey
 from .base_page import BasePage
@@ -11,7 +11,7 @@ class LinkedInProfilePageSelectors(BasePage):
     Usage:
         selectors = LinkedInProfilePageSelectors(page)
         connect_btn = selectors.connect_button()
-        await connect_btn.click()
+        connect_btn.click()
     
     The get() method is also available for less common selectors:
         selectors.get(ProfilePageKey.REMOVE_CONNECTION_BUTTON)

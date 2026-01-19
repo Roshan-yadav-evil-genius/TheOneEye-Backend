@@ -55,7 +55,7 @@ class GoogleSheetsGetRowNode(BlockingNode):
     def execution_pool(self) -> PoolType:
         """
         Use THREAD pool for network I/O bound operations.
-        This prevents blocking the async event loop during API calls.
+        This prevents blocking the main thread during API calls.
         """
         return PoolType.THREAD
     
@@ -78,7 +78,7 @@ class GoogleSheetsGetRowNode(BlockingNode):
         """Return the form instance for this node."""
         return GoogleSheetsGetRowForm()
     
-    async def execute(self, previous_node_output: NodeOutput) -> NodeOutput:
+    def execute(self, previous_node_output: NodeOutput) -> NodeOutput:
         """
         Execute row retrieval from Google Sheets.
         
@@ -113,7 +113,7 @@ class GoogleSheetsGetRowNode(BlockingNode):
             service = GoogleSheetsService(account_id)
             
             # Fetch row data with header mapping
-            row_data = await service.get_row_with_headers(
+            row_data = service.get_row_with_headers(
                 spreadsheet_id=spreadsheet_id,
                 sheet_name=sheet_name,
                 row_number=row_number,
@@ -173,4 +173,3 @@ class GoogleSheetsGetRowNode(BlockingNode):
                 error=error_msg
             )
             raise
-

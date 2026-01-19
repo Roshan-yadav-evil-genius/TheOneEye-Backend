@@ -12,7 +12,6 @@ Key Differences from FlowRunner:
 - All nodes must complete in sequence (no NonBlockingNode skip behavior)
 """
 
-import asyncio
 import structlog
 from typing import Dict, List, Optional, TYPE_CHECKING
 
@@ -62,7 +61,7 @@ class APIFlowRunner:
         self.events = events
         self.last_output: Optional[NodeOutput] = None
 
-    async def run(self, input_data: NodeOutput) -> NodeOutput:
+    def run(self, input_data: NodeOutput) -> NodeOutput:
         """
         Execute the workflow once from start to finish.
         
@@ -76,7 +75,7 @@ class APIFlowRunner:
             Exception: If any node execution fails
         """
         # Initialize all nodes first
-        await self._init_nodes()
+        self._init_nodes()
         
         # Execute start node with input data
         start_instance = self.start_node.instance
@@ -93,7 +92,7 @@ class APIFlowRunner:
         )
         
         try:
-            output = await self.executor.execute_in_pool(
+            output = self.executor.execute_in_pool(
                 start_instance.execution_pool, start_instance, input_data
             )
             
@@ -122,7 +121,7 @@ class APIFlowRunner:
             self.last_output = output
             
             # Process all downstream nodes
-            await self._process_downstream(self.start_node, output)
+            self._process_downstream(self.start_node, output)
             
             return self.last_output
             
@@ -140,7 +139,7 @@ class APIFlowRunner:
             # Shutdown executor
             self.executor.shutdown(wait=True)
 
-    async def _process_downstream(
+    def _process_downstream(
         self, current_flow_node: FlowNode, input_data: NodeOutput
     ):
         """
@@ -197,7 +196,7 @@ class APIFlowRunner:
             )
 
             try:
-                output = await self.executor.execute_in_pool(
+                output = self.executor.execute_in_pool(
                     next_instance.execution_pool, next_instance, input_data
                 )
 
@@ -226,7 +225,7 @@ class APIFlowRunner:
                 self.last_output = output
 
                 # Continue to downstream nodes (recursive)
-                await self._process_downstream(next_flow_node, output)
+                self._process_downstream(next_flow_node, output)
 
             except Exception as e:
                 # Emit node_failed event
@@ -239,19 +238,19 @@ class APIFlowRunner:
                 )
                 raise
 
-    async def _init_nodes(self):
+    def _init_nodes(self):
         """Initialize all nodes in the flow by calling their init() method."""
         visited = set()
-        await self._init_node_recursive(self.start_node, visited)
+        self._init_node_recursive(self.start_node, visited)
 
-    async def _init_node_recursive(self, flow_node: FlowNode, visited: set):
+    def _init_node_recursive(self, flow_node: FlowNode, visited: set):
         """Recursively initialize a node and its downstream nodes."""
         if flow_node.id in visited:
             return
         visited.add(flow_node.id)
         
-        await flow_node.instance.init()
+        flow_node.instance.init()
         
         for branch_nodes in flow_node.next.values():
             for next_node in branch_nodes:
-                await self._init_node_recursive(next_node, visited)
+                self._init_node_recursive(next_node, visited)

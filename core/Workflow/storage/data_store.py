@@ -11,8 +11,8 @@ delegating actual operations to specialized classes:
 
 Usage:
     data_store = DataStore()
-    await data_store.queue.push("my_queue", {"key": "value"})
-    await data_store.cache.set("my_key", {"data": 123})
+    data_store.queue.push("my_queue", {"key": "value"})
+    data_store.cache.set("my_key", {"data": 123})
 """
 
 import structlog
@@ -42,15 +42,15 @@ class DataStore:
         data_store = DataStore()
         
         # Queue operations
-        await data_store.queue.push("my_queue", {"key": "value"})
-        item = await data_store.queue.pop("my_queue")
-        length = await data_store.queue.length("my_queue")
+        data_store.queue.push("my_queue", {"key": "value"})
+        item = data_store.queue.pop("my_queue")
+        length = data_store.queue.length("my_queue")
         
         # Cache operations
-        await data_store.cache.set("my_key", {"data": 123}, ttl=3600)
-        value = await data_store.cache.get("my_key")
-        await data_store.cache.delete("my_key")
-        exists = await data_store.cache.exists("my_key")
+        data_store.cache.set("my_key", {"data": 123}, ttl=3600)
+        value = data_store.cache.get("my_key")
+        data_store.cache.delete("my_key")
+        exists = data_store.cache.exists("my_key")
     """
     
     def __init__(
@@ -104,9 +104,9 @@ class DataStore:
             QueueStore: Queue service for push/pop/length operations
             
         Example:
-            await data_store.queue.push("my_queue", {"data": "value"})
-            item = await data_store.queue.pop("my_queue")
-            length = await data_store.queue.length("my_queue")
+            data_store.queue.push("my_queue", {"data": "value"})
+            item = data_store.queue.pop("my_queue")
+            length = data_store.queue.length("my_queue")
         """
         return self._queue_store
     
@@ -119,10 +119,10 @@ class DataStore:
             CacheStore: Cache service for set/get/delete/exists operations
             
         Example:
-            await data_store.cache.set("my_key", {"data": "value"}, ttl=3600)
-            value = await data_store.cache.get("my_key")
-            await data_store.cache.delete("my_key")
-            exists = await data_store.cache.exists("my_key")
+            data_store.cache.set("my_key", {"data": "value"}, ttl=3600)
+            value = data_store.cache.get("my_key")
+            data_store.cache.delete("my_key")
+            exists = data_store.cache.exists("my_key")
         """
         return self._cache_store
     
@@ -136,9 +136,9 @@ class DataStore:
         """
         return self._redis_connection
     
-    async def close(self):
+    def close(self):
         """
         Close the Redis connection.
         Should be called when the DataStore is no longer needed.
         """
-        await self._redis_connection.close()
+        self._redis_connection.close()

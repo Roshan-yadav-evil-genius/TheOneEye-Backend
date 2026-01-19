@@ -26,14 +26,14 @@ class SendConnectionRequest(BlockingNode):
 
     @property
     def execution_pool(self) -> PoolType:
-        return PoolType.ASYNC
+        return PoolType.THREAD
 
-    async def setup(self):
+    def setup(self):
         """Initialize BrowserManager connection."""
         self.browser_manager = BrowserManager()
-        await self.browser_manager.initialize(headless=False)
+        self.browser_manager.initialize(headless=False)
 
-    async def execute(self, node_data: NodeOutput) -> NodeOutput:
+    def execute(self, node_data: NodeOutput) -> NodeOutput:
         """
         Send connection request and/or follow a LinkedIn profile.
 
@@ -60,25 +60,25 @@ class SendConnectionRequest(BlockingNode):
         page = None
         try:
             # Get browser context
-            context = await self.browser_manager.get_context(session_name)
+            context = self.browser_manager.get_context(session_name)
             # Create new page
-            page = await context.new_page()
+            page = context.new_page()
 
             connection_status = None
             following_status = None
             
             # Create ProfilePage and let it handle navigation
             profile_page = ProfilePage(page, profile_url)
-            await profile_page.load()
+            profile_page.load()
             # Perform actions based on form configuration
             if send_request:
-                await profile_page.send_connection_request()
-                connection_status = await profile_page._get_connection_status()
+                profile_page.send_connection_request()
+                connection_status = profile_page._get_connection_status()
 
 
             if follow_profile:
-                await profile_page.follow_profile()
-                following_status = await profile_page._get_following_status()
+                profile_page.follow_profile()
+                following_status = profile_page._get_following_status()
             
             final_data = {
                 "connection_request_status": connection_status.value if connection_status else None,
@@ -101,8 +101,7 @@ class SendConnectionRequest(BlockingNode):
             # Always close the page to free resources
             if page:
                 try:
-                    await page.close()
+                    page.close()
                     logger.debug("Page closed", url=profile_url)
                 except Exception as close_error:
                     logger.warning("Error closing page", url=profile_url, error=str(close_error))
-

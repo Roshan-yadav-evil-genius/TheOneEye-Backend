@@ -25,9 +25,9 @@ class StringIterator(ProducerNode):
 
     @property
     def execution_pool(self) -> PoolType:
-        return PoolType.ASYNC
+        return PoolType.THREAD
 
-    async def setup(self):
+    def setup(self):
         """
         Parse the data from the form configuration during setup.
         """
@@ -55,7 +55,7 @@ class StringIterator(ProducerNode):
         self.current_index = 0
         logger.info("Initialized StringIterator", item_count=len(self.items))
 
-    async def execute(self, node_data: NodeOutput) -> NodeOutput:
+    def execute(self, node_data: NodeOutput) -> NodeOutput:
         """
         Yield the next item in the list.
         """
@@ -81,4 +81,3 @@ class StringIterator(ProducerNode):
             "iteration_index": self.current_index
         }
         return node_data
-

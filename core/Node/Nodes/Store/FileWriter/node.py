@@ -7,7 +7,6 @@ Single Responsibility: Write workflow data to files.
 import json
 import os
 from typing import Optional
-import aiofiles
 import structlog
 
 from ....Core.Node.Core import BlockingNode, NodeOutput, PoolType
@@ -27,9 +26,9 @@ class FileWriter(BlockingNode):
 
     @property
     def execution_pool(self) -> PoolType:
-        return PoolType.ASYNC
+        return PoolType.THREAD
 
-    async def execute(self, node_data: NodeOutput) -> NodeOutput:
+    def execute(self, node_data: NodeOutput) -> NodeOutput:
         """
         Write node data to a file.
         """
@@ -66,8 +65,8 @@ class FileWriter(BlockingNode):
              content += '\n'
 
         try:
-            async with aiofiles.open(file_path, mode=mode, encoding='utf-8') as f:
-                await f.write(content)
+            with open(file_path, mode=mode, encoding='utf-8') as f:
+                f.write(content)
             
             logger.info("Written data to file", file=file_path, mode=mode)
             
@@ -77,4 +76,3 @@ class FileWriter(BlockingNode):
         except Exception as e:
             logger.error("Failed to write to file", file=file_path, error=str(e))
             raise e
-

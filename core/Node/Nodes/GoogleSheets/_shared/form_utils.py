@@ -11,7 +11,6 @@ This module provides reusable utilities:
 
 from typing import List, Tuple, Optional, Dict, Any
 import structlog
-from asgiref.sync import sync_to_async
 from google.auth.exceptions import RefreshError
 from apps.common.exceptions import ValidationError
 
@@ -22,54 +21,24 @@ def get_google_account_choices() -> List[Tuple[str, str]]:
     """
     Fetch available Google accounts from Django model.
     
-    This function is async-safe and can be called from both sync and async contexts.
-    Uses sync_to_async to safely access the database from any context.
-    
     Returns:
         List of (id, display_text) tuples for ChoiceField
     """
     try:
         from apps.authentication.models import GoogleConnectedAccount
-        import asyncio
-        import concurrent.futures
         
-        # Define the database query function wrapped with sync_to_async
-        @sync_to_async
-        def _fetch_accounts():
-            accounts = GoogleConnectedAccount.objects.filter(is_active=True).order_by('name')
-            return [("", "-- Select Account --")] + [
-                (str(account.id), f"{account.name} ({account.email})") 
-                for account in accounts
-            ]
-        
-        # Check if we're in an async context
-        try:
-            loop = asyncio.get_running_loop()
-            # We're in an async context - can't use async_to_sync
-            # Run in a separate thread with its own event loop
-            def run_in_thread():
-                new_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(new_loop)
-                try:
-                    return new_loop.run_until_complete(_fetch_accounts())
-                finally:
-                    new_loop.close()
-            
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(run_in_thread)
-                return future.result(timeout=5)
-        except RuntimeError:
-            # No running event loop - we're in sync context
-            # Safe to use async_to_sync
-            from asgiref.sync import async_to_sync
-            return async_to_sync(_fetch_accounts)()
+        accounts = GoogleConnectedAccount.objects.filter(is_active=True).order_by('name')
+        return [("", "-- Select Account --")] + [
+            (str(account.id), f"{account.name} ({account.email})") 
+            for account in accounts
+        ]
     except Exception as e:
         logger.warning("Failed to fetch Google accounts", error=str(e))
     
     return [("", "-- Select Account --")]
 
 
-async def populate_spreadsheet_choices(
+def populate_spreadsheet_choices(
     account_id: str
 ) -> List[Tuple[str, str]]:
     """
@@ -88,7 +57,7 @@ async def populate_spreadsheet_choices(
     
     try:
         service = GoogleSheetsService(account_id)
-        spreadsheets = await service.list_spreadsheets()
+        spreadsheets = service.list_spreadsheets()
         
         logger.debug(
             "Populated spreadsheets",
@@ -138,7 +107,7 @@ async def populate_spreadsheet_choices(
         )
 
 
-async def populate_sheet_choices(
+def populate_sheet_choices(
     spreadsheet_id: str,
     account_id: Optional[str] = None,
     form_values: Optional[Dict[str, Any]] = None
@@ -169,7 +138,7 @@ async def populate_sheet_choices(
     
     try:
         service = GoogleSheetsService(account_id)
-        sheets = await service.list_sheets(spreadsheet_id)
+        sheets = service.list_sheets(spreadsheet_id)
         
         logger.debug(
             "Populated sheets",
@@ -223,4 +192,3 @@ async def populate_sheet_choices(
             detail=f"Account ID: {account_id}, Spreadsheet ID: {spreadsheet_id}. Error: {error_msg}",
             extra_data={'account_id': account_id, 'spreadsheet_id': spreadsheet_id}
         )
-

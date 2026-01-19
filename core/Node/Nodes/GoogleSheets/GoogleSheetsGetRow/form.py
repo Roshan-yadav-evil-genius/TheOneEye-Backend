@@ -13,7 +13,6 @@ This form handles:
 
 from django import forms
 import structlog
-from asgiref.sync import async_to_sync
 
 from ....Core.Form import BaseForm
 from ....Core.Form.Fields import DependentChoiceField
@@ -82,8 +81,7 @@ class GoogleSheetsGetRowForm(BaseForm):
         if not account_id:
             return [("", "-- Select Spreadsheet --")]
         
-        # Use async_to_sync to call the async function
-        return async_to_sync(populate_spreadsheet_choices)(account_id)
+        return populate_spreadsheet_choices(account_id)
     
     def sheet_loader(self):
         """
@@ -96,9 +94,8 @@ class GoogleSheetsGetRowForm(BaseForm):
         if not spreadsheet_id or not account_id:
             return [("", "-- Select Sheet --")]
         
-        # Use async_to_sync to call the async function
         form_values = {'google_account': account_id}
-        return async_to_sync(populate_sheet_choices)(
+        return populate_sheet_choices(
             spreadsheet_id=spreadsheet_id,
             form_values=form_values
         )

@@ -25,17 +25,17 @@ class WebPageLoader(BlockingNode):
 
     @property
     def execution_pool(self) -> PoolType:
-        return PoolType.ASYNC
+        return PoolType.THREAD
 
-    async def setup(self):
+    def setup(self):
         """Initialize BrowserManager connection."""
         self.browser_manager = BrowserManager()
         # Ensure browser manager is initialized (it's a singleton, so safe to call repeatedly)
-        await self.browser_manager.initialize(
+        self.browser_manager.initialize(
             headless=False
         )  # Default to visible functionality for now as per user preference likely
 
-    async def execute(self, node_data: NodeOutput) -> NodeOutput:
+    def execute(self, node_data: NodeOutput) -> NodeOutput:
         """
         Load a webpage using Playwright.
 
@@ -66,19 +66,19 @@ class WebPageLoader(BlockingNode):
         page = None
         try:
             # Get context (creates if doesn't exist)
-            context = await self.browser_manager.get_context(session_name)
+            context = self.browser_manager.get_context(session_name)
 
             # Create new page and navigate to URL
-            page = await context.new_page()
-            await page.goto(url, wait_until=wait_mode)
+            page = context.new_page()
+            page.goto(url, wait_until=wait_mode)
 
             # (Redundant waits removed as goto handles it via wait_strategy)
 
-            await page.wait_for_timeout(10000)
+            page.wait_for_timeout(10000)
             
             # Extract basic info
-            title = await page.title()
-            content = await page.content()
+            title = page.title()
+            content = page.content()
 
             logger.info("Webpage loaded", title=title, url=page.url)
 
@@ -100,8 +100,7 @@ class WebPageLoader(BlockingNode):
             # Always close the page to free resources
             if page:
                 try:
-                    await page.close()
+                    page.close()
                     logger.debug("Page closed", url=url)
                 except Exception as close_error:
                     logger.warning("Error closing page", url=url, error=str(close_error))
-

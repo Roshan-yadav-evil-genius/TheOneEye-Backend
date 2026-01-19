@@ -1,6 +1,7 @@
-import asyncio
+import threading
 import structlog
 from typing import Dict, List, Any, Type, Optional
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from Node.Core.Node.Core.BaseNode import BaseNode, ProducerNode
 from Node.Core.Node.Core.Data import NodeOutput
 from .flow_graph import FlowGraph
@@ -38,6 +39,10 @@ class FlowEngine:
         # Event system for real-time updates
         self.events = WorkflowEventEmitter(workflow_id)
         self.state_tracker: Optional[ExecutionStateTracker] = None
+        
+        # Thread control
+        self._threads: List[threading.Thread] = []
+        self._shutdown_event = threading.Event()
 
     def create_loop(self, producer_flow_node: FlowNode):
         producer = producer_flow_node.instance
@@ -46,7 +51,7 @@ class FlowEngine:
         runner = FlowRunner(producer_flow_node, events=self.events)
         self.flow_runners.append(runner)
 
-    async def run_production(self):
+    def run_production(self):
         logger.info("Starting Production Mode...")
         
         if not self.flow_runners:
@@ -67,12 +72,24 @@ class FlowEngine:
         for _ in self.flow_runners:
             self.state_tracker.register_runner()
         
-        self.tasks = [asyncio.create_task(runner.start()) for runner in self.flow_runners]
+        # Reset shutdown event
+        self._shutdown_event.clear()
+        
+        # Create and start threads for each runner
+        self._threads = []
+        for runner in self.flow_runners:
+            runner._shutdown_event = self._shutdown_event
+            thread = threading.Thread(target=runner.start, daemon=True)
+            self._threads.append(thread)
+            thread.start()
 
         try:
-            await asyncio.gather(*self.tasks)
-        except asyncio.CancelledError:
-            logger.info("Production execution cancelled")
+            # Wait for all threads to complete
+            for thread in self._threads:
+                thread.join()
+        except KeyboardInterrupt:
+            logger.info("Production execution interrupted")
+            self._shutdown_event.set()
         except Exception as e:
             if self.state_tracker:
                 self.state_tracker.on_workflow_failed(str(e))
@@ -121,26 +138,24 @@ class FlowEngine:
         """
         logger.warning("Initiating FORCE SHUTDOWN of all flows")
         
-        # 1. Cancel all runner tasks (breaks await on async calls like brpop)
-        if hasattr(self, 'tasks'):
-            for task in self.tasks:
-                if not task.done():
-                    task.cancel()
+        # 1. Signal shutdown to all runners
+        self._shutdown_event.set()
         
         # 2. Force shutdown internal executors
         for runner in self.flow_runners:
             runner.shutdown(force=True)
         
         self.flow_runners.clear()
+        self._threads.clear()
 
-    async def run_development_node(self, node_id: str, input_data: NodeOutput) -> NodeOutput:
+    def run_development_node(self, node_id: str, input_data: NodeOutput) -> NodeOutput:
         node = self.flow_graph.get_node_instance(node_id)
         if not node:
             raise ValueError(f"Node {node_id} not found")
-        result = await node.run(input_data)
+        result = node.run(input_data)
         return result
 
-    async def run_api(
+    def run_api(
         self, 
         input_data: Dict[str, Any], 
         timeout: int = 300,
@@ -165,7 +180,7 @@ class FlowEngine:
             
         Raises:
             ValueError: If workflow doesn't start with WebhookProducer node
-            asyncio.TimeoutError: If execution exceeds timeout
+            TimeoutError: If execution exceeds timeout
         """
         logger.info("Starting API Mode execution...", workflow_id=self.workflow_id)
         
@@ -209,12 +224,14 @@ class FlowEngine:
             metadata=metadata
         )
         
-        # Execute with timeout
+        # Execute with timeout using ThreadPoolExecutor
+        def run_workflow():
+            return runner.run(node_input)
+        
         try:
-            result = await asyncio.wait_for(
-                runner.run(node_input),
-                timeout=timeout
-            )
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(run_workflow)
+                result = future.result(timeout=timeout)
             
             logger.info(
                 "API Mode: Execution completed successfully",
@@ -224,13 +241,13 @@ class FlowEngine:
             
             return result
             
-        except asyncio.TimeoutError:
+        except FuturesTimeoutError:
             logger.error(
                 "API Mode: Execution timeout",
                 workflow_id=self.workflow_id,
                 timeout=timeout
             )
-            raise
+            raise TimeoutError(f"Workflow execution exceeded timeout of {timeout} seconds")
 
     def load_workflow(self, workflow_json: Dict[str, Any]):
         self.flow_builder.load_workflow(workflow_json)

@@ -4,11 +4,11 @@ Browser Manager
 Singleton manager for Playwright browser instances and contexts.
 """
 
-import asyncio
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional
-from playwright.async_api import (
-    async_playwright,
+from playwright.sync_api import (
+    sync_playwright,
     Browser,
     Playwright,
     BrowserContext,
@@ -67,7 +67,7 @@ VALID_BROWSER_TYPES = ['chromium', 'firefox', 'webkit']
 
 class BrowserManager:
     _instance = None
-    _lock = asyncio.Lock()
+    _lock = threading.Lock()
 
     def __new__(cls):
         if cls._instance is None:
@@ -76,19 +76,21 @@ class BrowserManager:
             cls._instance._contexts: Dict[str, BrowserContext] = {}
             cls._instance._initialized = False
             cls._instance._headless: bool = True
+            cls._instance._playwright_cm = None  # Context manager reference
         return cls._instance
 
-    async def initialize(self, headless: bool = True):
+    def initialize(self, headless: bool = True):
         """Initialize Playwright."""
         if self._initialized:
             return
 
-        async with self._lock:
+        with self._lock:
             if self._initialized:
                 return
 
             logger.info("Initializing BrowserManager...")
-            self._playwright = await async_playwright().start()
+            self._playwright_cm = sync_playwright()
+            self._playwright = self._playwright_cm.start()
             self._headless = headless
             self._initialized = True
             logger.info("BrowserManager initialized successfully")
@@ -131,7 +133,7 @@ class BrowserManager:
         
         return getattr(self._playwright, browser_type)
 
-    async def get_context(self, session_id: str, **kwargs) -> BrowserContext:
+    def get_context(self, session_id: str, **kwargs) -> BrowserContext:
         """
         Get an existing persistent context by session_id or create a new one.
         The session_id is used to fetch config from DB and as the directory name.
@@ -144,14 +146,14 @@ class BrowserManager:
             The browser context
         """
         if not self._initialized:
-            await self.initialize()
+            self.initialize()
 
         if session_id in self._contexts:
             logger.info("Reusing existing persistent context", session_id=session_id)
             return self._contexts[session_id]
 
         # Fetch session config from Django model
-        session_config = await SessionConfigService.get_session_config(session_id)
+        session_config = SessionConfigService.get_session_config(session_id)
         
         # Extract config values with defaults
         browser_type = 'chromium'
@@ -199,7 +201,7 @@ class BrowserManager:
         # Get the appropriate browser launcher
         browser_launcher = self._get_browser_launcher(browser_type)
         
-        context = await browser_launcher.launch_persistent_context(
+        context = browser_launcher.launch_persistent_context(
             user_data_dir, **launch_args
         )
         self._contexts[session_id] = context
@@ -212,17 +214,16 @@ class BrowserManager:
         
         return context
 
-    async def close(self):
+    def close(self):
         """Close all contexts and playwright."""
         logger.info("Closing BrowserManager...")
         for name, context in self._contexts.items():
-            await context.close()
+            context.close()
         self._contexts.clear()
 
         if self._playwright:
-            await self._playwright.stop()
+            self._playwright.stop()
             self._playwright = None
 
         self._initialized = False
         logger.info("BrowserManager closed")
-

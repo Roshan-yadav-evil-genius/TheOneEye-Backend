@@ -1,5 +1,5 @@
 import logging
-from playwright.async_api import Page, Locator
+from playwright.sync_api import Page, Locator
 from typing import Union
 from enum import Enum
 
