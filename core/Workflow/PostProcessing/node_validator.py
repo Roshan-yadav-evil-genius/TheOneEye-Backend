@@ -23,11 +23,14 @@ class NodeValidator(PostProcessor):
             if not node.is_ready():
                 # Get errors from form if available
                 if node.form is not None:
-                    errors = node.form.errors
-                    error_list = ', '.join(f"{k}: {v}" for k, v in errors.items())
+                    # Use node's built-in method for clean error extraction (no HTML)
+                    error_list = node._extract_clean_error_messages(node.form)
                     failed_nodes.append(f"Node '{node_id}': {error_list}")
                 else:
                     failed_nodes.append(f"Node '{node_id}': validation failed")
+            else:
+                # Mark node as validated so init() won't re-validate in async context
+                node.mark_validated()
         
         if failed_nodes:
             error_text = "Workflow validation failed:\n" + "\n".join(failed_nodes)

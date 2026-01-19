@@ -90,10 +90,22 @@ class BaseForm(Form, metaclass=DependencyFormMetaClass):
 
     def _load_all_choices(self):
         """Load choices for ALL dependent fields without modifying values.
-        Called before validation to ensure choices are available."""
+        Called before validation to ensure choices are available.
+        
+        If a field has a configured value not in loaded choices, adds it
+        as a valid choice (handles shared resources not returned by list APIs).
+        """
         for dep_field, meta in self._field_dependencies.items():
             if self._are_dependencies_satisfied(dep_field):
                 choices = self._call_field_loader(dep_field, meta)
+                
+                # Preserve configured values not in loaded choices
+                current_value = self._field_values.get(dep_field)
+                if current_value:
+                    choice_values = [c[0] for c in choices]
+                    if current_value not in choice_values:
+                        choices = list(choices) + [(current_value, f"{current_value} (configured)")]
+                
                 self.fields[dep_field].choices = choices
 
     # ==================== Update Methods ====================

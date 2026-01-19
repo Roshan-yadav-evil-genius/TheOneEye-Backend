@@ -43,6 +43,7 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         self.form = self.get_form()
         self._populate_form()
         self.execution_count = 0
+        self._validation_completed = False  # Track if NodeValidator already validated this node
     
     def _populate_form(self):
         """
@@ -64,6 +65,14 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         if self.form is None:
             return True
         return self._validate_template_fields()
+    
+    def mark_validated(self):
+        """
+        Mark this node as validated by NodeValidator.
+        Called after successful validation to prevent redundant re-validation
+        in init() which may run in an async context where ORM calls fail.
+        """
+        self._validation_completed = True
     
     def _validate_template_fields(self) -> bool:
         """
@@ -95,6 +104,10 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         )
         
         if has_jinja_templates:
+            # Load choices for dependent fields BEFORE validation
+            # This ensures DependentChoiceField values can be validated
+            self.form._load_all_choices()
+            
             # If there are Jinja templates, we can only do partial validation
             # (we can't validate template values until they're rendered)
             for field_name, field in self.form.fields.items():
@@ -150,13 +163,15 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         It is used to validate the node and set up any necessary resources.
         Default implementation does nothing.
         """
-
-        if not self.is_ready():
-            # Include detailed error messages if available
-            if self.form and self.form.errors:
-                error_details = self._extract_clean_error_messages(self.form)
-                raise ValueError(f"Node {self.node_config.id} is not ready: {error_details}")
-            raise ValueError(f"Node {self.node_config.id} is not ready")
+        # Skip validation if already validated by NodeValidator (avoids ORM calls in async context)
+        if not self._validation_completed:
+            if not self.is_ready():
+                # Include detailed error messages if available
+                if self.form and self.form.errors:
+                    error_details = self._extract_clean_error_messages(self.form)
+                    raise ValueError(f"Node {self.node_config.id} is not ready: {error_details}")
+                raise ValueError(f"Node {self.node_config.id} is not ready")
+        
         self.setup()
     
     def populate_form_values(self, node_data: NodeOutput) -> None:
