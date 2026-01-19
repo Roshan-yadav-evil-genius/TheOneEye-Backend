@@ -184,7 +184,6 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         self.form._original_field_values = form_data.copy()
         
         rendered_values = {}
-        has_jinja_templates = False
         
         # First, initialize ALL form fields with their values from form_data
         # This ensures fields without Jinja templates are also populated
@@ -194,7 +193,6 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
                 if raw_value is not None:
                     # Update field with the value (will be rendered if it contains Jinja)
                     if contains_jinja_template(str(raw_value)):
-                        has_jinja_templates = True
                         # Render the Jinja template with node data
                         template = Template(str(raw_value))
                         rendered_value = template.render(data=node_data.data)
@@ -220,16 +218,11 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         if rendered_values:
             self.form.update_fields(rendered_values)
         
-        # If there were Jinja templates, we need to validate now that they're rendered
-        if has_jinja_templates:
-            if not self.form.validate_form():
-                error_details = self._extract_clean_error_messages(self.form)
-                raise FormValidationError(self.form, f"Form validation failed after rendering: {error_details}")
-        else:
-            # No Jinja templates - form was already validated in is_ready()
-            # Just ensure cleaned_data is available
-            self.form._field_values = rendered_values.copy()
-            self.form.cleaned_data = rendered_values.copy()
+        # Always validate form to ensure proper type conversion (IntegerField, BooleanField, etc.)
+        # Django's field.clean() methods convert strings to proper types (e.g., "1" -> 1 for IntegerField)
+        if not self.form.validate_form():
+            error_details = self._extract_clean_error_messages(self.form)
+            raise FormValidationError(self.form, f"Form validation failed after rendering: {error_details}")
         
         logger.info(f"Form values populated", form=self.form.get_unbound_field_values(), node_id=self.node_config.id, identifier=f"{self.__class__.__name__}({self.identifier()})")
             
