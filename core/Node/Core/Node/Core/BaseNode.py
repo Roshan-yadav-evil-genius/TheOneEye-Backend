@@ -179,6 +179,10 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
             return
         
         form_data = self.node_config.data.form or {}
+        
+        # Store original values before rendering (for schema generation on validation errors)
+        self.form._original_field_values = form_data.copy()
+        
         rendered_values = {}
         has_jinja_templates = False
         

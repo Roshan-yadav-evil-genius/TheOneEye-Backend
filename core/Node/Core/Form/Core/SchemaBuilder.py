@@ -106,7 +106,7 @@ class DefaultFormSchemaBuilder(FormSchemaBuilder):
             "help_text": field.help_text or None,
             "disabled": getattr(field, 'disabled', False) or not is_ready,
             "initial": field.initial if not callable(field.initial) else None,
-            "value": form._field_values.get(field_name),
+            "value": getattr(form, '_original_field_values', form._field_values).get(field_name),
         }
     
     def _extract_dependency_info(self, form: "BaseForm", field_name: str) -> dict:
