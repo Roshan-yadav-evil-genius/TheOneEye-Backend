@@ -97,43 +97,8 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         
         form_data = self.node_config.data.form or {}
         
-<<<<<<< HEAD
-        # Check if any field has a Jinja template
-        has_jinja_templates = any(
-            contains_jinja_template(form_data.get(field_name))
-            for field_name in self.form.fields
-        )
-        
-        if has_jinja_templates:
-            # Load choices for dependent fields BEFORE validation
-            # This ensures DependentChoiceField values can be validated
-            self.form._load_all_choices()
-            
-            # If there are Jinja templates, we can only do partial validation
-            # (we can't validate template values until they're rendered)
-            for field_name, field in self.form.fields.items():
-                value = form_data.get(field_name)
-                
-                # For Jinja templates: only check required + not empty
-                if contains_jinja_template(value):
-                    if field.required and (value is None or str(value).strip() == ''):
-                        if self.form._errors is None:
-                            from django.forms.utils import ErrorDict
-                            self.form._errors = ErrorDict()
-                        self.form._errors[field_name] = self.form.error_class(['This field is required.'])
-                else:
-                    # For non-template fields: perform normal field validation
-                    try:
-                        field.clean(value)
-                    except Exception as e:
-                        if self.form._errors is None:
-                            from django.forms.utils import ErrorDict
-                            self.form._errors = ErrorDict()
-                        self.form._errors[field_name] = self.form.error_class([str(e)])
-=======
         for field_name, field in self.form.fields.items():
             value = form_data.get(field_name)
->>>>>>> parent of 93d1b6b (Refactor nodes to use synchronous execution and update validation logic)
             
             # For Jinja templates OR DependentChoiceField: only check required + not empty
             # (Templates can't be validated, DependentChoiceField loaders can't run in async context)
@@ -183,23 +148,10 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         It is used to validate the node and set up any necessary resources.
         Default implementation does nothing.
         """
-<<<<<<< HEAD
-        # Skip validation if already validated by NodeValidator (avoids ORM calls in async context)
-        if not self._validation_completed:
-            if not self.is_ready():
-                # Include detailed error messages if available
-                if self.form and self.form.errors:
-                    error_details = self._extract_clean_error_messages(self.form)
-                    raise ValueError(f"Node {self.node_config.id} is not ready: {error_details}")
-                raise ValueError(f"Node {self.node_config.id} is not ready")
-        
-        self.setup()
-=======
 
         if not self.is_ready():
             raise ValueError(f"Node {self.node_config.id} is not ready")
         await self.setup()
->>>>>>> parent of 93d1b6b (Refactor nodes to use synchronous execution and update validation logic)
     
     def populate_form_values(self, node_data: NodeOutput) -> None:
         """
@@ -257,20 +209,35 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         if rendered_values:
             self.form.update_fields(rendered_values)
         
-<<<<<<< HEAD
-        # Always validate form to ensure proper type conversion (IntegerField, BooleanField, etc.)
-        # Django's field.clean() methods convert strings to proper types (e.g., "1" -> 1 for IntegerField)
-        if not self.form.validate_form():
-            error_details = self._extract_clean_error_messages(self.form)
-            raise FormValidationError(self.form, f"Form validation failed after rendering: {error_details}")
-=======
         # NOTE: We skip validate_form() here because it calls _load_all_choices()
         # which uses async_to_sync loaders that fail in Django's async execution context.
         # Validation was already done in is_ready() via _validate_template_fields().
-        # Just populate cleaned_data for the execute() method to use.
-        self.form._field_values = rendered_values.copy()
-        self.form.cleaned_data = rendered_values.copy()
->>>>>>> parent of 93d1b6b (Refactor nodes to use synchronous execution and update validation logic)
+        # Instead, we coerce types using Django's field.to_python() method.
+        coerced_values = {}
+        coercion_errors = {}
+        
+        for field_name, value in rendered_values.items():
+            field = self.form.fields.get(field_name)
+            if field is None or value is None:
+                coerced_values[field_name] = value
+                continue
+            
+            try:
+                coerced_values[field_name] = field.to_python(value)
+            except Exception as e:
+                coercion_errors[field_name] = str(e)
+                coerced_values[field_name] = value
+        
+        # Raise clear error if type coercion fails
+        if coercion_errors:
+            error_messages = [f"{k}: {v}" for k, v in coercion_errors.items()]
+            raise FormValidationError(
+                self.form, 
+                f"Invalid field values: {'; '.join(error_messages)}"
+            )
+        
+        self.form._field_values = coerced_values.copy()
+        self.form.cleaned_data = coerced_values.copy()
         
         logger.info(f"Form values populated", form=self.form.get_unbound_field_values(), node_id=self.node_config.id, identifier=f"{self.__class__.__name__}({self.identifier()})")
             
