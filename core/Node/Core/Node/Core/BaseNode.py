@@ -117,7 +117,13 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
                     if self.form._errors is None:
                         from django.forms.utils import ErrorDict
                         self.form._errors = ErrorDict()
-                    self.form._errors[field_name] = self.form.error_class([str(e)])
+                    # Extract clean error message from ValidationError
+                    from django.core.exceptions import ValidationError
+                    if isinstance(e, ValidationError) and hasattr(e, 'messages'):
+                        error_msg = e.messages[0] if e.messages else str(e)
+                    else:
+                        error_msg = str(e)
+                    self.form._errors[field_name] = self.form.error_class([error_msg])
         
         return not bool(self.form._errors)
     
@@ -150,6 +156,10 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         """
 
         if not self.is_ready():
+            # Raise FormValidationError with field-level errors if form validation failed
+            if self.form is not None and self.form._errors:
+                error_msg = self._extract_clean_error_messages(self.form)
+                raise FormValidationError(self.form, f"Form validation failed: {error_msg}")
             raise ValueError(f"Node {self.node_config.id} is not ready")
         await self.setup()
     
@@ -225,11 +235,25 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
             try:
                 coerced_values[field_name] = field.to_python(value)
             except Exception as e:
-                coercion_errors[field_name] = str(e)
+                # Extract clean error message from ValidationError
+                from django.core.exceptions import ValidationError
+                if isinstance(e, ValidationError) and hasattr(e, 'messages'):
+                    error_msg = e.messages[0] if e.messages else str(e)
+                else:
+                    error_msg = str(e)
+                coercion_errors[field_name] = error_msg
                 coerced_values[field_name] = value
         
         # Raise clear error if type coercion fails
         if coercion_errors:
+            # Set field-level errors on the form so they appear below each field
+            from django.forms.utils import ErrorDict
+            if self.form._errors is None:
+                self.form._errors = ErrorDict()
+            for field_name, error_msg in coercion_errors.items():
+                self.form._errors[field_name] = self.form.error_class([error_msg])
+            
+            # Create message for FormValidationError
             error_messages = [f"{k}: {v}" for k, v in coercion_errors.items()]
             raise FormValidationError(
                 self.form, 
