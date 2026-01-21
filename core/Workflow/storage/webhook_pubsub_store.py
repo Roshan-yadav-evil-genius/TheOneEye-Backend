@@ -7,8 +7,9 @@ This class handles only pub/sub operations (publish, subscribe).
 
 import json
 import structlog
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 import redis
+from asyncio_redis import Connection
 
 logger = structlog.get_logger(__name__)
 
@@ -22,7 +23,8 @@ class WebhookPubSubStore:
     - Subscribe to webhook channels and wait for messages (blocks indefinitely)
     
     Architecture:
-    - Uses sync Redis client for all operations
+    - Uses sync Redis client for publishing (from HTTP endpoint)
+    - Uses async Redis connection for subscribing (in nodes)
     - Channel format: webhook:{webhook_id}
     - Publish-and-forget: If no subscribers, message is lost
     """
@@ -30,7 +32,7 @@ class WebhookPubSubStore:
     CHANNEL_PREFIX = "webhook:"
     
     def __init__(self):
-        """Initialize with sync Redis client."""
+        """Initialize with sync Redis client for publishing."""
         self._redis_client = redis.Redis(
             host='localhost',
             port=6379,
@@ -81,7 +83,11 @@ class WebhookPubSubStore:
             )
             raise
     
-    def subscribe(self, webhook_id: str) -> Dict[str, Any]:
+    async def subscribe(
+        self, 
+        webhook_id: str, 
+        connection: Optional[Connection] = None
+    ) -> Dict[str, Any]:
         """
         Subscribe to a webhook channel and wait for a message.
         
@@ -90,6 +96,7 @@ class WebhookPubSubStore:
         
         Args:
             webhook_id: The webhook identifier to subscribe to
+            connection: Optional async Redis connection (creates new if None)
             
         Returns:
             Dict: Received webhook data (deserialized)
@@ -100,17 +107,19 @@ class WebhookPubSubStore:
         channel = self._get_channel(webhook_id)
         
         # Create a separate connection for subscription (required for pub/sub)
-        sub_client = redis.Redis(
-            host='localhost',
-            port=6379,
-            db=0,
-            decode_responses=True
-        )
+        created_connection = False
+        if connection is None:
+            connection = await Connection.create(
+                host='localhost',
+                port=6379,
+                db=0
+            )
+            created_connection = True
         
         try:
-            # Create pubsub object
-            pubsub = sub_client.pubsub()
-            pubsub.subscribe(channel)
+            # Create subscriber
+            subscriber = await connection.start_subscribe()
+            await subscriber.subscribe([channel])
             
             logger.info(
                 "Subscribed to webhook channel",
@@ -119,22 +128,18 @@ class WebhookPubSubStore:
             )
             
             # Wait for message (blocks indefinitely)
-            # Skip the first subscription confirmation message
-            for message in pubsub.listen():
-                if message['type'] == 'message':
-                    # Deserialize message
-                    data = json.loads(message['data'])
-                    
-                    logger.info(
-                        "Received webhook data",
-                        webhook_id=webhook_id,
-                        channel=channel
-                    )
-                    
-                    return data
+            message = await subscriber.next_published()
             
-            # Should never reach here
-            return {}
+            # Deserialize message
+            data = json.loads(message.value)
+            
+            logger.info(
+                "Received webhook data",
+                webhook_id=webhook_id,
+                channel=channel
+            )
+            
+            return data
             
         except Exception as e:
             logger.error(
@@ -146,9 +151,9 @@ class WebhookPubSubStore:
             )
             raise
         finally:
-            # Close subscription connection
-            pubsub.close()
-            sub_client.close()
+            # Close subscription connection if we created it
+            if created_connection and connection is not None:
+                connection.close()
 
 
 # Global singleton instance

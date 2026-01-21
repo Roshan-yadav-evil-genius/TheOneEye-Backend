@@ -7,7 +7,7 @@ This class handles only connection establishment, maintenance, and closure.
 
 import structlog
 from typing import Optional
-import redis
+import asyncio_redis
 
 logger = structlog.get_logger(__name__)
 
@@ -44,10 +44,10 @@ class RedisConnection:
         self._port = port
         self._db = db
         self._password = password
-        self._connection: Optional[redis.Redis] = None
+        self._connection: Optional[asyncio_redis.Connection] = None
     
     @property
-    def connection(self) -> Optional[redis.Redis]:
+    def connection(self) -> Optional[asyncio_redis.Connection]:
         """Get the current connection instance."""
         return self._connection
     
@@ -56,28 +56,25 @@ class RedisConnection:
         """Check if connection is established."""
         return self._connection is not None
     
-    def ensure_connection(self) -> redis.Redis:
+    async def ensure_connection(self) -> asyncio_redis.Connection:
         """
         Ensure Redis connection is established.
         Creates connection lazily on first use.
         
         Returns:
-            redis.Redis: The active Redis connection
+            asyncio_redis.Connection: The active Redis connection
             
         Raises:
             Exception: If connection fails
         """
         if self._connection is None:
             try:
-                self._connection = redis.Redis(
+                self._connection = await asyncio_redis.Connection.create(
                     host=self._host,
                     port=self._port,
                     db=self._db,
-                    password=self._password,
-                    decode_responses=True
+                    password=self._password
                 )
-                # Test connection
-                self._connection.ping()
                 logger.info(
                     "Connected to Redis",
                     host=self._host,
@@ -95,7 +92,7 @@ class RedisConnection:
                 raise
         return self._connection
     
-    def close(self):
+    async def close(self):
         """
         Close the Redis connection.
         Safe to call even if not connected.
@@ -105,10 +102,11 @@ class RedisConnection:
             self._connection = None
             logger.info("Redis connection closed")
     
-    def reconnect(self):
+    async def reconnect(self):
         """
         Force reconnection to Redis.
         Closes existing connection and establishes a new one.
         """
-        self.close()
-        self.ensure_connection()
+        await self.close()
+        await self.ensure_connection()
+

@@ -25,7 +25,7 @@ class QueueReader(ProducerNode):
 
     @property
     def execution_pool(self) -> PoolType:
-        return PoolType.THREAD
+        return PoolType.ASYNC
 
     @property
     def supported_workflow_types(self) -> List[str]:
@@ -38,11 +38,11 @@ class QueueReader(ProducerNode):
         """
         return ['production']
 
-    def setup(self):
+    async def setup(self):
         """Initialize the DataStore connection once during node setup."""
         self.data_store = DataStore()
 
-    def execute(self, node_data: NodeOutput) -> NodeOutput:
+    async def execute(self, node_data: NodeOutput) -> NodeOutput:
         """
         Execute the queue reader by popping data from the queue.
         
@@ -54,7 +54,7 @@ class QueueReader(ProducerNode):
         
         # Pop data from queue using the new SRP-compliant API
         # (blocks indefinitely until data arrives)
-        result = self.data_store.queue.pop(queue_name, timeout=0)
+        result = await self.data_store.queue.pop(queue_name, timeout=0)
 
         # Check for Sentinel Pill in popped data
         if result.get("metadata", {}).get("__execution_completed__"):
@@ -69,3 +69,4 @@ class QueueReader(ProducerNode):
         )
         
         return NodeOutput(**result)
+

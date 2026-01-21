@@ -23,9 +23,9 @@ class IfCondition(ConditionalNode):
 
     @property
     def execution_pool(self) -> PoolType:
-        return PoolType.THREAD
+        return PoolType.ASYNC
 
-    def execute(self, node_data: NodeOutput) -> NodeOutput:
+    async def execute(self, node_data: NodeOutput) -> NodeOutput:
         
         # Get processed condition from form (rendered values)
         expression = self.form.cleaned_data.get("condition_expression", "")
@@ -81,3 +81,4 @@ class IfCondition(ConditionalNode):
             },
             metadata=node_data.metadata
         )
+

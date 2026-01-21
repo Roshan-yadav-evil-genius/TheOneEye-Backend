@@ -59,10 +59,10 @@ class DataTransformer(BlockingNode):
 
     @property
     def execution_pool(self) -> PoolType:
-        """Use THREAD pool - lightweight JSON parsing."""
-        return PoolType.THREAD
+        """Use ASYNC pool - lightweight JSON parsing."""
+        return PoolType.ASYNC
 
-    def execute(self, node_data: NodeOutput) -> NodeOutput:
+    async def execute(self, node_data: NodeOutput) -> NodeOutput:
         """
         Render the JSON template and forward the result.
         

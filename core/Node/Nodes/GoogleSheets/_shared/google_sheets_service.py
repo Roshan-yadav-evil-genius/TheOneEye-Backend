@@ -11,6 +11,7 @@ This service handles all interactions with Google Sheets and Drive APIs:
 
 from typing import List, Tuple, Dict, Any, Optional
 import structlog
+from asgiref.sync import sync_to_async
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -42,10 +43,10 @@ class GoogleSheetsService:
         self._sheets_service = None
         self._drive_service = None
     
-    def _get_credentials(self) -> Credentials:
+    async def _get_credentials(self) -> Credentials:
         """
         Build Google credentials from stored OAuth tokens.
-        Fetches from Django model directly.
+        Fetches from Django model directly using async-safe calls.
         
         Returns:
             Credentials: Google OAuth2 credentials object
@@ -56,51 +57,105 @@ class GoogleSheetsService:
         if self._credentials and self._credentials.valid:
             return self._credentials
         
-        # Fetch account from Django model
+        # Fetch account from Django model using sync_to_async
         from apps.authentication.models import GoogleConnectedAccount
+        import asyncio
+        import concurrent.futures
         
-        try:
-            account = GoogleConnectedAccount.objects.get(id=self.account_id, is_active=True)
-        except GoogleConnectedAccount.DoesNotExist:
-            logger.error(
-                "Google account not found or inactive",
-                account_id=self.account_id
-            )
-            raise Exception(f"Google account not found or inactive: {self.account_id}")
+        def _fetch_account_sync():
+            try:
+                return GoogleConnectedAccount.objects.get(id=self.account_id, is_active=True)
+            except GoogleConnectedAccount.DoesNotExist:
+                logger.error(
+                    "Google account not found or inactive",
+                    account_id=self.account_id
+                )
+                raise Exception(f"Google account not found or inactive: {self.account_id}")
+        
+        # Use safe async wrapper that handles CurrentThreadExecutor issue
+        async def _fetch_account_async():
+            try:
+                loop = asyncio.get_running_loop()
+                # We're in async context - use thread pool executor to avoid CurrentThreadExecutor
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    return await loop.run_in_executor(executor, _fetch_account_sync)
+            except RuntimeError:
+                # No running loop - safe to use sync_to_async
+                return await sync_to_async(_fetch_account_sync)()
+        
+        account = await _fetch_account_async()
         
         # Proactively refresh token if needed using OAuth service
-        from apps.authentication.services.google_oauth_service import GoogleOAuthService
-        oauth_service = GoogleOAuthService()
-        try:
-            # This will refresh if expired, or return existing if valid
-            access_token, was_refreshed = oauth_service.get_valid_credentials(account)
-            # Reload account to get updated token
-            account.refresh_from_db()
-        except Exception as e:
-            error_msg = str(e)
-            if 'invalid_grant' in error_msg.lower() or 'expired' in error_msg.lower() or 'revoked' in error_msg.lower():
-                logger.error(
-                    "Google account token expired or revoked - reconnection required",
-                    account_id=self.account_id,
-                    error=error_msg
-                )
-                raise Exception(
-                    f"Google account token has expired or been revoked. "
-                    f"Please reconnect your Google account (ID: {self.account_id}). "
-                    f"Error: {error_msg}"
-                )
-            raise
+        def _refresh_token_if_needed_sync():
+            from apps.authentication.services.google_oauth_service import GoogleOAuthService
+            oauth_service = GoogleOAuthService()
+            try:
+                # This will refresh if expired, or return existing if valid
+                access_token, was_refreshed = oauth_service.get_valid_credentials(account)
+                # Reload account to get updated token
+                account.refresh_from_db()
+                return account
+            except Exception as e:
+                error_msg = str(e)
+                if 'invalid_grant' in error_msg.lower() or 'expired' in error_msg.lower() or 'revoked' in error_msg.lower():
+                    logger.error(
+                        "Google account token expired or revoked - reconnection required",
+                        account_id=self.account_id,
+                        error=error_msg
+                    )
+                    raise Exception(
+                        f"Google account token has expired or been revoked. "
+                        f"Please reconnect your Google account (ID: {self.account_id}). "
+                        f"Error: {error_msg}"
+                    )
+                raise
+        
+        async def _refresh_token_if_needed_async():
+            try:
+                loop = asyncio.get_running_loop()
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    return await loop.run_in_executor(executor, _refresh_token_if_needed_sync)
+            except RuntimeError:
+                return await sync_to_async(_refresh_token_if_needed_sync)()
+        
+        # Refresh token proactively
+        account = await _refresh_token_if_needed_async()
         
         # Get client_id and client_secret from Django settings for token refresh
-        from django.conf import settings
-        oauth_config = {
-            'client_id': getattr(settings, 'GOOGLE_CLIENT_ID', ''),
-            'client_secret': getattr(settings, 'GOOGLE_CLIENT_SECRET', ''),
-        }
+        def _get_oauth_config_sync():
+            from django.conf import settings
+            return {
+                'client_id': getattr(settings, 'GOOGLE_CLIENT_ID', ''),
+                'client_secret': getattr(settings, 'GOOGLE_CLIENT_SECRET', ''),
+            }
+        
+        async def _get_oauth_config_async():
+            try:
+                loop = asyncio.get_running_loop()
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    return await loop.run_in_executor(executor, _get_oauth_config_sync)
+            except RuntimeError:
+                return await sync_to_async(_get_oauth_config_sync)()
         
         # Convert scope keys to scope URLs
-        scope_keys = account.scopes or []
-        scope_urls = oauth_service.get_scope_urls(scope_keys)
+        def _convert_scopes_sync():
+            from apps.authentication.services.google_oauth_service import GoogleOAuthService
+            oauth_service = GoogleOAuthService()
+            # account.scopes contains scope keys like ['sheets', 'drive_readonly']
+            # Convert them to full URLs
+            scope_keys = account.scopes or []
+            return oauth_service.get_scope_urls(scope_keys)
+        
+        async def _convert_scopes_async():
+            try:
+                loop = asyncio.get_running_loop()
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    return await loop.run_in_executor(executor, _convert_scopes_sync)
+            except RuntimeError:
+                return await sync_to_async(_convert_scopes_sync)()
+        
+        oauth_config = await _get_oauth_config_async()
+        scope_urls = await _convert_scopes_async()
         
         # Build Credentials object for Google API client
         self._credentials = Credentials(
@@ -120,7 +175,7 @@ class GoogleSheetsService:
         
         return self._credentials
     
-    def _get_sheets_service(self):
+    async def _get_sheets_service(self):
         """
         Get or create Google Sheets API service.
         
@@ -128,11 +183,11 @@ class GoogleSheetsService:
             Resource: Google Sheets API service instance
         """
         if self._sheets_service is None:
-            credentials = self._get_credentials()
+            credentials = await self._get_credentials()
             self._sheets_service = build('sheets', 'v4', credentials=credentials)
         return self._sheets_service
     
-    def _get_drive_service(self):
+    async def _get_drive_service(self):
         """
         Get or create Google Drive API service.
         
@@ -140,11 +195,11 @@ class GoogleSheetsService:
             Resource: Google Drive API service instance
         """
         if self._drive_service is None:
-            credentials = self._get_credentials()
+            credentials = await self._get_credentials()
             self._drive_service = build('drive', 'v3', credentials=credentials)
         return self._drive_service
     
-    def list_spreadsheets(self) -> List[Tuple[str, str]]:
+    async def list_spreadsheets(self) -> List[Tuple[str, str]]:
         """
         List all spreadsheets in user's Drive.
         
@@ -157,7 +212,7 @@ class GoogleSheetsService:
             Exception: If token is expired/revoked with actionable error message
         """
         try:
-            drive = self._get_drive_service()
+            drive = await self._get_drive_service()
             
             results = drive.files().list(
                 q="mimeType='application/vnd.google-apps.spreadsheet'",
@@ -208,7 +263,7 @@ class GoogleSheetsService:
             )
             raise Exception(f"Failed to list spreadsheets: {error_msg}")
     
-    def list_sheets(self, spreadsheet_id: str) -> List[Tuple[str, str]]:
+    async def list_sheets(self, spreadsheet_id: str) -> List[Tuple[str, str]]:
         """
         List all sheets within a spreadsheet.
         
@@ -222,7 +277,7 @@ class GoogleSheetsService:
             Exception: If token is expired/revoked with actionable error message
         """
         try:
-            sheets = self._get_sheets_service()
+            sheets = await self._get_sheets_service()
             
             spreadsheet = sheets.spreadsheets().get(
                 spreadsheetId=spreadsheet_id,
@@ -276,7 +331,7 @@ class GoogleSheetsService:
             )
             raise Exception(f"Failed to list sheets: {error_msg}")
     
-    def get_row(self, spreadsheet_id: str, sheet_name: str, row_number: int) -> Dict[str, Any]:
+    async def get_row(self, spreadsheet_id: str, sheet_name: str, row_number: int) -> Dict[str, Any]:
         """
         Get data from a specific row (values only).
         
@@ -298,7 +353,7 @@ class GoogleSheetsService:
             Exception: If row cannot be fetched
         """
         try:
-            sheets = self._get_sheets_service()
+            sheets = await self._get_sheets_service()
             
             # A1 notation for the entire row
             range_notation = f"'{sheet_name}'!{row_number}:{row_number}"
@@ -366,7 +421,7 @@ class GoogleSheetsService:
             )
             raise Exception(f"Failed to get row: {error_msg}")
     
-    def get_row_with_headers(
+    async def get_row_with_headers(
         self, 
         spreadsheet_id: str, 
         sheet_name: str, 
@@ -404,7 +459,7 @@ class GoogleSheetsService:
             Exception: If row cannot be fetched
         """
         try:
-            sheets = self._get_sheets_service()
+            sheets = await self._get_sheets_service()
             
             # Fetch both header row and data row in one batch request
             ranges = [
@@ -488,7 +543,7 @@ class GoogleSheetsService:
             )
             raise Exception(f"Failed to get row: {error_msg}")
     
-    def update_row(
+    async def update_row(
         self,
         spreadsheet_id: str,
         sheet_name: str,
@@ -520,7 +575,7 @@ class GoogleSheetsService:
             Exception: If row cannot be updated
         """
         try:
-            sheets = self._get_sheets_service()
+            sheets = await self._get_sheets_service()
             
             # Calculate end column based on number of values
             end_column_index = ord(start_column.upper()) - ord('A') + len(values)
@@ -596,7 +651,7 @@ class GoogleSheetsService:
             )
             raise Exception(f"Failed to update row: {error_msg}")
     
-    def update_row_by_headers(
+    async def update_row_by_headers(
         self,
         spreadsheet_id: str,
         sheet_name: str,
@@ -624,7 +679,7 @@ class GoogleSheetsService:
             Exception: If row cannot be updated
         """
         try:
-            sheets = self._get_sheets_service()
+            sheets = await self._get_sheets_service()
             
             # Fetch BOTH header row AND current row data to preserve unmatched columns
             ranges = [
@@ -729,7 +784,7 @@ class GoogleSheetsService:
             )
             raise Exception(f"Failed to update row: {error_msg}")
     
-    def query_row_by_conditions(
+    async def query_row_by_conditions(
         self,
         spreadsheet_id: str,
         sheet_name: str,
@@ -758,7 +813,7 @@ class GoogleSheetsService:
             Exception: If query fails or token is expired/revoked
         """
         try:
-            sheets = self._get_sheets_service()
+            sheets = await self._get_sheets_service()
             
             # Fetch header row
             header_range = f"'{sheet_name}'!{header_row}:{header_row}"
@@ -903,3 +958,4 @@ class GoogleSheetsService:
                 error=error_msg
             )
             raise Exception(f"Failed to query row: {error_msg}")
+

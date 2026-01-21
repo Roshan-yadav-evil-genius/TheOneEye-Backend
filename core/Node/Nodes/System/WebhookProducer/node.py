@@ -53,8 +53,8 @@ class WebhookProducerNode(ProducerNode):
     
     @property
     def execution_pool(self) -> PoolType:
-        """Use THREAD pool - I/O operation (Redis pub/sub)."""
-        return PoolType.THREAD
+        """Use ASYNC pool - I/O operation (Redis pub/sub)."""
+        return PoolType.ASYNC
     
     @property
     def label(self) -> str:
@@ -85,11 +85,11 @@ class WebhookProducerNode(ProducerNode):
         """Return the form instance for this node."""
         return WebhookProducerForm()
     
-    def setup(self):
+    async def setup(self):
         """Initialize resources."""
         logger.debug("Webhook Producer setup", node_id=self.node_config.id)
     
-    def execute(self, node_data: NodeOutput) -> NodeOutput:
+    async def execute(self, node_data: NodeOutput) -> NodeOutput:
         """
         Execute the webhook producer node.
         
@@ -116,12 +116,12 @@ class WebhookProducerNode(ProducerNode):
         
         if is_api_mode:
             # API mode: Use provided input directly (no Redis subscribe)
-            return self._execute_api_mode(node_data, webhook_id)
+            return await self._execute_api_mode(node_data, webhook_id)
         else:
             # Production mode: Subscribe to Redis and wait for data
-            return self._execute_production_mode(node_data, webhook_id)
+            return await self._execute_production_mode(node_data, webhook_id)
     
-    def _execute_api_mode(self, node_data: NodeOutput, webhook_id: str) -> NodeOutput:
+    async def _execute_api_mode(self, node_data: NodeOutput, webhook_id: str) -> NodeOutput:
         """
         API mode execution: Use provided input data directly.
         
@@ -184,7 +184,7 @@ class WebhookProducerNode(ProducerNode):
             }
         )
     
-    def _execute_production_mode(self, node_data: NodeOutput, webhook_id: str) -> NodeOutput:
+    async def _execute_production_mode(self, node_data: NodeOutput, webhook_id: str) -> NodeOutput:
         """
         Production mode execution: Subscribe to Redis and wait for data.
         
@@ -205,7 +205,7 @@ class WebhookProducerNode(ProducerNode):
         
         try:
             # Subscribe and wait for data (blocks indefinitely)
-            received_data = webhook_pubsub_store.subscribe(
+            received_data = await webhook_pubsub_store.subscribe(
                 webhook_id,
                 connection=self._subscriber_connection
             )
@@ -247,7 +247,7 @@ class WebhookProducerNode(ProducerNode):
             )
             raise
     
-    def cleanup(self, node_data: Optional[NodeOutput] = None):
+    async def cleanup(self, node_data: Optional[NodeOutput] = None):
         """Clean up subscription connection."""
         if self._subscriber_connection is not None:
             try:

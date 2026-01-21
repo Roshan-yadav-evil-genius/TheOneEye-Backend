@@ -7,7 +7,7 @@ pops one delay from the list, guaranteeing all executions complete
 within the target time window.
 """
 
-import time
+import asyncio
 import random
 import structlog
 from typing import Optional, List
@@ -55,7 +55,7 @@ class DynamicDelayNode(BlockingNode):
     
     @property
     def execution_pool(self) -> PoolType:
-        return PoolType.THREAD
+        return PoolType.ASYNC
     
     @property
     def label(self) -> str:
@@ -68,7 +68,7 @@ class DynamicDelayNode(BlockingNode):
     def get_form(self) -> Optional[BaseForm]:
         return DynamicDelayForm()
     
-    def setup(self):
+    async def setup(self):
         """Initialize DataStore for storing delay list."""
         self.data_store = DataStore()
         self._cache_key = f"delay_node:{self.node_config.id}:delays"
@@ -115,13 +115,13 @@ class DynamicDelayNode(BlockingNode):
         
         return normalized_delays
     
-    def _get_or_create_delay_list(self) -> List[float]:
+    async def _get_or_create_delay_list(self) -> List[float]:
         """Get existing delay list from cache or create new one."""
-        delays = self.data_store.cache.get(self._cache_key)
+        delays = await self.data_store.cache.get(self._cache_key)
         
         if not delays or len(delays) == 0:
             delays = self._generate_delay_list()
-            self._save_delay_list(delays)
+            await self._save_delay_list(delays)
             
             total_time = self.form.cleaned_data.get('total_time')
             unit = self.form.cleaned_data.get('unit')
@@ -139,22 +139,22 @@ class DynamicDelayNode(BlockingNode):
         
         return delays
     
-    def _save_delay_list(self, delays: List[float]):
+    async def _save_delay_list(self, delays: List[float]):
         """Save delay list to cache."""
         total_time = self.form.cleaned_data.get('total_time', 1)
         unit = self.form.cleaned_data.get('unit', 'hours')
         # TTL slightly longer than the max expected duration
         ttl = int(total_time * TIME_UNIT_TO_SECONDS.get(unit, 3600) * 1.5)
-        self.data_store.cache.set(self._cache_key, delays, ttl=ttl)
+        await self.data_store.cache.set(self._cache_key, delays, ttl=ttl)
     
-    def _pop_next_delay(self) -> tuple:
+    async def _pop_next_delay(self) -> tuple:
         """
         Pop and return the next delay from the list.
         
         Returns:
             tuple: (next_delay_seconds, remaining_count)
         """
-        delays = self._get_or_create_delay_list()
+        delays = await self._get_or_create_delay_list()
         
         if len(delays) == 0:
             # List exhausted, generate new cycle
@@ -174,7 +174,7 @@ class DynamicDelayNode(BlockingNode):
         next_delay = delays.pop(0)
         
         # Save remaining delays (or empty list)
-        self._save_delay_list(delays)
+        await self._save_delay_list(delays)
         
         return next_delay, len(delays)
     
@@ -189,7 +189,7 @@ class DynamicDelayNode(BlockingNode):
         else:
             return f"{seconds / 86400:.2f}d"
     
-    def execute(self, previous_node_output: NodeOutput) -> NodeOutput:
+    async def execute(self, previous_node_output: NodeOutput) -> NodeOutput:
         """
         Execute by popping and applying the next pre-computed delay.
         
@@ -204,7 +204,7 @@ class DynamicDelayNode(BlockingNode):
         executions = self.form.cleaned_data.get('executions')
         
         # Get next delay from pre-computed list
-        delay_seconds, remaining = self._pop_next_delay()
+        delay_seconds, remaining = await self._pop_next_delay()
         current_execution = executions - remaining
         
         logger.info(
@@ -216,7 +216,7 @@ class DynamicDelayNode(BlockingNode):
         )
         
         # Apply the delay
-        time.sleep(delay_seconds)
+        await asyncio.sleep(delay_seconds)
         
         # Log cycle completion
         if remaining == 0:
@@ -245,3 +245,4 @@ class DynamicDelayNode(BlockingNode):
                 "remainingInCycle": remaining
             }
         )
+

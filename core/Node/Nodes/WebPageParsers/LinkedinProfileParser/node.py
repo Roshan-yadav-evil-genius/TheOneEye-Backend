@@ -22,13 +22,13 @@ class LinkedinProfileParser(BlockingNode):
 
     @property
     def execution_pool(self) -> PoolType:
-        # Parsing is CPU bound, so run in thread pool
-        return PoolType.THREAD
+        # Parsing is CPU bound, so run in thread pool (SYNC)
+        return PoolType.ASYNC
 
     def get_form(self) -> Optional[BaseForm]:
         return LinkedinProfileParserForm()
 
-    def execute(self, node_data: NodeOutput) -> NodeOutput:
+    async def execute(self, node_data: NodeOutput) -> NodeOutput:
         """
         Parse Linkedin Profile HTML.
         Expects 'content' or 'html' in input data (string).
@@ -49,3 +49,4 @@ class LinkedinProfileParser(BlockingNode):
         except Exception as e:
             logger.exception("Error parsing Linkedin Profile", error=str(e))
             raise e
+

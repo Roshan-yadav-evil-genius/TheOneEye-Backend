@@ -47,8 +47,8 @@ class CounterNode(ProducerNode):
     
     @property
     def execution_pool(self) -> PoolType:
-        """Use THREAD pool - no I/O, pure computation."""
-        return PoolType.THREAD
+        """Use ASYNC pool - no I/O, pure computation."""
+        return PoolType.ASYNC
     
     @property
     def label(self) -> str:
@@ -92,7 +92,7 @@ class CounterNode(ProducerNode):
             max=max_value
         )
     
-    def execute(self, previous_node_output: NodeOutput) -> NodeOutput:
+    async def execute(self, previous_node_output: NodeOutput) -> NodeOutput:
         """
         Execute one counter iteration.
         
@@ -172,7 +172,8 @@ class CounterNode(ProducerNode):
             }
         )
     
-    def cleanup(self, node_data: Optional[NodeOutput] = None):
+    async def cleanup(self, node_data: Optional[NodeOutput] = None):
         """Reset counter state on cleanup."""
         self.current_value = None
         logger.debug("Counter reset", node_id=self.node_config.id)
+

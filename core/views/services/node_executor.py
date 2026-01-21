@@ -3,10 +3,9 @@ Node Executor Module
 Executes nodes with input and form data.
 """
 
+import asyncio
 import traceback
-import threading
 from typing import Any, Dict, Optional
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 from apps.common.exceptions import FormValidationException, ExecutionTimeoutException
 from .node_loader import NodeLoader
@@ -15,12 +14,12 @@ from .node_session_store import NodeSessionStore
 
 class NodeExecutor:
     """
-    Executes nodes synchronously with input and form data.
+    Executes nodes asynchronously with input and form data.
     
     Responsibilities:
     - Create or reuse node instances with configuration
     - Execute nodes with input data
-    - Handle synchronous execution
+    - Handle async execution
     - Manage stateful sessions via NodeSessionStore
     """
     
@@ -82,7 +81,7 @@ class NodeExecutor:
                 'output': result.model_dump() if hasattr(result, 'model_dump') else result
             }
             
-        except FuturesTimeoutError:
+        except asyncio.TimeoutError:
             # Handle timeout - clean up and raise ExecutionTimeoutException
             if session_id:
                 # Clear session on timeout
@@ -147,7 +146,7 @@ class NodeExecutor:
         timeout: Optional[float] = None
     ) -> Any:
         """
-        Run the node synchronously and return the result.
+        Run the node asynchronously and return the result.
         
         If session_id is provided, reuses existing instance or creates new one.
         If timeout is provided, execution will be cancelled after timeout seconds.
@@ -181,37 +180,91 @@ class NodeExecutor:
         # Create NodeOutput from input data
         node_output = NodeOutput(data=input_data)
         
-        def run_sync():
-            """Synchronous node execution."""
+        # Run the node asynchronously
+        async def run_async():
             # Only call init on new instances
             if is_new_instance:
-                node_instance.init()
-            result = node_instance.run(node_output)
+                await node_instance.init()
+            result = await node_instance.run(node_output)
             
             # Close browser after single node execution to prevent stale contexts
             try:
                 from Node.Nodes.Browser._shared.BrowserManager import BrowserManager
                 browser_manager = BrowserManager()
                 if browser_manager._initialized:
-                    browser_manager.close()
+                    await browser_manager.close()
             except ImportError:
                 pass  # BrowserManager not available, skip cleanup
             
             return result
         
-        # Execute with optional timeout using ThreadPoolExecutor
-        if timeout is not None and timeout > 0:
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(run_sync)
+        # Execute in asyncio event loop with optional timeout
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        task = None
+        try:
+            if timeout is not None and timeout > 0:
+                # Create task explicitly so we can cancel it forcefully
+                task = loop.create_task(run_async())
                 try:
-                    result = future.result(timeout=timeout)
-                except FuturesTimeoutError:
-                    # Timeout occurred - clean up
+                    # Use wait_for to enforce timeout
+                    result = loop.run_until_complete(
+                        asyncio.wait_for(task, timeout=timeout)
+                    )
+                except asyncio.TimeoutError:
+                    # Timeout occurred - kill the task immediately
+                    # Cancel the main task
+                    if task and not task.done():
+                        task.cancel()
+                    
+                    # Cancel ALL pending tasks in the loop immediately
+                    try:
+                        all_tasks = asyncio.all_tasks(loop)
+                        for pending_task in all_tasks:
+                            if not pending_task.done():
+                                pending_task.cancel()
+                    except Exception:
+                        pass
+                    
+                    # Clear session immediately (don't wait for cleanup)
                     if session_id:
                         self._session_store.clear(session_id)
+                    
+                    # Re-raise as TimeoutError to be caught by execute()
+                    # Loop will be closed in finally block
                     raise
-        else:
-            # No timeout, run directly
-            result = run_sync()
+            else:
+                # No timeout, run normally
+                result = loop.run_until_complete(run_async())
+        except asyncio.TimeoutError:
+            # Clear session on timeout
+            if session_id:
+                self._session_store.clear(session_id)
+            raise
+        except asyncio.CancelledError:
+            # Handle cancellation (can occur during timeout cleanup)
+            # Clear session on cancellation
+            if session_id:
+                self._session_store.clear(session_id)
+            raise asyncio.TimeoutError("Node execution was cancelled due to timeout")
+        except Exception:
+            raise
+        finally:
+            # Ensure loop is closed
+            try:
+                if not loop.is_closed():
+                    # Cancel any remaining tasks
+                    try:
+                        all_tasks = asyncio.all_tasks(loop)
+                        for pending_task in all_tasks:
+                            if not pending_task.done():
+                                pending_task.cancel()
+                    except Exception:
+                        pass
+                    loop.close()
+            except Exception:
+                # Ignore errors during cleanup
+                pass
         
         return result
+

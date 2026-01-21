@@ -40,7 +40,7 @@ class GoogleSheetsGetRecordByQueryProviderNode(GoogleSheetsGetRecordByQueryMixin
     def execution_pool(self) -> PoolType:
         """
         Use THREAD pool for network I/O bound operations.
-        This prevents blocking the main thread during API calls.
+        This prevents blocking the async event loop during API calls.
         """
         return PoolType.THREAD
     
@@ -63,7 +63,7 @@ class GoogleSheetsGetRecordByQueryProviderNode(GoogleSheetsGetRecordByQueryMixin
         """Return the form instance for this node."""
         return GoogleSheetsGetRecordByQueryForm()
     
-    def execute(self, previous_node_output: NodeOutput) -> NodeOutput:
+    async def execute(self, previous_node_output: NodeOutput) -> NodeOutput:
         """
         Execute row query from Google Sheets by column conditions.
         
@@ -81,8 +81,9 @@ class GoogleSheetsGetRecordByQueryProviderNode(GoogleSheetsGetRecordByQueryMixin
         Raises:
             Exception: If query fails (but not if no match found - returns ExecutionCompleted instead)
         """
-        return self._execute_query(
+        return await self._execute_query(
             previous_node_output, 
             "get_record_by_query_provider",
             return_execution_completed_on_no_match=True
         )
+

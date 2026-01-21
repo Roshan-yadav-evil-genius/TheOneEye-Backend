@@ -1,5 +1,4 @@
-import time
-import threading
+import asyncio
 import structlog
 from typing import Dict, List, Optional, TYPE_CHECKING
 from Node.Core.Node.Core.BaseNode import ProducerNode, NonBlockingNode, ConditionalNode
@@ -33,20 +32,13 @@ class FlowRunner:
         self.events = events
         self.running = False
         self.loop_count = 0
-        self._shutdown_event: Optional[threading.Event] = None
 
-    def start(self):
+    async def start(self):
         self.running = True
-        self._init_nodes()
+        await self._init_nodes()
         
         try:
             while self.running:
-                # Check if shutdown was requested
-                if self._shutdown_event and self._shutdown_event.is_set():
-                    logger.info("FlowRunner received shutdown signal", node_id=self.producer_flow_node.id)
-                    self.running = False
-                    break
-                
                 self.loop_count += 1
                 try:
                     producer = self.producer_flow_node.instance
@@ -57,7 +49,7 @@ class FlowRunner:
                         self.events.emit_node_started(self.producer_flow_node.id, producer_type)
                     
                     logger.info("Initiating node execution", node_id=self.producer_flow_node.id, node_type=f"{node_type(producer)}({producer_type})")
-                    data = self.executor.execute_in_pool(
+                    data = await self.executor.execute_in_pool(
                         producer.execution_pool, producer, NodeOutput(data={})
                     )
                     
@@ -83,17 +75,21 @@ class FlowRunner:
                     )
 
                     if isinstance(data, ExecutionCompleted):
-                        self.kill_producer()
+                        await self.kill_producer()
 
-                    self._process_next_nodes(self.producer_flow_node, data)
+                    await self._process_next_nodes(self.producer_flow_node, data)
 
+                except asyncio.CancelledError:
+                    logger.info("FlowRunner loop cancelled", node_id=self.producer_flow_node.id)
+                    self.running = False
+                    raise # Re-raise to let the task know it's cancelled
                 except Exception as e:
                     logger.exception("Error in loop", error=str(e))
-                    time.sleep(1)
+                    await asyncio.sleep(1)
         finally:
            self.shutdown()
 
-    def _process_next_nodes(
+    async def _process_next_nodes(
         self, current_flow_node: FlowNode, input_data: NodeOutput
     ):
         """
@@ -146,7 +142,7 @@ class FlowRunner:
             )
 
             try:
-                data = self.executor.execute_in_pool(
+                data = await self.executor.execute_in_pool(
                     next_instance.execution_pool, next_instance, input_data
                 )
 
@@ -175,7 +171,7 @@ class FlowRunner:
                     continue
 
                 # Recurse for the next steps in this branch
-                self._process_next_nodes(next_flow_node, data)
+                await self._process_next_nodes(next_flow_node, data)
 
             except Exception as e:
                 # Emit node_failed event
@@ -185,9 +181,9 @@ class FlowRunner:
                     "Error executing node", node_id=next_flow_node.id, error=str(e)
                 )
 
-    def kill_producer(self):
+    async def kill_producer(self):
         # Clean up producer resources
-        self.producer.cleanup()
+        await self.producer.cleanup()
         # Set running to False to stop next iteration
         self.running = False
         logger.warning("Producer cleanup completed", node_id=self.producer_flow_node.id, node_type=f"{node_type(self.producer)}({self.producer.identifier()})")
@@ -207,19 +203,19 @@ class FlowRunner:
         else:
             self.executor.shutdown(wait=True)
 
-    def _init_nodes(self):
+    async def _init_nodes(self):
         """Initialize all nodes in the flow by calling their init() method."""
         visited = set()
-        self._init_node_recursive(self.producer_flow_node, visited)
+        await self._init_node_recursive(self.producer_flow_node, visited)
 
-    def _init_node_recursive(self, flow_node: FlowNode, visited: set):
+    async def _init_node_recursive(self, flow_node: FlowNode, visited: set):
         """Recursively initialize a node and its downstream nodes."""
         if flow_node.id in visited:
             return
         visited.add(flow_node.id)
         
-        flow_node.instance.init()
+        await flow_node.instance.init()
         
         for branch_nodes in flow_node.next.values():
             for next_node in branch_nodes:
-                self._init_node_recursive(next_node, visited)
+                await self._init_node_recursive(next_node, visited)

@@ -41,7 +41,7 @@ class QueueStore:
         """Get Redis key for a queue."""
         return f"{self._prefix}queue:{queue_name}"
     
-    def push(self, queue_name: str, data: Dict):
+    async def push(self, queue_name: str, data: Dict):
         """
         Push data to a named queue using Redis LPUSH.
         
@@ -55,13 +55,13 @@ class QueueStore:
         Raises:
             Exception: If push operation fails
         """
-        conn = self._connection.ensure_connection()
+        conn = await self._connection.ensure_connection()
         queue_key = self._queue_key(queue_name)
         serialized_data = serialize(data)
         
         try:
             logger.info("Pushing data to queue", queue_key=queue_key)
-            conn.lpush(queue_key, serialized_data)
+            await conn.lpush(queue_key, [serialized_data])
             logger.info("Pushed to queue", queue_key=queue_key)
         except Exception as e:
             logger.error(
@@ -70,7 +70,7 @@ class QueueStore:
             )
             raise
     
-    def pop(self, queue_name: str, timeout: Optional[float] = None) -> Optional[Any]:
+    async def pop(self, queue_name: str, timeout: Optional[float] = None) -> Optional[Any]:
         """
         Pop data from a named queue using Redis BRPOP (blocking right pop).
         
@@ -89,34 +89,29 @@ class QueueStore:
         Raises:
             Exception: If pop operation fails
         """
-        conn = self._connection.ensure_connection()
+        conn = await self._connection.ensure_connection()
         queue_key = self._queue_key(queue_name)
         logger.info("Popping from queue", queue_key=queue_key)
         
         try:
             # Convert timeout to integer seconds for Redis BRPOP
-            # BRPOP timeout of 0 means block indefinitely in sync redis
+            # BRPOP timeout of 0 means return immediately, None means block indefinitely
             if timeout is None:
-                # Block indefinitely
-                result = conn.brpop([queue_key], timeout=0)
+                # Block indefinitely - don't pass timeout parameter
+                result = await conn.brpop([queue_key])
             elif timeout == 0:
-                # Return immediately (non-blocking)
-                result = conn.rpop(queue_key)
-                if result is not None:
-                    data = deserialize(result)
-                    logger.info("Popped from queue", queue_key=queue_key)
-                    return data
-                return None
+                # Return immediately
+                result = await conn.brpop([queue_key], timeout=0)
             else:
                 # Block for specified seconds
                 redis_timeout = int(timeout)
-                result = conn.brpop([queue_key], timeout=redis_timeout)
+                result = await conn.brpop([queue_key], timeout=redis_timeout)
             
             if result is None:
                 return None
             
-            # BRPOP returns tuple (key, value)
-            _, serialized_data = result
+            # BRPOP returns BlockingPopReply object with value attribute
+            serialized_data = result.value
             data = deserialize(serialized_data)
             logger.info("Popped from queue", queue_key=queue_key)
             return data
@@ -128,7 +123,7 @@ class QueueStore:
             )
             raise
     
-    def length(self, queue_name: str) -> int:
+    async def length(self, queue_name: str) -> int:
         """
         Get the length of a queue.
         
@@ -141,11 +136,11 @@ class QueueStore:
         Raises:
             Exception: If length operation fails
         """
-        conn = self._connection.ensure_connection()
+        conn = await self._connection.ensure_connection()
         queue_key = self._queue_key(queue_name)
         
         try:
-            length = conn.llen(queue_key)
+            length = await conn.llen(queue_key)
             return length
         except Exception as e:
             logger.error(
@@ -153,3 +148,4 @@ class QueueStore:
                 exc_info=True
             )
             raise
+

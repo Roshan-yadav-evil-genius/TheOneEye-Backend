@@ -6,7 +6,7 @@ It holds the NodeData from the previous node for the specified duration,
 then passes it to the next node unchanged.
 """
 
-import time
+import asyncio
 import structlog
 from typing import Optional
 
@@ -43,7 +43,7 @@ class StaticDelayNode(BlockingNode):
     
     @property
     def execution_pool(self) -> PoolType:
-        return PoolType.THREAD
+        return PoolType.ASYNC
     
     @property
     def label(self) -> str:
@@ -75,7 +75,7 @@ class StaticDelayNode(BlockingNode):
         else:
             return f"{seconds / 86400:.2f} days"
     
-    def execute(self, previous_node_output: NodeOutput) -> NodeOutput:
+    async def execute(self, previous_node_output: NodeOutput) -> NodeOutput:
         """
         Execute the static delay.
         
@@ -99,7 +99,7 @@ class StaticDelayNode(BlockingNode):
             delay_seconds=delay_seconds
         )
         
-        time.sleep(delay_seconds)
+        await asyncio.sleep(delay_seconds)
         
         logger.info(
             "Static delay completed",
@@ -118,3 +118,4 @@ class StaticDelayNode(BlockingNode):
                 "delaySeconds": delay_seconds
             }
         )
+

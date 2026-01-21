@@ -21,7 +21,7 @@ class GoogleSheetsGetRecordByQueryMixin:
     Can be used by both ProducerNode and BlockingNode versions.
     """
     
-    def _execute_query(
+    async def _execute_query(
         self, 
         previous_node_output: NodeOutput, 
         operation_name: str = "get_record_by_query",
@@ -118,7 +118,7 @@ class GoogleSheetsGetRecordByQueryMixin:
             service = GoogleSheetsService(account_id)
             
             # Query row by conditions
-            row_data = service.query_row_by_conditions(
+            row_data = await service.query_row_by_conditions(
                 spreadsheet_id=spreadsheet_id,
                 sheet_name=sheet_name,
                 query_conditions=query_conditions,
@@ -208,3 +208,4 @@ class GoogleSheetsGetRecordByQueryMixin:
                 error=error_msg
             )
             raise
+

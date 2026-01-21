@@ -23,7 +23,7 @@ class QueueWriter(NonBlockingNode):
 
     @property
     def execution_pool(self) -> PoolType:
-        return PoolType.THREAD
+        return PoolType.ASYNC
 
     @property
     def supported_workflow_types(self) -> List[str]:
@@ -35,18 +35,18 @@ class QueueWriter(NonBlockingNode):
         """
         return ['production']
 
-    def setup(self):
+    async def setup(self):
         """Initialize the DataStore connection once during node setup."""
         self.data_store = DataStore()
 
-    def cleanup(self, node_data: NodeOutput = None):
+    async def cleanup(self, node_data: NodeOutput = None):
         """
         Push Sentinel Pill to the queue during cleanup to propagate termination.
         """
-        self.execute(node_data)
-        self.data_store.close()
+        await self.execute(node_data)
+        await self.data_store.close()
 
-    def execute(self, node_data: NodeOutput) -> NodeOutput:
+    async def execute(self, node_data: NodeOutput) -> NodeOutput:
         """
         Execute the queue node by pushing data to the queue.
         
@@ -56,6 +56,7 @@ class QueueWriter(NonBlockingNode):
         queue_name = self.node_config.data.config["queue_name"]
         
         # Push data to queue using the new SRP-compliant API
-        self.data_store.queue.push(queue_name, node_data.to_dict())
+        await self.data_store.queue.push(queue_name, node_data.to_dict())
         
         return node_data
+

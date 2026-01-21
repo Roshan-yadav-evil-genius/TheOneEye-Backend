@@ -76,13 +76,13 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
     
     def _validate_template_fields(self) -> bool:
         """
-        Validate form fields at pre-execution time.
+        Validate form fields at execution time, handling special cases:
+        - Jinja template fields: only check required + not empty
+        - DependentChoiceField: only check required + not empty (loaders can't run in async context)
+        - Other fields: perform normal Django field validation
         
-        For fields with Jinja templates: only check required + not empty
-        (templates are validated after rendering in populate_form_values).
-        
-        For all other fields: perform full validation including choice validation.
-        All loaders are synchronous now, so this is safe to call.
+        NOTE: We don't call validate_form() here because it triggers _load_all_choices()
+        which uses async_to_sync loaders that fail in Django's async execution context.
         
         Returns:
             bool: True if validation passes, False otherwise.
@@ -97,6 +97,7 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         
         form_data = self.node_config.data.form or {}
         
+<<<<<<< HEAD
         # Check if any field has a Jinja template
         has_jinja_templates = any(
             contains_jinja_template(form_data.get(field_name))
@@ -129,12 +130,31 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
                             from django.forms.utils import ErrorDict
                             self.form._errors = ErrorDict()
                         self.form._errors[field_name] = self.form.error_class([str(e)])
+=======
+        for field_name, field in self.form.fields.items():
+            value = form_data.get(field_name)
+>>>>>>> parent of 93d1b6b (Refactor nodes to use synchronous execution and update validation logic)
             
-            return not bool(self.form._errors)
-        else:
-            # No Jinja templates - perform full form validation
-            # This will load all choices for dependent fields and validate
-            return self.form.validate_form()
+            # For Jinja templates OR DependentChoiceField: only check required + not empty
+            # (Templates can't be validated, DependentChoiceField loaders can't run in async context)
+            # Also check for _dependent_on attribute as fallback for class identity issues
+            if contains_jinja_template(value) or isinstance(field, DependentChoiceField) or hasattr(field, '_dependent_on'):
+                if field.required and (value is None or str(value).strip() == ''):
+                    if self.form._errors is None:
+                        from django.forms.utils import ErrorDict
+                        self.form._errors = ErrorDict()
+                    self.form._errors[field_name] = self.form.error_class(['This field is required.'])
+            else:
+                # For regular fields: perform normal field validation
+                try:
+                    field.clean(value)
+                except Exception as e:
+                    if self.form._errors is None:
+                        from django.forms.utils import ErrorDict
+                        self.form._errors = ErrorDict()
+                    self.form._errors[field_name] = self.form.error_class([str(e)])
+        
+        return not bool(self.form._errors)
     
     def _extract_clean_error_messages(self, form) -> str:
         """
@@ -156,13 +176,14 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
                     error_messages.append(f"{field_name}: {str(error)}")
         return "; ".join(error_messages) if error_messages else "Form validation failed"
     
-    def init(self):
+    async def init(self):
         """
         Initialize the node.
         This method is called before calling execute method.
         It is used to validate the node and set up any necessary resources.
         Default implementation does nothing.
         """
+<<<<<<< HEAD
         # Skip validation if already validated by NodeValidator (avoids ORM calls in async context)
         if not self._validation_completed:
             if not self.is_ready():
@@ -173,14 +194,17 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
                 raise ValueError(f"Node {self.node_config.id} is not ready")
         
         self.setup()
+=======
+
+        if not self.is_ready():
+            raise ValueError(f"Node {self.node_config.id} is not ready")
+        await self.setup()
+>>>>>>> parent of 93d1b6b (Refactor nodes to use synchronous execution and update validation logic)
     
     def populate_form_values(self, node_data: NodeOutput) -> None:
         """
         Render Jinja templates in form fields with runtime data.
         Called before execute() to populate form with actual values.
-        
-        After rendering, performs full form validation including choice validation.
-        All loaders are synchronous now, so this is safe to call.
         
         Args:
             node_data: The NodeOutput containing runtime data for template rendering.
@@ -233,15 +257,24 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         if rendered_values:
             self.form.update_fields(rendered_values)
         
+<<<<<<< HEAD
         # Always validate form to ensure proper type conversion (IntegerField, BooleanField, etc.)
         # Django's field.clean() methods convert strings to proper types (e.g., "1" -> 1 for IntegerField)
         if not self.form.validate_form():
             error_details = self._extract_clean_error_messages(self.form)
             raise FormValidationError(self.form, f"Form validation failed after rendering: {error_details}")
+=======
+        # NOTE: We skip validate_form() here because it calls _load_all_choices()
+        # which uses async_to_sync loaders that fail in Django's async execution context.
+        # Validation was already done in is_ready() via _validate_template_fields().
+        # Just populate cleaned_data for the execute() method to use.
+        self.form._field_values = rendered_values.copy()
+        self.form.cleaned_data = rendered_values.copy()
+>>>>>>> parent of 93d1b6b (Refactor nodes to use synchronous execution and update validation logic)
         
         logger.info(f"Form values populated", form=self.form.get_unbound_field_values(), node_id=self.node_config.id, identifier=f"{self.__class__.__name__}({self.identifier()})")
             
-    def run(self, node_data: NodeOutput) -> NodeOutput:
+    async def run(self, node_data: NodeOutput) -> NodeOutput:
         """
         Main entry point for node execution.
         Populates form values with runtime data, then executes the node.
@@ -254,16 +287,16 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         """
 
         if isinstance(node_data, ExecutionCompleted):
-            self.cleanup(node_data)
+            await self.cleanup(node_data)
             logger.warning("Cleanup completed", node_id=self.node_config.id, identifier=f"{self.__class__.__name__}({self.identifier()})")
             return node_data
 
         self.populate_form_values(node_data)
-        output = self.execute(node_data)
+        output = await self.execute(node_data)
         self.execution_count += 1
         return output
 
-    def cleanup(self, node_data: Optional[NodeOutput] = None):
+    async def cleanup(self, node_data: Optional[NodeOutput] = None):
         """
         Cleanup the node resources.
         Called when the node receives an ExecutionCompleted input.
@@ -348,3 +381,4 @@ class ConditionalNode(BlockingNode, ABC):
     def set_output(self, output: bool):
         self.test_result = output
         self.output = "yes" if output else "no"
+
