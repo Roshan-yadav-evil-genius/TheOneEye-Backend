@@ -4,16 +4,22 @@ WebPageLoader Form
 Single Responsibility: Form field definitions for the WebPageLoader node.
 """
 
-from django.forms import URLField, ChoiceField
+from django.forms import CharField, ChoiceField
+from django.forms.widgets import Textarea
 
 from ....Core.Form import BaseForm
 from .._shared.form_utils import BrowserSessionField
 
 
 class WebPageLoaderForm(BaseForm):
-    url = URLField(
-        required=True, 
-        help_text="URL to load. If empty, uses 'url' from input data."
+    urls = CharField(
+        widget=Textarea(attrs={'rows': 5, 'placeholder': 'https://example.com\nhttps://example2.com\n\nOr use: {{ data.urls }}'}),
+        required=False,
+        help_text=(
+            "URLs to load (one per line, or leave empty to use 'urls' from input data). "
+            "You can also use Jinja templates like {{ data.urls }}. "
+            "All URLs will be loaded in parallel."
+        )
     )
     session_name = BrowserSessionField()
     wait_mode = ChoiceField(
