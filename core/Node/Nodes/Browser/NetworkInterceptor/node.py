@@ -4,12 +4,15 @@ NetworkInterceptor Node
 Single Responsibility: Capture network requests and responses from JS-heavy websites using Playwright.
 """
 
+import json
 from typing import Optional, List, Dict, Any
 import asyncio
 import structlog
 import re
 import json
 import time
+import ast
+from rich import print
 
 from playwright.async_api import Page, Request, Response
 
@@ -58,7 +61,13 @@ class NetworkInterceptor(BlockingNode):
         """
         # Check form field first
         urls_value = self.form.cleaned_data.get("urls")
-        
+        urls = []
+
+        try:
+            urls_value = ast.literal_eval(urls_value)
+        except (ValueError, SyntaxError):
+            pass
+
         if urls_value:
             # Handle form field value (may be string or list after Jinja rendering)
             if isinstance(urls_value, list):
@@ -70,31 +79,11 @@ class NetworkInterceptor(BlockingNode):
             else:
                 # Convert to string and split
                 urls = [str(urls_value).strip()]
-            
-            if urls:
-                logger.info("Using URLs from form field", url_count=len(urls), node_id=self.node_config.id)
-                return urls
-        
-        # Fall back to input data 'urls' (list)
-        input_urls = node_data.data.get("urls")
-        if input_urls:
-            if isinstance(input_urls, list):
-                urls = [str(url).strip() for url in input_urls if url and str(url).strip()]
-            else:
-                # Single value, convert to list
-                urls = [str(input_urls).strip()]
-            
-            if urls:
-                logger.info("Using URLs from input data 'urls'", url_count=len(urls), node_id=self.node_config.id)
-                return urls
-        
-        # Fall back to input data 'url' (single URL, backward compatibility)
-        input_url = node_data.data.get("url")
-        if input_url:
-            url_str = str(input_url).strip()
-            if url_str:
-                logger.info("Using URL from input data 'url' (backward compatibility)", node_id=self.node_config.id)
-                return [url_str]
+
+        if urls:
+            logger.info("Using URLs from form field", url_count=len(urls), node_id=self.node_config.id)
+            return urls
+
         
         # No URLs found
         raise ValueError("No URLs provided. Please provide URLs in form field 'urls', or in input data as 'urls' (list) or 'url' (string).")
@@ -539,6 +528,7 @@ class NetworkInterceptor(BlockingNode):
 
         logger.info(
             "Starting network interception",
+            urls=urls,
             url_count=len(urls),
             session=session_name,
             wait_mode=wait_mode,
