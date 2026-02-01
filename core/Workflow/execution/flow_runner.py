@@ -204,7 +204,9 @@ class FlowRunner:
                         )
                     if isinstance(next_flow_node.instance, NonBlockingNode):
                         continue
-                    await self._process_next_nodes(next_flow_node, data)
+                    await self._process_next_nodes(
+                        next_flow_node, data, current_already_executed=True
+                    )
                 except Exception as e:
                     if self.events:
                         self.events.emit_node_failed(

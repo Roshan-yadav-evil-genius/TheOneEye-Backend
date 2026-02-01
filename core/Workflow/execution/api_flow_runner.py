@@ -266,7 +266,9 @@ class APIFlowRunner:
                             route=route,
                         )
                     self.last_output = output
-                    await self._process_downstream(next_flow_node, output, sink_collector)
+                    await self._process_downstream(
+                        next_flow_node, output, sink_collector, current_already_executed=True
+                    )
                 except Exception as e:
                     if self.events:
                         self.events.emit_node_failed(
@@ -380,7 +382,9 @@ class APIFlowRunner:
                 self.last_output = output
 
                 # Continue to downstream nodes (recursive; pass sink_collector for subDAG sink collection)
-                await self._process_downstream(next_flow_node, output, sink_collector)
+                await self._process_downstream(
+                    next_flow_node, output, sink_collector, current_already_executed=True
+                )
 
             except Exception as e:
                 # Emit node_failed event
