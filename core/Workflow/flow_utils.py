@@ -4,7 +4,7 @@ Utility functions and classes for flow management.
 
 
 from Node.Core.Node.Core import BaseNode
-from Node.Core.Node.Core.BaseNode import ProducerNode, NonBlockingNode, ConditionalNode, BlockingNode
+from Node.Core.Node.Core.BaseNode import ProducerNode, NonBlockingNode, ConditionalNode, LoopNode, BlockingNode
 from typing import Optional
 
 
@@ -46,6 +46,8 @@ class BranchKeyNormalizer:
             return "Yes"
         elif branch_key == "no":
             return "No"
+        elif branch_key == "subdag":
+            return "Body"
         else:
             return branch_key
     
@@ -81,6 +83,8 @@ def node_type(base_node_instance: BaseNode) -> Optional[str]:
         return NonBlockingNode.__name__
     elif isinstance(base_node_instance, ConditionalNode):
         return ConditionalNode.__name__
+    elif isinstance(base_node_instance, LoopNode):
+        return LoopNode.__name__
     elif isinstance(base_node_instance, BlockingNode):
         return BlockingNode.__name__
     else:

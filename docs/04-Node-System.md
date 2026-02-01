@@ -10,7 +10,7 @@ The Node System is the extensible architecture that allows developers to create 
 
 ## Overview
 
-Nodes are the smallest executable units in a workflow. Each node inherits from `BaseNode` and implements an async `execute()` method. The system supports four fundamental node types, each with distinct execution semantics.
+Nodes are the smallest executable units in a workflow. Each node inherits from `BaseNode` and implements an async `execute()` method. The system supports five fundamental node types, each with distinct execution semantics.
 
 ## Node Hierarchy
 
@@ -51,10 +51,15 @@ classDiagram
         +output_ports: list
     }
     
+    class LoopNode {
+        +output_ports: list
+    }
+    
     BaseNode <|-- ProducerNode
     BaseNode <|-- BlockingNode
     BaseNode <|-- NonBlockingNode
     BlockingNode <|-- ConditionalNode
+    BlockingNode <|-- LoopNode
 ```
 
 ## Node Types
@@ -170,6 +175,24 @@ class IfCondition(ConditionalNode):
         self.set_output(condition_result)  # Sets "yes" or "no"
         return node_data
 ```
+
+### LoopNode
+
+**Purpose**: Iterate over an array and run a subDAG once per element; collect end-node results, then continue on the outgoing edge. Extends BlockingNode.
+
+**Characteristics**:
+- Inherits from BlockingNode (blocking semantics).
+- Three logical edges: **incoming** (normal input), **outgoing** (default branch, followed only after all iterations), **subDAG** (body entry).
+- Has `output_ports` with "default" (Out) and "subdag" (Body).
+- Single form field: array expression (Jinja or JSON). `execute()` resolves the array and returns a `NodeOutput` whose `data` contains `items`; the **runner** performs iterations and collects end-node outputs into `data["loop_results"]`.
+
+**Examples**:
+- `ForEachNode`: Iterates over an array from input or form, runs the body subDAG per element, collects sink outputs into `loop_results`, then continues on the default branch.
+
+**Execution Model**:
+- Runner executes the Loop Node once; gets array from output `data["items"]`.
+- For each element: builds `NodeOutput` with current element, runs subDAG from entry (sink_collector collects end-node outputs), appends iteration result(s) to aggregated list.
+- After all iterations: builds one `NodeOutput` with `data[result_key] = collected_list`, then follows only the default branch (outgoing).
 
 ## Node Lifecycle
 

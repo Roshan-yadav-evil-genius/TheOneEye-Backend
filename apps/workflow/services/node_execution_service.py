@@ -38,7 +38,39 @@ class NodeExecutionService:
         node.form_values = form_values
         node.input_data = input_data
         node.save()
-        
+
+        # ForEach node: run full loop (subDAG per item) and return standardized forEachNode shape
+        if node.node_type == "for-each":
+            from apps.workflow.services import for_each_iteration_service
+
+            result = for_each_iteration_service.execute_for_each_full(
+                str(node.workflow_id),
+                str(node.id),
+                form_values,
+                input_data,
+                timeout,
+            )
+            if result.get("success"):
+                output = result.get("output", {})
+                if isinstance(output, dict) and "data" in output:
+                    node.output_data = output.get("data", {})
+                else:
+                    node.output_data = output or {}
+                node.save()
+            return {
+                "success": result.get("success", False),
+                "node_id": str(node.id),
+                "node_type": node.node_type,
+                "input_data": input_data,
+                "form_values": form_values,
+                "output": result.get("output"),
+                "error": result.get("error"),
+                "error_type": result.get("error_type"),
+                "message": result.get("message"),
+                "form": result.get("form"),
+                "session_id": session_id,
+            }
+
         try:
             from apps.nodes.services import get_node_services
             services = get_node_services()

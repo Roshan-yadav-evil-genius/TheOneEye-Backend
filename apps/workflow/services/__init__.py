@@ -7,3 +7,4 @@ from .node_service import NodeService, node_service
 from .workflow_execution_service import WorkflowExecutionService, workflow_execution_service
 from .flow_engine_service import FlowEngineService, flow_engine_service
 from .api_execution_service import APIExecutionService, api_execution_service
+from .for_each_iteration_service import ForEachIterationService, for_each_iteration_service

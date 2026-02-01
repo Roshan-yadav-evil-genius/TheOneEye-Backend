@@ -19,13 +19,14 @@ class MetadataExtractor:
     
     # Known base node types that we scan for
     NODE_BASE_TYPES = {
-        'BlockingNode', 
-        'NonBlockingNode', 
-        'ProducerNode', 
+        'BlockingNode',
+        'NonBlockingNode',
+        'ProducerNode',
         'LogicalNode',
         'ConditionalNode',
-        'BaseNode', 
-        'QueueNode', 
+        'LoopNode',
+        'BaseNode',
+        'QueueNode',
         'QueueReader'
     }
     
@@ -150,6 +151,12 @@ class MetadataExtractor:
                 {"id": "yes", "label": "Yes"},
                 {"id": "no", "label": "No"}
             ]
-        
+        elif node_type == 'LoopNode':
+            # Loop nodes have default (outgoing) and subdag (body entry) output branches
+            output_ports = [
+                {"id": "default", "label": "Out"},
+                {"id": "subdag", "label": "Body"}
+            ]
+
         return {'input_ports': input_ports, 'output_ports': output_ports}
 

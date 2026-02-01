@@ -373,3 +373,17 @@ class ConditionalNode(BlockingNode, ABC):
         self.test_result = output
         self.output = "yes" if output else "no"
 
+
+class LoopNode(BlockingNode, ABC):
+    """
+    Base class for loop nodes that iterate over an array and run a subDAG per element.
+    Inherits from BlockingNode; execution is done by the runner (iterations + subDAG).
+    """
+    @property
+    def output_ports(self) -> list:
+        """Loop nodes have 'default' (outgoing) and 'subdag' (body entry) output branches."""
+        return [
+            {"id": "default", "label": "Out"},
+            {"id": "subdag", "label": "Body"}
+        ]
+

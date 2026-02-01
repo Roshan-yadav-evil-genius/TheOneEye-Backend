@@ -1,7 +1,7 @@
 import asyncio
 import structlog
 from typing import Dict, List, Optional, TYPE_CHECKING
-from Node.Core.Node.Core.BaseNode import ProducerNode, NonBlockingNode, ConditionalNode
+from Node.Core.Node.Core.BaseNode import ProducerNode, NonBlockingNode, ConditionalNode, LoopNode
 from Node.Core.Node.Core.Data import NodeOutput
 from ..flow_utils import node_type
 from ..flow_node import FlowNode
@@ -90,22 +90,145 @@ class FlowRunner:
            self.shutdown()
 
     async def _process_next_nodes(
-        self, current_flow_node: FlowNode, input_data: NodeOutput
+        self,
+        current_flow_node: FlowNode,
+        input_data: NodeOutput,
+        sink_collector: Optional[List[NodeOutput]] = None,
     ):
         """
         Recursively process downstream nodes.
         Handles branching logic:
         - If LogicalNode: Executes selected branch (if any).
+        - If LoopNode: Runs subDAG per element, then follows default branch only.
         - Otherwise: Executes default branch or first available branch.
+        When sink_collector is provided and there are no next nodes, executes the sink node and appends its output to sink_collector.
         """
         next_nodes: Optional[Dict[str, List[FlowNode]]] = current_flow_node.next
         if not next_nodes:
-            # No next nodes, break the loop
+            sink_instance = current_flow_node.instance
+            sink_node_type = sink_instance.identifier()
+            if self.events:
+                self.events.emit_node_started(current_flow_node.id, sink_node_type)
+            try:
+                output = await self.executor.execute_in_pool(
+                    sink_instance.execution_pool, sink_instance, input_data
+                )
+            except Exception as e:
+                if self.events:
+                    self.events.emit_node_failed(
+                        current_flow_node.id, sink_node_type, str(e)
+                    )
+                logger.exception(
+                    "Sink node failed",
+                    node_id=current_flow_node.id,
+                    error=str(e),
+                )
+                raise
+            if self.events:
+                self.events.emit_node_completed(
+                    current_flow_node.id,
+                    sink_node_type,
+                    output_data=output.data if hasattr(output, "data") else None,
+                )
+            if sink_collector is not None:
+                sink_collector.append(output)
             return
 
         instance = current_flow_node.instance
         nodes_to_run: List[FlowNode] = []
         keys_to_process = set()
+
+        # LoopNode: run subDAG for each element, collect sink outputs, then follow only default branch
+        if isinstance(instance, LoopNode):
+            items = input_data.data.get("items", [])
+            subdag_list = next_nodes.get("subdag") or []
+            entry_flow_node = subdag_list[0] if subdag_list else None
+
+            if not entry_flow_node:
+                logger.warning(
+                    "Loop node has no subdag entry; skipping iterations",
+                    node_id=current_flow_node.id,
+                )
+                aggregated_data = dict(input_data.data)
+                aggregated_data["loop_results"] = []
+                aggregated_data["forEachNode"] = {
+                    "input": items,
+                    "results": [],
+                    "state": {"index": len(items) - 1, "item": items[-1]} if items else {"index": 0, "item": None},
+                }
+                aggregated_output = NodeOutput(
+                    id=input_data.id,
+                    data=aggregated_data,
+                    metadata=input_data.metadata,
+                )
+            else:
+                all_results: List = []
+                for idx, element in enumerate(items):
+                    element_output = NodeOutput(
+                        id=input_data.id,
+                        data={**input_data.data, "item": element, "item_index": idx},
+                        metadata=input_data.metadata,
+                    )
+                    collected: List[NodeOutput] = []
+                    await self._process_next_nodes(
+                        entry_flow_node, element_output, sink_collector=collected
+                    )
+                    iteration_data = [o.data for o in collected]
+                    if len(iteration_data) == 1:
+                        all_results.append(iteration_data[0])
+                    elif iteration_data:
+                        all_results.append(iteration_data)
+                aggregated_data = dict(input_data.data)
+                aggregated_data["loop_results"] = all_results
+                aggregated_data["forEachNode"] = {
+                    "input": items,
+                    "results": all_results,
+                    "state": {"index": len(items) - 1, "item": items[-1]} if items else {"index": 0, "item": None},
+                }
+                aggregated_output = NodeOutput(
+                    id=input_data.id,
+                    data=aggregated_data,
+                    metadata=input_data.metadata,
+                )
+
+            default_list = next_nodes.get("default") or []
+            for next_flow_node in default_list:
+                if self.events:
+                    self.events.emit_node_started(
+                        next_flow_node.id, next_flow_node.instance.identifier()
+                    )
+                try:
+                    data = await self.executor.execute_in_pool(
+                        next_flow_node.instance.execution_pool,
+                        next_flow_node.instance,
+                        aggregated_output,
+                    )
+                    route = None
+                    if isinstance(next_flow_node.instance, ConditionalNode) and next_flow_node.instance.output:
+                        route = next_flow_node.instance.output
+                    if self.events:
+                        self.events.emit_node_completed(
+                            next_flow_node.id,
+                            next_flow_node.instance.identifier(),
+                            output_data=data.data if hasattr(data, "data") else None,
+                            route=route,
+                        )
+                    if isinstance(next_flow_node.instance, NonBlockingNode):
+                        continue
+                    await self._process_next_nodes(next_flow_node, data)
+                except Exception as e:
+                    if self.events:
+                        self.events.emit_node_failed(
+                            next_flow_node.id,
+                            next_flow_node.instance.identifier(),
+                            str(e),
+                        )
+                    logger.exception(
+                        "Error executing node",
+                        node_id=next_flow_node.id,
+                        error=str(e),
+                    )
+            return
 
         # Determine which branches to follow
         if isinstance(input_data, ExecutionCompleted):
@@ -170,8 +293,8 @@ class FlowRunner:
                 if isinstance(next_instance, NonBlockingNode):
                     continue
 
-                # Recurse for the next steps in this branch
-                await self._process_next_nodes(next_flow_node, data)
+                # Recurse for the next steps in this branch (pass sink_collector for subDAG sink collection)
+                await self._process_next_nodes(next_flow_node, data, sink_collector)
 
             except Exception as e:
                 # Emit node_failed event

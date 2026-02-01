@@ -200,6 +200,48 @@ class WorkFlowViewSet(ModelViewSet):
         
         return Response(result, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=["post"])
+    def execute_for_each_iteration(self, request, pk=None):
+        """
+        Run one iteration of a ForEach node (iterate and stop).
+        Request body: node_id, form_values, input_data, iteration_index (0-based), optional timeout.
+        Persists forEachNode state to Node.output_data on success.
+        """
+        from apps.workflow.services import for_each_iteration_service
+        from apps.workflow.services.node_execution_service import NodeExecutionService
+
+        workflow = self.get_object()
+        node_id = request.data.get("node_id")
+        form_values = request.data.get("form_values", {})
+        input_data = request.data.get("input_data", {})
+        iteration_index = request.data.get("iteration_index", 0)
+        timeout = request.data.get("timeout")
+
+        if not node_id:
+            return Response(
+                {"success": False, "error": "node_id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        result = for_each_iteration_service.execute_for_each_iteration(
+            workflow_id=str(workflow.id),
+            node_id=node_id,
+            form_values=form_values,
+            input_data=input_data,
+            iteration_index=iteration_index,
+            timeout=timeout,
+        )
+
+        if result.get("success") and result.get("output", {}).get("data"):
+            try:
+                node = NodeExecutionService.get_node_for_execution(str(workflow.id), node_id)
+                node.output_data = result["output"]["data"]
+                node.save()
+            except Exception:
+                pass
+
+        return Response(result, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=["post"], authentication_classes=[], permission_classes=[AllowAny])
     def execute(self, request, pk=None):
         """
