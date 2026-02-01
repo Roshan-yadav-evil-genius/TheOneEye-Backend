@@ -104,7 +104,7 @@ class ForEachIterationService:
         from Workflow.execution.pool_executor import PoolExecutor
 
         engine = FlowEngine(workflow_id=str(workflow_id))
-        engine.load_workflow(flow_engine_config)
+        engine.load_workflow(flow_engine_config, scope_node_id=node_id)
 
         flow_node = engine.flow_graph.get_node(node_id)
         if not flow_node:
@@ -289,7 +289,7 @@ class ForEachIterationService:
         from Workflow.execution.pool_executor import PoolExecutor
 
         engine = FlowEngine(workflow_id=str(workflow_id))
-        engine.load_workflow(flow_engine_config)
+        engine.load_workflow(flow_engine_config, scope_node_id=node_id)
 
         flow_node = engine.flow_graph.get_node(node_id)
         if not flow_node:

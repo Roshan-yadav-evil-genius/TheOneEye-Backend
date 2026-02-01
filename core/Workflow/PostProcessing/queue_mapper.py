@@ -16,7 +16,7 @@ class QueueMapper(PostProcessor):
     Follows Single Responsibility Principle - only handles queue mapping logic.
     """
 
-    def execute(self) -> None:
+    def execute(self, **kwargs) -> None:
         """
         Process the graph and assign unique queue names to connected QueueWriter-QueueReader pairs.
         """

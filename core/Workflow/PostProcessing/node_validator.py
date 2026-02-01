@@ -10,15 +10,32 @@ class NodeValidator(PostProcessor):
     Follows Single Responsibility Principle - only handles node validation.
     """
 
-    def execute(self) -> None:
+    def execute(self, **kwargs) -> None:
         """
-        Validate all nodes in the graph by calling their ready() method.
-        Raises ValueError if any node is not ready.
+        Validate nodes in the graph by calling their ready() method.
+        If validate_only_node_ids is provided (set of node IDs), only those nodes are validated.
+        Raises ValueError if any validated node is not ready.
         """
-        logger.info("Validating all nodes in workflow...")
-        
+        validate_only_node_ids = kwargs.get("validate_only_node_ids")
+        if validate_only_node_ids is not None:
+            node_ids_to_validate = [
+                nid for nid in validate_only_node_ids
+                if nid in self.graph.node_map
+            ]
+            logger.info(
+                "Validating scope-only nodes in workflow...",
+                scope_count=len(node_ids_to_validate),
+                scope_node_ids=list(node_ids_to_validate)[:20],
+            )
+        else:
+            node_ids_to_validate = list(self.graph.node_map.keys())
+            logger.info("Validating all nodes in workflow...")
+
         failed_nodes = []
-        for node_id, workflow_node in self.graph.node_map.items():
+        for node_id in node_ids_to_validate:
+            workflow_node = self.graph.node_map.get(node_id)
+            if workflow_node is None:
+                continue
             node = workflow_node.instance
             if not node.is_ready():
                 # Get errors from form if available
@@ -31,7 +48,7 @@ class NodeValidator(PostProcessor):
             else:
                 # Mark node as validated so init() won't re-validate in async context
                 node.mark_validated()
-        
+
         if failed_nodes:
             error_text = "Workflow validation failed:\n" + "\n".join(failed_nodes)
             logger.error(error_text)

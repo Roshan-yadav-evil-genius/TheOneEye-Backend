@@ -1,6 +1,6 @@
 import asyncio
 import structlog
-from typing import Dict, List, Any, Type, Optional
+from typing import Dict, List, Any, Type, Optional, Set
 from Node.Core.Node.Core.BaseNode import BaseNode, ProducerNode
 from Node.Core.Node.Core.Data import NodeOutput
 from .flow_graph import FlowGraph
@@ -232,12 +232,27 @@ class FlowEngine:
             )
             raise
 
-    def load_workflow(self, workflow_json: Dict[str, Any]):
+    def load_workflow(
+        self,
+        workflow_json: Dict[str, Any],
+        scope_node_id: Optional[str] = None,
+    ):
+        """
+        Load workflow from JSON and run post-processors (QueueMapper, NodeValidator).
+        If scope_node_id is set, only the given node and nodes reachable from it
+        are validated; other nodes (e.g. unconnected) are skipped. Use for ForEach subDAG runs.
+        """
         self.flow_builder.load_workflow(workflow_json)
+
+        validate_only_node_ids: Optional[Set[str]] = None
+        if scope_node_id:
+            validate_only_node_ids = {scope_node_id} | self.flow_graph.get_reachable_node_ids(
+                scope_node_id
+            )
 
         for processor_class in self._post_processors:
             processor = processor_class(self.flow_graph)
-            processor.execute()
+            processor.execute(validate_only_node_ids=validate_only_node_ids)
 
         first_node_id = self.flow_analyzer.get_first_node_id()
         if first_node_id:

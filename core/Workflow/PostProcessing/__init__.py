@@ -21,8 +21,9 @@ class PostProcessor(ABC):
         self.graph = graph
 
     @abstractmethod
-    def execute(self) -> None:
+    def execute(self, **kwargs) -> None:
         """
         Execute the post-processing operation on the workflow graph.
+        kwargs may contain execution-scope hints (e.g. validate_only_node_ids).
         """
         pass

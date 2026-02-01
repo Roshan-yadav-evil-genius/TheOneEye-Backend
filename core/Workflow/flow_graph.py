@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 import structlog
 from Node.Core.Node.Core.BaseNode import BaseNode
@@ -75,6 +75,28 @@ class FlowGraph:
         """
         flow_node = self.node_map.get(node_id)
         return flow_node.instance if flow_node else None
+
+    def get_reachable_node_ids(self, start_node_id: str) -> Set[str]:
+        """
+        Return start_node_id and all node IDs reachable by following next edges.
+        Used to restrict validation to the execution scope (e.g. ForEach + subDAG).
+        """
+        if start_node_id not in self.node_map:
+            return set()
+        reachable: Set[str] = set()
+        stack: List[str] = [start_node_id]
+        while stack:
+            nid = stack.pop()
+            if nid in reachable:
+                continue
+            reachable.add(nid)
+            flow_node = self.node_map.get(nid)
+            if flow_node:
+                for next_list in flow_node.next.values():
+                    for next_fn in next_list:
+                        if next_fn.id not in reachable:
+                            stack.append(next_fn.id)
+        return reachable
 
     def get_upstream_nodes(self, node_id: str) -> List[FlowNode]:
         """
