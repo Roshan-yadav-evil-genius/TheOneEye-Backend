@@ -37,19 +37,18 @@ class ForEachIterationService:
         node_id: str,
         form_values: Dict[str, Any],
         input_data: Dict[str, Any],
-        iteration_index: int,
+        iteration_index: Optional[int] = None,
         timeout: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
-        Run one iteration of the ForEach node at the given index.
+        Run one iteration of the ForEach node. If iteration_index is not provided,
+        derive next index from node.output_data.forEachNode.state.index + 1 (backend is source of truth).
 
         Steps:
         1. Load workflow, override ForEach node form with form_values.
-        2. Build FlowEngine, get ForEach FlowNode, validate LoopNode.
-        3. Run ForEach node once to resolve items.
-        4. If iteration_index out of range, return error with forEachNode.
-        5. Run subDAG once with element_output for that index.
-        6. Return forEachNode state and iteration_output.
+        2. Load node and previous results/state; if iteration_index is None, set to state.index + 1 (or 0).
+        3. Build FlowEngine, run ForEach once to resolve items, run subDAG at that index.
+        4. Return forEachNode state and iteration_output.
         """
         try:
             workflow = WorkFlow.objects.get(id=workflow_id)
@@ -77,13 +76,26 @@ class ForEachIterationService:
                 "node_id": node_id,
             }
 
-        # Load previous results from node's stored output_data for accumulation across iterate-and-stop calls
+        # Load previous results and state from node's stored output_data (backend is source of truth)
         node = Node.objects.filter(id=node_id, workflow_id=workflow_id).first()
         if node and node.output_data and isinstance(node.output_data, dict):
-            prev = (node.output_data.get("forEachNode") or {}).get("results")
+            for_each_node_stored = node.output_data.get("forEachNode") or {}
+            prev = for_each_node_stored.get("results")
             previous_results = list(prev) if isinstance(prev, list) else []
+            # Derive next index from state when not provided by client
+            if iteration_index is None:
+                state = for_each_node_stored.get("state")
+                if isinstance(state, dict) and state.get("index") is not None:
+                    try:
+                        iteration_index = int(state["index"]) + 1
+                    except (TypeError, ValueError):
+                        iteration_index = 0
+                else:
+                    iteration_index = 0
         else:
             previous_results = []
+            if iteration_index is None:
+                iteration_index = 0
 
         flow_engine_config = workflow_converter.convert_to_flow_engine_format(workflow_config)
 
@@ -201,13 +213,15 @@ class ForEachIterationService:
                 "output": {"data": output_data},
             }
 
+        # Centralized shape: subDAG receives forEachNode (no top-level item/item_index)
+        for_each_for_subdag = {
+            "input": items,
+            "results": list(previous_results) if previous_results else [],
+            "state": {"index": iteration_index, "item": items[iteration_index]},
+        }
         element_output = NodeOutput(
             id=node_output.id,
-            data={
-                **input_data,
-                "item": items[iteration_index],
-                "item_index": iteration_index,
-            },
+            data={**input_data, "forEachNode": for_each_for_subdag},
             metadata=node_output.metadata,
         )
 
@@ -369,9 +383,15 @@ class ForEachIterationService:
         all_results: List[Any] = []
         try:
             for idx, element in enumerate(items):
+                # Centralized shape: subDAG receives forEachNode (no top-level item/item_index)
+                for_each_for_subdag = {
+                    "input": items,
+                    "results": list(all_results),
+                    "state": {"index": idx, "item": element},
+                }
                 element_output = NodeOutput(
                     id=node_output.id,
-                    data={**input_data, "item": element, "item_index": idx},
+                    data={**input_data, "forEachNode": for_each_for_subdag},
                     metadata=node_output.metadata,
                 )
                 collected: List[NodeOutput] = await runner.run_subdag_once(

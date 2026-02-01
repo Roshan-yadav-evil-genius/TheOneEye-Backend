@@ -204,7 +204,8 @@ class WorkFlowViewSet(ModelViewSet):
     def execute_for_each_iteration(self, request, pk=None):
         """
         Run one iteration of a ForEach node (iterate and stop).
-        Request body: node_id, form_values, input_data, iteration_index (0-based), optional timeout.
+        Request body: node_id, form_values, input_data, optional iteration_index, optional timeout.
+        If iteration_index omitted, backend derives next index from node.output_data.forEachNode.state.
         Persists forEachNode state to Node.output_data on success.
         """
         from apps.workflow.services import for_each_iteration_service
@@ -214,7 +215,7 @@ class WorkFlowViewSet(ModelViewSet):
         node_id = request.data.get("node_id")
         form_values = request.data.get("form_values", {})
         input_data = request.data.get("input_data", {})
-        iteration_index = request.data.get("iteration_index", 0)
+        iteration_index = request.data.get("iteration_index")  # None if omitted; backend derives from state
         timeout = request.data.get("timeout")
 
         if not node_id:

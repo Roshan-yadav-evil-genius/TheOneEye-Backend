@@ -164,9 +164,15 @@ class FlowRunner:
             else:
                 all_results: List = []
                 for idx, element in enumerate(items):
+                    # Centralized shape: subDAG receives forEachNode (no top-level item/item_index)
+                    for_each_for_subdag = {
+                        "input": items,
+                        "results": list(all_results),
+                        "state": {"index": idx, "item": element},
+                    }
                     element_output = NodeOutput(
                         id=input_data.id,
-                        data={**input_data.data, "item": element, "item_index": idx},
+                        data={**input_data.data, "forEachNode": for_each_for_subdag},
                         metadata=input_data.metadata,
                     )
                     collected: List[NodeOutput] = []
