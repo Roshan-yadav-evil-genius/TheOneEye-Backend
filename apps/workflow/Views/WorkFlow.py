@@ -243,6 +243,32 @@ class WorkFlowViewSet(ModelViewSet):
 
         return Response(result, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=["post"])
+    def clear_node_output(self, request, pk=None):
+        """
+        Clear a node's output_data in the DB (e.g. on Reset so iterate-and-stop starts fresh).
+        Request body: node_id.
+        """
+        from apps.workflow.services.node_execution_service import NodeExecutionService
+
+        workflow = self.get_object()
+        node_id = request.data.get("node_id")
+        if not node_id:
+            return Response(
+                {"success": False, "error": "node_id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            node = NodeExecutionService.get_node_for_execution(str(workflow.id), node_id)
+            node.output_data = {}
+            node.save()
+            return Response({"success": True}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {"success": False, "error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
     @action(detail=True, methods=["post"], authentication_classes=[], permission_classes=[AllowAny])
     def execute(self, request, pk=None):
         """
