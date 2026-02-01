@@ -21,7 +21,7 @@ import structlog
 from Node.Core.Node.Core.BaseNode import LoopNode
 from Node.Core.Node.Core.Data import NodeOutput
 
-from ..models import WorkFlow
+from ..models import WorkFlow, Node
 from ..Serializers.WorkFlow import RawWorkFlawSerializer
 from .workflow_converter import workflow_converter
 
@@ -77,6 +77,14 @@ class ForEachIterationService:
                 "node_id": node_id,
             }
 
+        # Load previous results from node's stored output_data for accumulation across iterate-and-stop calls
+        node = Node.objects.filter(id=node_id, workflow_id=workflow_id).first()
+        if node and node.output_data and isinstance(node.output_data, dict):
+            prev = (node.output_data.get("forEachNode") or {}).get("results")
+            previous_results = list(prev) if isinstance(prev, list) else []
+        else:
+            previous_results = []
+
         flow_engine_config = workflow_converter.convert_to_flow_engine_format(workflow_config)
 
         from Workflow.flow_engine import FlowEngine
@@ -114,6 +122,7 @@ class ForEachIterationService:
                     iteration_index=iteration_index,
                     executor=executor,
                     timeout=timeout,
+                    previous_results=previous_results,
                 )
             )
             return result
@@ -131,8 +140,9 @@ class ForEachIterationService:
         iteration_index: int,
         executor: Any,
         timeout: Optional[float] = None,
+        previous_results: Optional[List[Any]] = None,
     ) -> Dict[str, Any]:
-        """Run ForEach once to get items, then run subDAG once for the given index."""
+        """Run ForEach once to get items, then run subDAG once for the given index; merge with previous_results."""
         from Node.Core.Node.Core.Data import NodeOutput
 
         node_output = NodeOutput(data=input_data)
@@ -207,7 +217,9 @@ class ForEachIterationService:
         collected: List[NodeOutput] = await runner.run_subdag_once(entry_flow_node, element_output)
         iteration_output = [o.data for o in collected]
 
-        for_each_node["results"] = iteration_output
+        # One entry per iteration, same as full loop: single sink or list of sink outputs
+        one_entry = iteration_output[0] if len(iteration_output) == 1 else iteration_output
+        for_each_node["results"] = (previous_results or []) + [one_entry]
         output_data = {**input_data, "forEachNode": for_each_node}
 
         return {
