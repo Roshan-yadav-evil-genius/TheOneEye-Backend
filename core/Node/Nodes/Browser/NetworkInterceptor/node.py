@@ -46,15 +46,10 @@ class NetworkInterceptor(BlockingNode):
 
     def _extract_urls(self, node_data: NodeOutput) -> List[str]:
         """
-        Extract and normalize URLs from form field or input data.
-        
-        Priority order:
-        1. Form field 'urls' (may be newline-separated string or Jinja-rendered list/string)
-        2. Input data 'urls' (list)
-        3. Input data 'url' (single URL, for backward compatibility)
+        Extract and normalize URLs from the form field.
         
         Args:
-            node_data: The NodeOutput containing input data
+            node_data: The NodeOutput containing input data (not directly used for URL extraction).
             
         Returns:
             List of URL strings
@@ -86,7 +81,7 @@ class NetworkInterceptor(BlockingNode):
 
         
         # No URLs found
-        raise ValueError("No URLs provided. Please provide URLs in form field 'urls', or in input data as 'urls' (list) or 'url' (string).")
+        raise ValueError("No URLs provided. Please provide URLs in form field 'urls'.")
 
     def _parse_response_size(self, size_str: str) -> Optional[int]:
         """
@@ -328,30 +323,27 @@ class NetworkInterceptor(BlockingNode):
             )
             return None
 
-    async def _load_single_url_with_interception(self, url: str, context, wait_mode: str) -> dict:
-        """
-        Load a single URL with network interception and return immediately when matching response is found.
-        
-        Uses page.wait_for_response() to return as soon as a matching response is captured,
-        without waiting for full page load or extracting DOM content.
-        
-        Args:
-            url: The URL to load
-            context: Browser context (already obtained, shared across parallel loads)
-            wait_mode: Wait strategy for page loading (used for initial navigation only)
-            
-        Returns:
-            Dictionary with url, final_url, dom_content (None), and network_requests (single response)
-        """
+    async def _load_single_url_with_interception(self, url: str, context) -> dict:
         page = None
+        response_event = asyncio.Event()
+        matching_response: Optional[Response] = None
+        captured_requests: Dict[str, Dict[str, Any]] = {}
+        goto_task = None
+
         try:
-            # Track requests to match with response
-            captured_requests: Dict[str, Dict[str, Any]] = {}  # URL -> request data
+            # Get timeout from form
+            return_timeout_str = self.form.cleaned_data.get('return_timeout', '30000')
+            try:
+                return_timeout_ms = int(return_timeout_str)
+            except (ValueError, TypeError):
+                return_timeout_ms = 30000  # Default to 30 seconds
             
-            # Create new page from the shared context
+            timeout_seconds = return_timeout_ms / 1000.0 if return_timeout_ms > 0 else None
+            goto_timeout_ms = return_timeout_ms if return_timeout_ms > 0 else 300000  # Long timeout when waiting indefinitely
+
             page = await context.new_page()
             
-            # Define request callback (synchronous) to track requests
+            # Define request callback to track requests
             def on_request(request: Request):
                 if self._should_capture_request(request):
                     captured_requests[request.url] = {
@@ -363,145 +355,95 @@ class NetworkInterceptor(BlockingNode):
                         'timestamp': time.time()
                     }
             
-            # Register request listener BEFORE navigation
-            page.on('request', on_request)
-            
-            # Use asyncio.Event to wait for matching response
-            response_event = asyncio.Event()
-            matching_response: Optional[Response] = None
-            
             # Define response callback that checks filters and sets event
             def on_response(response: Response):
                 nonlocal matching_response
-                # Only process if we haven't found a match yet
-                if not response_event.is_set():
-                    if self._response_matches_filters(response):
-                        matching_response = response
-                        response_event.set()
+                if not response_event.is_set() and self._response_matches_filters(response):
+                    matching_response = response
+                    response_event.set()
             
-            # Register response listener BEFORE navigation
+            page.on('request', on_request)
             page.on('response', on_response)
-            
-            # Navigate with minimal wait (domcontentloaded is faster than networkidle)
-            await page.goto(url, wait_until='domcontentloaded')
-            
-            # Get timeout from form
-            return_timeout_str = self.form.cleaned_data.get('return_timeout', '30000')
-            try:
-                return_timeout_ms = int(return_timeout_str)
-            except (ValueError, TypeError):
-                return_timeout_ms = 30000  # Default to 30 seconds
-            
-            # Wait for matching response with timeout
-            # Convert milliseconds to seconds for asyncio.wait_for
-            timeout_seconds = return_timeout_ms / 1000.0 if return_timeout_ms > 0 else None
-            
-            try:
-                if timeout_seconds:
-                    await asyncio.wait_for(response_event.wait(), timeout=timeout_seconds)
-                else:
-                    await response_event.wait()
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "Timeout waiting for matching response",
-                    url=url,
-                    timeout=return_timeout_ms,
-                    node_id=self.node_config.id
+
+            # Start navigation in background (commit = minimal wait, page starts loading)
+            goto_task = asyncio.create_task(page.goto(url, wait_until='commit', timeout=goto_timeout_ms))
+            response_task = asyncio.create_task(response_event.wait())
+
+            # Wait only for matching response until timeout (or indefinitely if return_timeout=0)
+            if timeout_seconds is not None:
+                done, pending = await asyncio.wait(
+                    [response_task],
+                    timeout=timeout_seconds,
+                    return_when=asyncio.FIRST_COMPLETED
                 )
-                return {
-                    "url": url,
-                    "final_url": page.url,
-                    "dom_content": None,
-                    "network_requests": [],
-                    "error": f"Timeout: No matching response found within {return_timeout_ms}ms"
-                }
-            
-            # Verify we have a matching response
-            if matching_response is None:
-                return {
-                    "url": url,
-                    "final_url": page.url,
-                    "dom_content": None,
-                    "network_requests": [],
-                    "error": "Matching response event was set but response object is None"
-                }
-            
-            # Fetch response body immediately (before any other operations)
-            # This must be done right after wait_for_response returns to avoid disposal
-            try:
+            else:
+                await response_event.wait()
+                done, pending = {response_task}, set()
+
+            # Cancel and await background goto to avoid pending-task warnings
+            if goto_task and not goto_task.done():
+                goto_task.cancel()
+            if goto_task:
+                await asyncio.gather(goto_task, return_exceptions=True)
+            for task in pending:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+
+            # Success: matching network response was found
+            if response_task in done and not response_task.cancelled():
+                if response_task.exception():
+                    raise response_task.exception()
+                if matching_response is None:
+                    raise Exception("Response event fired but no response object was captured.")
+
                 body = await self._fetch_response_body(matching_response)
-            except Exception as body_error:
-                logger.warning(
-                    "Failed to fetch response body immediately",
-                    url=matching_response.url,
-                    error=str(body_error),
-                    node_id=self.node_config.id
-                )
-                body = None
-            
-            # Build response data
-            response_data = {
-                'url': matching_response.url,
-                'status': matching_response.status,
-                'status_text': matching_response.status_text,
-                'headers': dict(matching_response.headers),
-                'body': body
-            }
-            
-            # Find matching request if available
-            request_data = captured_requests.get(matching_response.url)
-            
-            logger.info(
-                "Matching response found, returning immediately",
-                url=url,
-                response_url=matching_response.url,
-                status=matching_response.status,
-                has_request=request_data is not None,
-                node_id=self.node_config.id
-            )
-            
+                response_data = {
+                    'url': matching_response.url, 'status': matching_response.status,
+                    'status_text': matching_response.status_text, 'headers': dict(matching_response.headers), 'body': body
+                }
+                request_data = captured_requests.get(matching_response.url)
+                
+                logger.info("Matching response found, returning immediately", url=url, response_url=matching_response.url, node_id=self.node_config.id)
+                return {
+                    "url": url, "final_url": page.url, "dom_content": None,
+                    "network_requests": [{"request": request_data, "response": response_data}]
+                }
+
+            # No matching response in time (timeout)
+            error_message = f"Timeout: No matching response found within {return_timeout_ms}ms."
+            logger.warning(error_message, url=url, timeout=return_timeout_ms, node_id=self.node_config.id)
             return {
-                "url": url,
-                "final_url": page.url,
-                "dom_content": None,  # Skipped for speed
-                "network_requests": [{
-                    "request": request_data,
-                    "response": response_data
-                }]
+                "url": url, "final_url": page.url, "dom_content": None,
+                "network_requests": [], "error": error_message
             }
-            
+
         except Exception as e:
-            logger.error(
-                "Failed to load webpage with network interception",
-                url=url,
-                error=str(e),
-                node_id=self.node_config.id
-            )
-            # Return error info instead of raising
+            logger.error("Failed to load webpage with network interception", url=url, error=str(e), node_id=self.node_config.id)
+            if goto_task and not goto_task.done():
+                goto_task.cancel()
+            if goto_task:
+                await asyncio.gather(goto_task, return_exceptions=True)
             return {
                 "url": url,
-                "final_url": None,
+                "final_url": page.url if page and not page.is_closed() else None,
                 "dom_content": None,
                 "network_requests": [],
                 "error": str(e)
             }
         finally:
-            # Always close the page to free resources
             if page:
                 try:
                     await page.close()
                     logger.debug("Page closed", url=url, node_id=self.node_config.id)
                 except Exception as close_error:
-                    logger.warning(
-                        "Error closing page",
-                        url=url,
-                        error=str(close_error),
-                        node_id=self.node_config.id
-                    )
+                    logger.warning("Error closing page", url=url, error=str(close_error), node_id=self.node_config.id)
 
     async def execute(self, node_data: NodeOutput) -> NodeOutput:
         """
         Load multiple webpages with network interception using Playwright in parallel.
+
+        Navigation uses wait_until='commit'; the node waits only for a matching network
+        response until return_timeout. No page content is returned.
 
         Inputs:
             node_data.data["urls"]: List of URLs to load (optional).
@@ -510,20 +452,16 @@ class NetworkInterceptor(BlockingNode):
         Form Config:
             urls: URLs to load (newline-separated string or Jinja template like {{ data.urls }}).
             session_name: Name of the persistent context session.
-            wait_mode: Wait strategy ('load', 'domcontentloaded', or 'networkidle').
             capture_resource_types: Types of requests to capture (xhr, fetch, xhr,fetch, all).
             url_pattern: Optional regex pattern to filter URLs.
             http_methods: HTTP methods to capture (GET, POST, GET,POST, all).
             status_codes: Optional comma-separated status codes to filter.
             include_response_body: Whether to capture response bodies (true/false).
             max_response_size: Maximum response size to capture (e.g., "10MB").
-            wait_after_load: Additional wait time in milliseconds after page load.
+            return_timeout: Maximum time to wait for matching response in milliseconds.
         """
-        # Get configuration from form (rendered values)
         session_name = self.form.cleaned_data.get("session_name", "default")
-        wait_mode = self.form.cleaned_data.get("wait_mode", "networkidle")  # Default to 'networkidle'
 
-        # Extract URLs from form or input data
         urls = self._extract_urls(node_data)
 
         logger.info(
@@ -531,17 +469,13 @@ class NetworkInterceptor(BlockingNode):
             urls=urls,
             url_count=len(urls),
             session=session_name,
-            wait_mode=wait_mode,
             node_id=self.node_config.id,
         )
 
-        # Get context ONCE before parallel loads to avoid race condition
-        # This ensures all pages are created from the same context
         context = await self.browser_manager.get_context(session_name)
 
-        # Load all URLs in parallel using the shared context
         tasks = [
-            self._load_single_url_with_interception(url, context, wait_mode)
+            self._load_single_url_with_interception(url, context)
             for url in urls
         ]
         
@@ -573,7 +507,7 @@ class NetworkInterceptor(BlockingNode):
         logger.info(
             "Network interception completed for all URLs",
             total=len(formatted_results),
-            successful=sum(1 for r in formatted_results if r.get("dom_content") is not None),
+            successful=sum(1 for r in formatted_results if len(r.get("network_requests", [])) > 0),
             failed=sum(1 for r in formatted_results if r.get("error") is not None),
             node_id=self.node_config.id
         )

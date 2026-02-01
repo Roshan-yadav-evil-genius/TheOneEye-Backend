@@ -24,17 +24,6 @@ class NetworkInterceptorForm(BaseForm):
     
     session_name = BrowserSessionField()
     
-    wait_mode = ChoiceField(
-        choices=[
-            ('load', 'Load'),
-            ('domcontentloaded', 'DOM Content Loaded'),
-            ('networkidle', 'Network Idle')
-        ],
-        required=True,
-        initial='networkidle',
-        help_text="Wait strategy for page loading. 'networkidle' is recommended for capturing API calls."
-    )
-    
     capture_resource_types = ChoiceField(
         choices=[
             ('xhr', 'XHR Only'),
@@ -88,14 +77,8 @@ class NetworkInterceptorForm(BaseForm):
         help_text="Maximum response size to capture (e.g., '10MB', '1MB', '500KB'). Larger responses will be skipped. Supports KB, MB, GB."
     )
     
-    wait_after_load = CharField(
-        initial='5000',
-        required=False,
-        help_text="Additional wait time in milliseconds after page load (for JS-rendered requests). Default: 5000ms."
-    )
-    
     return_timeout = CharField(
         initial='30000',
         required=False,
-        help_text="Maximum time to wait for matching response in milliseconds. Default: 30000ms (30 seconds). Set to 0 for no timeout. When a matching response is found, returns immediately without waiting for full page load."
+        help_text="Maximum time to wait for a matching response in milliseconds. Default: 30000ms (30 seconds). Set to 0 for no timeout. Navigation uses 'commit'; no page content is returned."
     )
