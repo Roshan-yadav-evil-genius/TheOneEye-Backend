@@ -77,7 +77,9 @@ class FlowRunner:
                     if isinstance(data, ExecutionCompleted):
                         await self.kill_producer()
 
-                    await self._process_next_nodes(self.producer_flow_node, data)
+                    await self._process_next_nodes(
+                        self.producer_flow_node, data, current_already_executed=True
+                    )
 
                 except asyncio.CancelledError:
                     logger.info("FlowRunner loop cancelled", node_id=self.producer_flow_node.id)
@@ -94,6 +96,7 @@ class FlowRunner:
         current_flow_node: FlowNode,
         input_data: NodeOutput,
         sink_collector: Optional[List[NodeOutput]] = None,
+        current_already_executed: bool = False,
     ):
         """
         Recursively process downstream nodes.
@@ -101,37 +104,17 @@ class FlowRunner:
         - If LogicalNode: Executes selected branch (if any).
         - If LoopNode: Runs subDAG per element, then follows default branch only.
         - Otherwise: Executes default branch or first available branch.
-        When sink_collector is provided and there are no next nodes, executes the sink node and appends its output to sink_collector.
+        When current_already_executed is False (e.g. subDAG entry), executes the
+        current node first and passes its output to next nodes.
+        When sink_collector is provided and there are no next nodes, appends the
+        current node's output (input_data, already produced by the parent) to
+        sink_collector. Does not re-execute the node.
         """
         next_nodes: Optional[Dict[str, List[FlowNode]]] = current_flow_node.next
         if not next_nodes:
-            sink_instance = current_flow_node.instance
-            sink_node_type = sink_instance.identifier()
-            if self.events:
-                self.events.emit_node_started(current_flow_node.id, sink_node_type)
-            try:
-                output = await self.executor.execute_in_pool(
-                    sink_instance.execution_pool, sink_instance, input_data
-                )
-            except Exception as e:
-                if self.events:
-                    self.events.emit_node_failed(
-                        current_flow_node.id, sink_node_type, str(e)
-                    )
-                logger.exception(
-                    "Sink node failed",
-                    node_id=current_flow_node.id,
-                    error=str(e),
-                )
-                raise
-            if self.events:
-                self.events.emit_node_completed(
-                    current_flow_node.id,
-                    sink_node_type,
-                    output_data=output.data if hasattr(output, "data") else None,
-                )
+            # This node was already executed by the parent; input_data is its output.
             if sink_collector is not None:
-                sink_collector.append(output)
+                sink_collector.append(input_data)
             return
 
         instance = current_flow_node.instance
@@ -255,7 +238,47 @@ class FlowRunner:
             if key in next_nodes:
                 nodes_to_run.extend(next_nodes[key])
 
-        # Execute selected nodes
+        # Current node's output: use input_data if already executed (e.g. producer),
+        # otherwise execute current node first so its output is passed to next nodes.
+        if current_already_executed:
+            current_output = input_data
+        else:
+            if self.events:
+                self.events.emit_node_started(current_flow_node.id, instance.identifier())
+            logger.info(
+                "Initiating node execution",
+                node_id=current_flow_node.id,
+                node_type=f"{node_type(instance)}({instance.identifier()})",
+            )
+            try:
+                current_output = await self.executor.execute_in_pool(
+                    instance.execution_pool, instance, input_data
+                )
+            except Exception as e:
+                if self.events:
+                    self.events.emit_node_failed(
+                        current_flow_node.id, instance.identifier(), str(e)
+                    )
+                logger.exception(
+                    "Error executing node",
+                    node_id=current_flow_node.id,
+                    error=str(e),
+                )
+                raise
+            if self.events:
+                self.events.emit_node_completed(
+                    current_flow_node.id,
+                    instance.identifier(),
+                    output_data=current_output.data if hasattr(current_output, "data") else None,
+                )
+            logger.info(
+                "Node execution completed",
+                node_id=current_flow_node.id,
+                node_type=f"{node_type(instance)}({instance.identifier()})",
+                output=current_output.data,
+            )
+
+        # Execute selected nodes with current node's output
         for next_flow_node in nodes_to_run:
             next_instance = next_flow_node.instance
             next_node_type = next_instance.identifier()
@@ -272,7 +295,7 @@ class FlowRunner:
 
             try:
                 data = await self.executor.execute_in_pool(
-                    next_instance.execution_pool, next_instance, input_data
+                    next_instance.execution_pool, next_instance, current_output
                 )
 
                 # Determine route for conditional nodes
@@ -300,7 +323,9 @@ class FlowRunner:
                     continue
 
                 # Recurse for the next steps in this branch (pass sink_collector for subDAG sink collection)
-                await self._process_next_nodes(next_flow_node, data, sink_collector)
+                await self._process_next_nodes(
+                    next_flow_node, data, sink_collector, current_already_executed=True
+                )
 
             except Exception as e:
                 # Emit node_failed event
