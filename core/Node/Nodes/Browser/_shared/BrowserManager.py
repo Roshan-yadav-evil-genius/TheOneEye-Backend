@@ -68,17 +68,23 @@ VALID_BROWSER_TYPES = ['chromium', 'firefox', 'webkit']
 class BrowserManager:
     _instance = None
     _lock = asyncio.Lock()
+    # Per-session locks so parallel nodes (e.g. fork) share one profile: first launches, second waits and reuses
+    _session_locks: Dict[str, asyncio.Lock] = {}
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(BrowserManager, cls).__new__(cls)
             cls._instance._playwright: Optional[Playwright] = None
-            # (context, event_loop) so we only reuse when on same loop (avoid cross-loop use → about:blank/hang)
             cls._instance._contexts: Dict[str, Tuple[BrowserContext, asyncio.AbstractEventLoop]] = {}
             cls._instance._initialized = False
             cls._instance._loop: Optional[asyncio.AbstractEventLoop] = None
             cls._instance._headless: bool = True
         return cls._instance
+
+    def _get_session_lock(self, session_id: str) -> asyncio.Lock:
+        if session_id not in self._session_locks:
+            self._session_locks[session_id] = asyncio.Lock()
+        return self._session_locks[session_id]
 
     async def initialize(self, headless: bool = True):
         """Initialize Playwright. Re-initializes if called from a different event loop."""
@@ -143,12 +149,14 @@ class BrowserManager:
     async def get_context(self, session_id: str, **kwargs) -> BrowserContext:
         """
         Get an existing persistent context by session_id or create a new one.
-        The session_id is used to fetch config from DB and as the directory name.
-        
+        Uses a per-session lock so when multiple nodes (e.g. WebPageLoader and NetworkInterceptor
+        in a fork) use the same session_id, only one launches the profile; others wait and reuse
+        the same context (shared session/memory, no ProcessSingleton conflict).
+
         Args:
             session_id: The UUID of the browser session from the database
             **kwargs: Additional launch arguments to override defaults
-            
+
         Returns:
             The browser context
         """
@@ -156,76 +164,63 @@ class BrowserManager:
             await self.initialize()
 
         running_loop = asyncio.get_running_loop()
-        if session_id in self._contexts:
-            context, ctx_loop = self._contexts[session_id]
-            if ctx_loop is running_loop:
-                logger.info("Reusing existing persistent context", session_id=session_id)
-                return context
-            # Stale context from another loop; remove and create new one
-            del self._contexts[session_id]
+        session_lock = self._get_session_lock(session_id)
 
-        # Fetch session config from Django model
-        session_config = await SessionConfigService.get_session_config(session_id)
-        
-        # Extract config values with defaults
-        browser_type = 'chromium'
-        playwright_config = {}
-        
-        if session_config:
-            browser_type = session_config.get('browser_type', 'chromium')
-            playwright_config = session_config.get('playwright_config', {}) or {}
-            # Use user_persistent_directory from config if available
-            user_data_dir = session_config.get('user_persistent_directory')
-        else:
+        async with session_lock:
+            if session_id in self._contexts:
+                context, ctx_loop = self._contexts[session_id]
+                if ctx_loop is running_loop:
+                    logger.info("Reusing existing persistent context", session_id=session_id)
+                    return context
+                del self._contexts[session_id]
+
+            # Fetch session config from Django model
+            session_config = await SessionConfigService.get_session_config(session_id)
+
             browser_type = 'chromium'
             playwright_config = {}
-            user_data_dir = None
-        
-        # Fallback to default path if not in config
-        if not user_data_dir:
-            # Use backend/data/Browser/{session_id} as default
-            # No async wrapper needed - Django settings are just Python objects
-            user_data_dir = PathService.get_browser_session_path(session_id)
-        
-        # Ensure directory exists
-        Path(user_data_dir).mkdir(parents=True, exist_ok=True)
-        
-        logger.info(
-            "Creating browser context",
-            session_id=session_id,
-            browser_type=browser_type,
-            has_user_agent=bool(playwright_config.get('user_agent')),
-            user_data_dir=user_data_dir
-        )
 
-        # Get browser-specific args (hardcoded)
-        browser_args = self._get_browser_args(browser_type)
+            if session_config:
+                browser_type = session_config.get('browser_type', 'chromium')
+                playwright_config = session_config.get('playwright_config', {}) or {}
+                user_data_dir = session_config.get('user_persistent_directory')
+            else:
+                user_data_dir = None
 
-        # Build launch args (timeout avoids indefinite hang when profile dir is still locked)
-        launch_args = {
-            "headless": self._headless,
-            "args": browser_args,
-            "timeout": 60_000,  # 60s; fail fast instead of hanging if profile locked
-        }
+            if not user_data_dir:
+                user_data_dir = PathService.get_browser_session_path(session_id)
 
-        # Override with any kwargs passed directly
-        launch_args.update(kwargs)
+            Path(user_data_dir).mkdir(parents=True, exist_ok=True)
 
-        # Get the appropriate browser launcher
-        browser_launcher = self._get_browser_launcher(browser_type)
-        
-        context = await browser_launcher.launch_persistent_context(
-            user_data_dir, **launch_args
-        )
-        self._contexts[session_id] = (context, asyncio.get_running_loop())
-        
-        logger.info(
-            "Browser context created successfully",
-            session_id=session_id,
-            browser_type=browser_type
-        )
-        
-        return context
+            logger.info(
+                "Creating browser context",
+                session_id=session_id,
+                browser_type=browser_type,
+                has_user_agent=bool(playwright_config.get('user_agent')),
+                user_data_dir=user_data_dir
+            )
+
+            browser_args = self._get_browser_args(browser_type)
+            launch_args = {
+                "headless": self._headless,
+                "args": browser_args,
+                "timeout": 60_000,
+            }
+            launch_args.update(kwargs)
+
+            browser_launcher = self._get_browser_launcher(browser_type)
+            context = await browser_launcher.launch_persistent_context(
+                user_data_dir, **launch_args
+            )
+            self._contexts[session_id] = (context, asyncio.get_running_loop())
+
+            logger.info(
+                "Browser context created successfully",
+                session_id=session_id,
+                browser_type=browser_type
+            )
+
+            return context
 
     async def close(self):
         """Close contexts for this event loop and playwright. Always clears _contexts."""
