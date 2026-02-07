@@ -1,6 +1,7 @@
+import asyncio
+import concurrent.futures
 from typing import Optional, Dict, Any
 import structlog
-from channels.db import database_sync_to_async
 
 from .path_service import PathService
 
@@ -14,6 +15,8 @@ class SessionConfigService:
     async def get_session_config(session_id: str) -> Optional[Dict[str, Any]]:
         """
         Fetch full session config from Django model using async-safe calls.
+        Uses a thread pool for the DB call to avoid CurrentThreadExecutor deadlock
+        when the async code is run from NodeExecutor's run_until_complete() loop.
         
         Args:
             session_id: The UUID of the browser session
@@ -25,14 +28,15 @@ class SessionConfigService:
         try:
             from apps.browsersession.models import BrowserSession
             
-            @database_sync_to_async
-            def _fetch_session():
+            def _fetch_session_sync():
                 try:
                     return BrowserSession.objects.get(id=session_id)
                 except BrowserSession.DoesNotExist:
                     return None
             
-            session = await _fetch_session()
+            loop = asyncio.get_running_loop()
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                session = await loop.run_in_executor(executor, _fetch_session_sync)
             if session is None:
                 logger.warning(
                     "Session not found",

@@ -6,7 +6,7 @@ Singleton manager for Playwright browser instances and contexts.
 
 import asyncio
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from playwright.async_api import (
     async_playwright,
     Browser,
@@ -73,23 +73,32 @@ class BrowserManager:
         if cls._instance is None:
             cls._instance = super(BrowserManager, cls).__new__(cls)
             cls._instance._playwright: Optional[Playwright] = None
-            cls._instance._contexts: Dict[str, BrowserContext] = {}
+            # (context, event_loop) so we only reuse when on same loop (avoid cross-loop use → about:blank/hang)
+            cls._instance._contexts: Dict[str, Tuple[BrowserContext, asyncio.AbstractEventLoop]] = {}
             cls._instance._initialized = False
+            cls._instance._loop: Optional[asyncio.AbstractEventLoop] = None
             cls._instance._headless: bool = True
         return cls._instance
 
     async def initialize(self, headless: bool = True):
-        """Initialize Playwright."""
-        if self._initialized:
+        """Initialize Playwright. Re-initializes if called from a different event loop."""
+        running_loop = asyncio.get_running_loop()
+        if self._initialized and self._loop is running_loop:
             return
+        # Different loop (e.g. new request): drop stale state; old Playwright/contexts will be GC'd
+        if self._initialized and self._loop is not running_loop:
+            self._contexts.clear()
+            self._playwright = None
+            self._initialized = False
+            self._loop = None
 
         async with self._lock:
-            if self._initialized:
+            if self._initialized and self._loop is running_loop:
                 return
-
             logger.info("Initializing BrowserManager...")
             self._playwright = await async_playwright().start()
             self._headless = headless
+            self._loop = running_loop
             self._initialized = True
             logger.info("BrowserManager initialized successfully")
 
@@ -146,9 +155,14 @@ class BrowserManager:
         if not self._initialized:
             await self.initialize()
 
+        running_loop = asyncio.get_running_loop()
         if session_id in self._contexts:
-            logger.info("Reusing existing persistent context", session_id=session_id)
-            return self._contexts[session_id]
+            context, ctx_loop = self._contexts[session_id]
+            if ctx_loop is running_loop:
+                logger.info("Reusing existing persistent context", session_id=session_id)
+                return context
+            # Stale context from another loop; remove and create new one
+            del self._contexts[session_id]
 
         # Fetch session config from Django model
         session_config = await SessionConfigService.get_session_config(session_id)
@@ -187,10 +201,11 @@ class BrowserManager:
         # Get browser-specific args (hardcoded)
         browser_args = self._get_browser_args(browser_type)
 
-        # Build launch args
+        # Build launch args (timeout avoids indefinite hang when profile dir is still locked)
         launch_args = {
             "headless": self._headless,
             "args": browser_args,
+            "timeout": 60_000,  # 60s; fail fast instead of hanging if profile locked
         }
 
         # Override with any kwargs passed directly
@@ -202,7 +217,7 @@ class BrowserManager:
         context = await browser_launcher.launch_persistent_context(
             user_data_dir, **launch_args
         )
-        self._contexts[session_id] = context
+        self._contexts[session_id] = (context, asyncio.get_running_loop())
         
         logger.info(
             "Browser context created successfully",
@@ -213,16 +228,29 @@ class BrowserManager:
         return context
 
     async def close(self):
-        """Close all contexts and playwright."""
+        """Close contexts for this event loop and playwright. Always clears _contexts."""
         logger.info("Closing BrowserManager...")
-        for name, context in self._contexts.items():
-            await context.close()
-        self._contexts.clear()
+        running_loop = asyncio.get_running_loop()
+        try:
+            for name, entry in list(self._contexts.items()):
+                context, ctx_loop = entry
+                if ctx_loop is running_loop:
+                    try:
+                        await context.close()
+                    except Exception as e:
+                        logger.warning("Error closing context", session_id=name, error=str(e))
+        finally:
+            self._contexts.clear()
 
-        if self._playwright:
-            await self._playwright.stop()
+        if self._playwright and self._loop is running_loop:
+            try:
+                await self._playwright.stop()
+            except Exception as e:
+                logger.warning("Error stopping Playwright", error=str(e))
             self._playwright = None
-
-        self._initialized = False
+            self._initialized = False
+            self._loop = None
+        # Let the OS release the profile dir lock before next launch with same path
+        await asyncio.sleep(2)
         logger.info("BrowserManager closed")
 

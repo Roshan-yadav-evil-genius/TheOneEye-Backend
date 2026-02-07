@@ -1,15 +1,42 @@
 """
 Node Executor Module
 Executes nodes with input and form data.
+Uses a shared event loop so browser contexts can be reused across requests.
 """
 
 import asyncio
+import threading
 import traceback
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import Any, Dict, Optional
 
 from apps.common.exceptions import FormValidationException, ExecutionTimeoutException
 from .node_loader import NodeLoader
 from .node_session_store import NodeSessionStore
+
+# Shared event loop for node execution (browser context reuse across requests)
+_executor_loop: Optional[asyncio.AbstractEventLoop] = None
+_executor_thread: Optional[threading.Thread] = None
+_loop_lock = threading.Lock()
+
+
+def _get_executor_loop() -> asyncio.AbstractEventLoop:
+    """Return the shared executor loop, starting the loop thread lazily."""
+    global _executor_loop, _executor_thread
+    with _loop_lock:
+        if _executor_loop is None:
+            _executor_loop = asyncio.new_event_loop()
+
+            def _run_loop():
+                asyncio.set_event_loop(_executor_loop)
+                _executor_loop.run_forever()
+
+            _executor_thread = threading.Thread(target=_run_loop, daemon=True)
+            _executor_thread.start()
+            # Wait until loop is running
+            while not _executor_loop.is_running():
+                threading.Event().wait(0.01)
+        return _executor_loop
 
 
 class NodeExecutor:
@@ -180,91 +207,25 @@ class NodeExecutor:
         # Create NodeOutput from input data
         node_output = NodeOutput(data=input_data)
         
-        # Run the node asynchronously
+        # Run the node asynchronously on the shared loop (browser context is reused)
         async def run_async():
-            # Only call init on new instances
             if is_new_instance:
                 await node_instance.init()
-            result = await node_instance.run(node_output)
-            
-            # Close browser after single node execution to prevent stale contexts
-            try:
-                from Node.Nodes.Browser._shared.BrowserManager import BrowserManager
-                browser_manager = BrowserManager()
-                if browser_manager._initialized:
-                    await browser_manager.close()
-            except ImportError:
-                pass  # BrowserManager not available, skip cleanup
-            
-            return result
-        
-        # Execute in asyncio event loop with optional timeout
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        task = None
+            return await node_instance.run(node_output)
+
+        loop = _get_executor_loop()
+        timeout_seconds = timeout if (timeout is not None and timeout > 0) else None
+        future = asyncio.run_coroutine_threadsafe(run_async(), loop)
         try:
-            if timeout is not None and timeout > 0:
-                # Create task explicitly so we can cancel it forcefully
-                task = loop.create_task(run_async())
-                try:
-                    # Use wait_for to enforce timeout
-                    result = loop.run_until_complete(
-                        asyncio.wait_for(task, timeout=timeout)
-                    )
-                except asyncio.TimeoutError:
-                    # Timeout occurred - kill the task immediately
-                    # Cancel the main task
-                    if task and not task.done():
-                        task.cancel()
-                    
-                    # Cancel ALL pending tasks in the loop immediately
-                    try:
-                        all_tasks = asyncio.all_tasks(loop)
-                        for pending_task in all_tasks:
-                            if not pending_task.done():
-                                pending_task.cancel()
-                    except Exception:
-                        pass
-                    
-                    # Clear session immediately (don't wait for cleanup)
-                    if session_id:
-                        self._session_store.clear(session_id)
-                    
-                    # Re-raise as TimeoutError to be caught by execute()
-                    # Loop will be closed in finally block
-                    raise
-            else:
-                # No timeout, run normally
-                result = loop.run_until_complete(run_async())
-        except asyncio.TimeoutError:
-            # Clear session on timeout
+            result = future.result(timeout=timeout_seconds)
+        except FuturesTimeoutError:
+            future.cancel()
             if session_id:
                 self._session_store.clear(session_id)
-            raise
-        except asyncio.CancelledError:
-            # Handle cancellation (can occur during timeout cleanup)
-            # Clear session on cancellation
-            if session_id:
-                self._session_store.clear(session_id)
-            raise asyncio.TimeoutError("Node execution was cancelled due to timeout")
+            raise asyncio.TimeoutError(
+                f"Node execution exceeded timeout of {timeout or 0} seconds"
+            )
         except Exception:
             raise
-        finally:
-            # Ensure loop is closed
-            try:
-                if not loop.is_closed():
-                    # Cancel any remaining tasks
-                    try:
-                        all_tasks = asyncio.all_tasks(loop)
-                        for pending_task in all_tasks:
-                            if not pending_task.done():
-                                pending_task.cancel()
-                    except Exception:
-                        pass
-                    loop.close()
-            except Exception:
-                # Ignore errors during cleanup
-                pass
-        
         return result
 
