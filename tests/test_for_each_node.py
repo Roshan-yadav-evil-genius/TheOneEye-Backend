@@ -3,8 +3,8 @@ Unit tests for ForEachNode (Loop Node).
 """
 
 import pytest
-from Node.Core.Node.Core.Data import NodeConfig, NodeConfigData, NodeOutput
-from Node.Nodes.Loop.ForEach.node import ForEachNode
+from core.Node.Core.Node.Core.Data import NodeConfig, NodeConfigData, NodeOutput
+from core.Node.Nodes.Loop.ForEach.node import ForEachNode
 
 
 def _make_config(form_data=None):

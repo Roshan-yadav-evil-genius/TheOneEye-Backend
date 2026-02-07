@@ -1,6 +1,6 @@
 from typing import List, Optional, Tuple, Set
 import structlog
-from Node.Core.Node.Core.BaseNode import BaseNode, ProducerNode, NonBlockingNode
+from ..Node.Core.Node.Core.BaseNode import BaseNode, ProducerNode, NonBlockingNode
 from .flow_graph import FlowGraph
 from .flow_node import FlowNode
 

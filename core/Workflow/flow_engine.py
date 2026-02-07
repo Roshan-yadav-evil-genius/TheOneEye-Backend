@@ -1,8 +1,8 @@
 import asyncio
 import structlog
 from typing import Dict, List, Any, Type, Optional, Set
-from Node.Core.Node.Core.BaseNode import BaseNode, ProducerNode
-from Node.Core.Node.Core.Data import NodeOutput
+from ..Node.Core.Node.Core.BaseNode import BaseNode, ProducerNode
+from ..Node.Core.Node.Core.Data import NodeOutput
 from .flow_graph import FlowGraph
 from .flow_analyzer import FlowAnalyzer
 from .flow_builder import FlowBuilder
@@ -43,7 +43,13 @@ class FlowEngine:
         producer = producer_flow_node.instance
         if not isinstance(producer, ProducerNode):
             raise ValueError(f"Node {producer_flow_node.id} is not a ProducerNode")
-        runner = FlowRunner(producer_flow_node, events=self.events)
+        fork_pool = self.flow_graph.fork_execution_pool if self.flow_graph else None
+        runner = FlowRunner(
+            producer_flow_node,
+            flow_graph=self.flow_graph,
+            fork_execution_pool=fork_pool,
+            events=self.events,
+        )
         self.flow_runners.append(runner)
 
     async def run_production(self):
@@ -191,10 +197,13 @@ class FlowEngine:
         )
         
         # Create API runner with fresh executor
+        fork_pool = self.flow_graph.fork_execution_pool if self.flow_graph else None
         runner = APIFlowRunner(
             start_node=first_node,
+            flow_graph=self.flow_graph,
+            fork_execution_pool=fork_pool,
             executor=PoolExecutor(),
-            events=self.events
+            events=self.events,
         )
         
         # Build metadata with API mode marker and request context

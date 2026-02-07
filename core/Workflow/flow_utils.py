@@ -3,8 +3,8 @@ Utility functions and classes for flow management.
 """
 
 
-from Node.Core.Node.Core import BaseNode
-from Node.Core.Node.Core.BaseNode import ProducerNode, NonBlockingNode, ConditionalNode, LoopNode, BlockingNode
+from ..Node.Core.Node.Core import BaseNode
+from ..Node.Core.Node.Core.BaseNode import ProducerNode, NonBlockingNode, ConditionalNode, LoopNode, BlockingNode
 from typing import Optional
 
 

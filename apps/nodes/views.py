@@ -362,7 +362,7 @@ def _get_node_supported_workflow_types(node: dict) -> list:
             return ['production', 'api']
         
         # Create a dummy instance to access the property
-        from Node.Core.Node.Core.Data import NodeConfig, NodeConfigData
+        from core.Node.Core.Node.Core.Data import NodeConfig, NodeConfigData
         
         dummy_config = NodeConfig(
             id="temp",

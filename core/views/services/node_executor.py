@@ -178,7 +178,7 @@ class NodeExecutor:
         If session_id is provided, reuses existing instance or creates new one.
         If timeout is provided, execution will be cancelled after timeout seconds.
         """
-        from Node.Core.Node.Core.Data import NodeConfig, NodeConfigData, NodeOutput
+        from ...Node.Core.Node.Core.Data import NodeConfig, NodeConfigData, NodeOutput
         
         # Check if we have an existing instance for this session
         node_instance = None

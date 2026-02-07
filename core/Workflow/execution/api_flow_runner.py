@@ -14,16 +14,18 @@ Key Differences from FlowRunner:
 
 import asyncio
 import structlog
-from typing import Dict, List, Optional, TYPE_CHECKING
+from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 
-from Node.Core.Node.Core.BaseNode import ProducerNode, NonBlockingNode, ConditionalNode, LoopNode
-from Node.Core.Node.Core.Data import NodeOutput
+from ...Node.Core.Node.Core.BaseNode import ProducerNode, NonBlockingNode, ConditionalNode, LoopNode
+from ...Node.Core.Node.Core.Data import NodeOutput, PoolType
 from ..flow_utils import node_type
 from ..flow_node import FlowNode
 from .pool_executor import PoolExecutor
+from .fork_join import merge_branch_outputs
 
 if TYPE_CHECKING:
     from ..events import WorkflowEventEmitter
+    from ..flow_graph import FlowGraph
 
 logger = structlog.get_logger(__name__)
 
@@ -47,20 +49,89 @@ class APIFlowRunner:
         self,
         start_node: FlowNode,
         executor: Optional[PoolExecutor] = None,
-        events: Optional["WorkflowEventEmitter"] = None
+        events: Optional["WorkflowEventEmitter"] = None,
+        flow_graph: Optional["FlowGraph"] = None,
+        fork_execution_pool: Optional[str] = None,
     ):
         """
         Initialize the API flow runner.
-        
+
         Args:
             start_node: The first node to execute (typically WebhookProducer)
             executor: Optional pool executor (creates default if not provided)
             events: Optional event emitter for workflow events
+            flow_graph: Optional graph for join detection (len(upstream) > 1)
+            fork_execution_pool: Optional "process" | "thread" | "async" for fork branches
         """
         self.start_node = start_node
         self.executor = executor or PoolExecutor()
         self.events = events
+        self.flow_graph = flow_graph
+        self.fork_execution_pool = fork_execution_pool
         self.last_output: Optional[NodeOutput] = None
+
+    def _get_pool_for_fork_branch(self, flow_node: FlowNode) -> PoolType:
+        if self.fork_execution_pool:
+            m = {"process": PoolType.PROCESS, "thread": PoolType.THREAD, "async": PoolType.ASYNC}
+            return m.get(self.fork_execution_pool.lower(), flow_node.instance.execution_pool)
+        return flow_node.instance.execution_pool
+
+    def _is_join_node(self, node_id: str) -> bool:
+        if not self.flow_graph:
+            return False
+        return len(self.flow_graph.get_upstream_nodes(node_id)) > 1
+
+    async def _run_branch_until_join_or_sink(
+        self,
+        current_flow_node: FlowNode,
+        input_data: NodeOutput,
+    ) -> Tuple[Optional[FlowNode], NodeOutput]:
+        instance = current_flow_node.instance
+        next_node_type = instance.identifier()
+        if self.events:
+            self.events.emit_node_started(current_flow_node.id, next_node_type)
+        logger.info(
+            "API execution: Executing node",
+            node_id=current_flow_node.id,
+            node_type=f"{node_type(instance)}({next_node_type})",
+        )
+        try:
+            pool = self._get_pool_for_fork_branch(current_flow_node)
+            output = await self.executor.execute_in_pool(pool, instance, input_data)
+        except Exception as e:
+            if self.events:
+                self.events.emit_node_failed(current_flow_node.id, next_node_type, str(e))
+            logger.exception(
+                "API execution: Node failed",
+                node_id=current_flow_node.id,
+                error=str(e),
+            )
+            raise
+        route = None
+        if isinstance(instance, ConditionalNode) and instance.output:
+            route = instance.output
+        if self.events:
+            self.events.emit_node_completed(
+                current_flow_node.id,
+                next_node_type,
+                output_data=output.data if hasattr(output, "data") else None,
+                route=route,
+            )
+        logger.info(
+            "API execution: Node completed",
+            node_id=current_flow_node.id,
+            node_type=f"{node_type(instance)}({next_node_type})",
+            output=output.data,
+        )
+        if isinstance(instance, NonBlockingNode):
+            return (None, output)
+        next_nodes = current_flow_node.next.get("default") or []
+        if not next_nodes:
+            return (None, output)
+        next_flow_node = next_nodes[0]
+        if self._is_join_node(next_flow_node.id):
+            return (next_flow_node, output)
+        return await self._run_branch_until_join_or_sink(next_flow_node, output)
 
     async def run(self, input_data: NodeOutput) -> NodeOutput:
         """
@@ -337,12 +408,67 @@ class APIFlowRunner:
             )
         self.last_output = current_output
 
-        # Execute selected nodes sequentially with current node's output
+        # Fork path: multiple next nodes and graph available -> run branches in parallel, merge at join
+        if len(nodes_to_run) > 1 and self.flow_graph:
+            logger.info("API execution: Running N branches in parallel", n=len(nodes_to_run))
+            tasks = [
+                self._run_branch_until_join_or_sink(fn, current_output)
+                for fn in nodes_to_run
+            ]
+            results = await asyncio.gather(*tasks)
+            join_to_flow_node_and_outputs: Dict[str, Tuple[FlowNode, List[NodeOutput]]] = {}
+            for join_flow_node, branch_out in results:
+                if join_flow_node is not None:
+                    jid = join_flow_node.id
+                    if jid not in join_to_flow_node_and_outputs:
+                        join_to_flow_node_and_outputs[jid] = (join_flow_node, [])
+                    join_to_flow_node_and_outputs[jid][1].append(branch_out)
+            for join_flow_node, branch_outputs in join_to_flow_node_and_outputs.values():
+                merged = merge_branch_outputs(current_output, branch_outputs)
+                logger.info(
+                    "API execution: Running join node with M upstream outputs",
+                    node_id=join_flow_node.id,
+                    m=len(branch_outputs),
+                )
+                join_instance = join_flow_node.instance
+                join_node_type = join_instance.identifier()
+                if self.events:
+                    self.events.emit_node_started(join_flow_node.id, join_node_type)
+                try:
+                    join_result = await self.executor.execute_in_pool(
+                        join_instance.execution_pool, join_instance, merged
+                    )
+                except Exception as e:
+                    if self.events:
+                        self.events.emit_node_failed(
+                            join_flow_node.id, join_node_type, str(e),
+                        )
+                    logger.exception(
+                        "API execution: Join node failed",
+                        node_id=join_flow_node.id,
+                        error=str(e),
+                    )
+                    raise
+                if self.events:
+                    self.events.emit_node_completed(
+                        join_flow_node.id,
+                        join_node_type,
+                        output_data=join_result.data if hasattr(join_result, "data") else None,
+                    )
+                self.last_output = join_result
+                await self._process_downstream(
+                    join_flow_node,
+                    join_result,
+                    sink_collector,
+                    current_already_executed=True,
+                )
+            return
+
+        # Single next node: current behavior
         for next_flow_node in nodes_to_run:
             next_instance = next_flow_node.instance
             next_node_type = next_instance.identifier()
 
-            # Emit node_started event
             if self.events:
                 self.events.emit_node_started(next_flow_node.id, next_node_type)
 
@@ -357,12 +483,10 @@ class APIFlowRunner:
                     next_instance.execution_pool, next_instance, current_output
                 )
 
-                # Determine route for conditional nodes
                 route = None
                 if isinstance(next_instance, ConditionalNode) and next_instance.output:
                     route = next_instance.output
 
-                # Emit node_completed event
                 if self.events:
                     self.events.emit_node_completed(
                         next_flow_node.id,
@@ -378,16 +502,13 @@ class APIFlowRunner:
                     output=output.data
                 )
 
-                # Update last output
                 self.last_output = output
 
-                # Continue to downstream nodes (recursive; pass sink_collector for subDAG sink collection)
                 await self._process_downstream(
                     next_flow_node, output, sink_collector, current_already_executed=True
                 )
 
             except Exception as e:
-                # Emit node_failed event
                 if self.events:
                     self.events.emit_node_failed(next_flow_node.id, next_node_type, str(e))
                 logger.exception(

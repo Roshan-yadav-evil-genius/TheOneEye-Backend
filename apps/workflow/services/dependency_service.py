@@ -6,6 +6,7 @@ from connected nodes' outputs.
 """
 
 from typing import Dict, Any, List
+
 from ..models import Node, Connection
 
 
@@ -43,21 +44,20 @@ class DependencyService:
     @staticmethod
     def get_node_input_payload(node_id: str) -> Dict[str, Any]:
         """
-        Get input payload for a node by collecting outputs from its dependency nodes.
-        Returns a dictionary keyed by source node ID to preserve all outputs.
+        Get input payload for a node by merging outputs from its upstream nodes (output_data).
+        Only adds keys that are not already present (no key_2/key_3 for duplicates).
         """
         try:
             node = Node.objects.get(id=node_id)
-            incoming_connections = Connection.objects.filter(target_node=node)
-            
-            payload = {}
-            for conn in incoming_connections:
-                source_node_id = str(conn.source_node.id)
-                source_output = conn.source_node.config or {}
-                # Keep outputs separated by source node ID to avoid data loss
-                payload[source_node_id] = source_output
-            
-            return payload
+            incoming = Connection.objects.filter(target_node=node).order_by("source_node_id").select_related("source_node")
+            merged: Dict[str, Any] = {}
+            for conn in incoming:
+                out = getattr(conn.source_node, "output_data", None)
+                data = out if isinstance(out, dict) else {}
+                for key, value in data.items():
+                    if key not in merged:
+                        merged[key] = value
+            return merged
         except Node.DoesNotExist:
             return {}
     

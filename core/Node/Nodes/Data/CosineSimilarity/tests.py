@@ -3,8 +3,8 @@ Unit tests for CosineSimilarity node and cosine similarity helper.
 """
 
 import pytest
-from Node.Core.Node.Core.Data import NodeConfig, NodeConfigData, NodeOutput
-from Node.Nodes.Data.CosineSimilarity.node import CosineSimilarity, _cosine_similarity
+from ....Core.Node.Core.Data import NodeConfig, NodeConfigData, NodeOutput
+from .node import CosineSimilarity, _cosine_similarity
 
 
 def test_cosine_similarity_identical_strings():

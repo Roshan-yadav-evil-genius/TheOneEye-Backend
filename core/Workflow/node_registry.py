@@ -3,8 +3,8 @@ from typing import Optional, Dict, Type
 import pkgutil
 import importlib
 import inspect
-from Node.Core.Node.Core.BaseNode import BaseNode, ProducerNode, BlockingNode, NonBlockingNode, ConditionalNode
-from Node.Core.Node.Core.Data import NodeConfig
+from ..Node.Core.Node.Core.BaseNode import BaseNode, ProducerNode, BlockingNode, NonBlockingNode, ConditionalNode
+from ..Node.Core.Node.Core.Data import NodeConfig
 from .flow_utils import node_type
 
 logger = structlog.get_logger(__name__)
@@ -20,7 +20,7 @@ class NodeRegistry:
 
     @classmethod
     def _discover_node_classes(cls) -> Dict[str, Type[BaseNode]]:
-        import Node.Nodes as Nodes
+        from ..Node import Nodes
         discovered_classes = []
 
         def walk_packages(path, prefix):

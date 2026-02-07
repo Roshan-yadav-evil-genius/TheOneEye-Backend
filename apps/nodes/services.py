@@ -7,16 +7,14 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-# Add core to the Python path to import views services
-# Calculate core path: backend/apps/nodes/services.py -> backend/core
+# Add backend to the Python path so core.views and core.Node resolve
+# backend/apps/nodes/services.py -> BASE_DIR = backend
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-CORE_PATH = BASE_DIR / 'core'
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
-if str(CORE_PATH) not in sys.path:
-    sys.path.insert(0, str(CORE_PATH))
-
-from views.services import ServiceContainer, create_services
-from views.scanner import create_scanner
+from core.views.services import ServiceContainer, create_services
+from core.views.scanner import create_scanner
 
 class NodeServices:
     """
@@ -36,9 +34,9 @@ class NodeServices:
     def services(self) -> ServiceContainer:
         """Get or create the ServiceContainer instance."""
         if self._services is None:
-            # Project root should be Attempt3 (parent of backend), not backend/core itself
-            PROJECT_ROOT = BASE_DIR.parent
-            self._services = create_services(PROJECT_ROOT)
+            # Use backend as project root so NodeLoader builds paths like core.Node.Nodes.*
+            # (avoids backend.core.Node which breaks relative imports in BaseNode)
+            self._services = create_services(BASE_DIR)
         return self._services
     
     @property

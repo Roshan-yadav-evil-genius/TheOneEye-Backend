@@ -87,8 +87,11 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         Returns:
             bool: True if validation passes, False otherwise.
         """
-        from Node.Core.Form.Fields import DependentChoiceField
-        
+        try:
+            from core.Node.Core.Form.Fields import DependentChoiceField
+        except ImportError:
+            from Node.Core.Form.Fields import DependentChoiceField
+
         if self.form is None:
             return True
         

@@ -72,7 +72,7 @@ class FormLoader:
         """
         Create a dummy node instance for form extraction.
         """
-        from Node.Core.Node.Core.Data import NodeConfig, NodeConfigData
+        from ...Node.Core.Node.Core.Data import NodeConfig, NodeConfigData
         
         dummy_config = NodeConfig(
             id="temp",

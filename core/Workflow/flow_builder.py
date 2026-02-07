@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 import structlog
-from Node.Core.Node.Core.Data import NodeConfig
+from ..Node.Core.Node.Core.Data import NodeConfig
 from .flow_graph import FlowGraph
 from .node_registry import NodeRegistry
 from .flow_utils import BranchKeyNormalizer
@@ -22,6 +22,11 @@ class FlowBuilder:
         logger.info("Loading workflow...")
         self._add_nodes(workflow_json.get("nodes", []))
         self._connect_nodes(workflow_json.get("edges", []))
+        # Optional: fork_execution_pool for parallel fork branches ("process" | "thread" | "async")
+        settings = workflow_json.get("settings") or {}
+        pool = settings.get("fork_execution_pool")
+        if pool is not None and pool in ("process", "thread", "async"):
+            self.graph.fork_execution_pool = pool
 
     def _add_nodes(self, nodes: List[Dict[str, Any]]):
         for node_def in nodes:

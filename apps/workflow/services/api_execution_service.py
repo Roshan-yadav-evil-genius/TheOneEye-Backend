@@ -73,7 +73,7 @@ class APIExecutionService:
         Raises:
             WorkFlow.DoesNotExist: If workflow not found
         """
-        from Workflow.flow_engine import FlowEngine
+        from core.Workflow.flow_engine import FlowEngine
         
         start_time = time.time()
         

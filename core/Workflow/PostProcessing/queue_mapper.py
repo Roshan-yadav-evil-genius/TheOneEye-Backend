@@ -1,9 +1,9 @@
 from typing import Optional
 import structlog
-from Node.Core.Node.Core.BaseNode import BaseNode
-from Node.Core.Node.Core.Data import NodeConfigData
-from Node.Nodes.System.QueueWriter import QueueWriter
-from Node.Nodes.System.QueueReader import QueueReader
+from ...Node.Core.Node.Core.BaseNode import BaseNode
+from ...Node.Core.Node.Core.Data import NodeConfigData
+from ...Node.Nodes.System.QueueWriter import QueueWriter
+from ...Node.Nodes.System.QueueReader import QueueReader
 from ..flow_node import FlowNode
 from . import PostProcessor
 

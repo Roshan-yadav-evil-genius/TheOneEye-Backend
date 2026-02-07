@@ -18,7 +18,7 @@ if str(CORE_PATH) not in sys.path:
     sys.path.insert(0, str(CORE_PATH))
 
 if TYPE_CHECKING:
-    from Workflow.flow_engine import FlowEngine
+    from core.Workflow.flow_engine import FlowEngine
 
 logger = structlog.get_logger(__name__)
 

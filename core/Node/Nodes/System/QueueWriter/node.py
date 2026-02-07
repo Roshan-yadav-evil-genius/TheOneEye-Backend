@@ -11,7 +11,7 @@ import structlog
 from typing import List
 
 from ....Core.Node.Core import NonBlockingNode, NodeOutput, PoolType
-from Workflow.storage.data_store import DataStore
+from .....Workflow.storage.data_store import DataStore
 
 logger = structlog.get_logger(__name__)
 

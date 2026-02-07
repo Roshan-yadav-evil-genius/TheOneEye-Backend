@@ -10,10 +10,10 @@ which is incompatible with request-response (API) workflows.
 import structlog
 from typing import List
 
-from Workflow.flow_utils import node_type
+from .....Workflow.flow_utils import node_type
 from ....Core.Node.Core import ProducerNode, NodeOutput, PoolType
 from ....Core.Node.Core.Data import ExecutionCompleted
-from Workflow.storage.data_store import DataStore
+from .....Workflow.storage.data_store import DataStore
 
 logger = structlog.get_logger(__name__)
 

@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional, Set
 
 import structlog
-from Node.Core.Node.Core.BaseNode import BaseNode
+from ..Node.Core.Node.Core.BaseNode import BaseNode
 from .flow_utils import node_type
 from .flow_node import FlowNode
 
@@ -16,6 +16,8 @@ class FlowGraph:
 
     def __init__(self):
         self.node_map: Dict[str, FlowNode] = {}
+        # Optional: "process" | "thread" | "async" for fork branch execution pool
+        self.fork_execution_pool: Optional[str] = None
 
     def add_node(self, flow_node: FlowNode):
         """

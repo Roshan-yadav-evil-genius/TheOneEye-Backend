@@ -15,13 +15,16 @@ CHANGE: next is now Dict[str, List[FlowNode]]
 
 EXECUTION BEHAVIOR:
 - Logical nodes: Select first node from list for chosen branch key ("yes"/"no")
-- Non-logical nodes: Execute ALL nodes in list sequentially
+- Non-logical nodes: When multiple "default" next nodes (fork), they are executed in
+  parallel; each branch runs until a join node or sink. Join nodes (multiple upstream)
+  run once with merged payload (all branch outputs in one NodeOutput). Single next
+  node: execute and recurse as before.
 - Backward compatible: Single-node lists behave like old single-node structure
 """
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
-from Node.Core.Node.Core.BaseNode import BaseNode
+from ..Node.Core.Node.Core.BaseNode import BaseNode
 
 
 @dataclass

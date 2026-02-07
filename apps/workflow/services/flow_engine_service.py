@@ -48,8 +48,8 @@ class FlowEngineService:
         Returns:
             Dict with execution status and results
         """
-        from Workflow.flow_engine import FlowEngine
-        from Workflow.events import WorkflowEventEmitter
+        from core.Workflow.flow_engine import FlowEngine
+        from core.Workflow.events import WorkflowEventEmitter
         
         engine = FlowEngine(workflow_id=workflow_id)
         _running_engines[workflow_id] = engine
@@ -158,7 +158,7 @@ class FlowEngineService:
             on_stop: Whether cleanup is happening due to stop command
         """
         try:
-            from Node.Nodes.Browser._shared.BrowserManager import BrowserManager
+            from core.Node.Nodes.Browser._shared.BrowserManager import BrowserManager
             browser_manager = BrowserManager()
             loop.run_until_complete(browser_manager.close())
             
@@ -181,7 +181,7 @@ class FlowEngineService:
             workflow_id: The workflow ID
             events: The WorkflowEventEmitter instance
         """
-        from Workflow.events import WorkflowEventEmitter
+        from core.Workflow.events import WorkflowEventEmitter
         
         # Subscribe to node_started events
         def on_node_started(data: Dict[str, Any]):

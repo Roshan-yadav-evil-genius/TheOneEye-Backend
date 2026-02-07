@@ -20,7 +20,7 @@ from typing import Optional, List
 
 from ....Core.Node.Core import ProducerNode, NodeOutput, PoolType, ExecutionCompleted
 from ....Core.Form import BaseForm
-from Workflow.storage.webhook_pubsub_store import webhook_pubsub_store
+from .....Workflow.storage.webhook_pubsub_store import webhook_pubsub_store
 from .form import WebhookProducerForm
 
 logger = structlog.get_logger(__name__)

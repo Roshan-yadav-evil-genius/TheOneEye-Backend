@@ -18,7 +18,7 @@ CORE_PATH = BASE_DIR / 'core'
 if str(CORE_PATH) not in sys.path:
     sys.path.insert(0, str(CORE_PATH))
 
-from Workflow.storage.webhook_pubsub_store import webhook_pubsub_store
+from core.Workflow.storage.webhook_pubsub_store import webhook_pubsub_store
 
 logger = structlog.get_logger(__name__)
 

@@ -18,8 +18,8 @@ if str(CORE_PATH) not in sys.path:
     sys.path.insert(0, str(CORE_PATH))
 
 import structlog
-from Node.Core.Node.Core.BaseNode import LoopNode
-from Node.Core.Node.Core.Data import NodeOutput
+from core.Node.Core.Node.Core.BaseNode import LoopNode
+from core.Node.Core.Node.Core.Data import NodeOutput
 
 from ..models import WorkFlow, Node
 from ..Serializers.WorkFlow import RawWorkFlawSerializer
@@ -99,9 +99,9 @@ class ForEachIterationService:
 
         flow_engine_config = workflow_converter.convert_to_flow_engine_format(workflow_config)
 
-        from Workflow.flow_engine import FlowEngine
-        from Workflow.execution.api_flow_runner import APIFlowRunner
-        from Workflow.execution.pool_executor import PoolExecutor
+        from core.Workflow.flow_engine import FlowEngine
+        from core.Workflow.execution.api_flow_runner import APIFlowRunner
+        from core.Workflow.execution.pool_executor import PoolExecutor
 
         engine = FlowEngine(workflow_id=str(workflow_id))
         engine.load_workflow(flow_engine_config, scope_node_id=node_id)
@@ -155,7 +155,7 @@ class ForEachIterationService:
         previous_results: Optional[List[Any]] = None,
     ) -> Dict[str, Any]:
         """Run ForEach once to get items, then run subDAG once for the given index; merge with previous_results."""
-        from Node.Core.Node.Core.Data import NodeOutput
+        from core.Node.Core.Node.Core.Data import NodeOutput
 
         node_output = NodeOutput(data=input_data)
         try:
@@ -225,7 +225,7 @@ class ForEachIterationService:
             metadata=node_output.metadata,
         )
 
-        from Workflow.execution.api_flow_runner import APIFlowRunner
+        from core.Workflow.execution.api_flow_runner import APIFlowRunner
         runner = APIFlowRunner(start_node=entry_flow_node, executor=executor, events=engine.events)
         await runner._init_nodes()
         collected: List[NodeOutput] = await runner.run_subdag_once(entry_flow_node, element_output)
@@ -285,8 +285,8 @@ class ForEachIterationService:
 
         flow_engine_config = workflow_converter.convert_to_flow_engine_format(workflow_config)
 
-        from Workflow.flow_engine import FlowEngine
-        from Workflow.execution.pool_executor import PoolExecutor
+        from core.Workflow.flow_engine import FlowEngine
+        from core.Workflow.execution.pool_executor import PoolExecutor
 
         engine = FlowEngine(workflow_id=str(workflow_id))
         engine.load_workflow(flow_engine_config, scope_node_id=node_id)
@@ -373,7 +373,7 @@ class ForEachIterationService:
                 "output": {"data": output_data},
             }
 
-        from Workflow.execution.api_flow_runner import APIFlowRunner
+        from core.Workflow.execution.api_flow_runner import APIFlowRunner
 
         runner = APIFlowRunner(
             start_node=entry_flow_node, executor=executor, events=engine.events

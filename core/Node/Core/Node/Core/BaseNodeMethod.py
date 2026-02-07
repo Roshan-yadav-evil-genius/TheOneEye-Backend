@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from Node.Core.Form import BaseForm
+    from ...Core.Form import BaseForm
 
 from .Data import NodeOutput
 

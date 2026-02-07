@@ -6,8 +6,9 @@ Follows Single Responsibility Principle - only handles node execution logic.
 """
 
 from typing import Dict, Any, Optional
+
 from apps.common.exceptions import ValidationError, NodeNotFoundError, NodeTypeNotFoundError, FormValidationException
-from ..models import Node
+from ..models import Node, Connection
 
 
 class NodeExecutionService:
@@ -134,6 +135,22 @@ class NodeExecutionService:
             }
     
     @staticmethod
+    def _merge_upstream_outputs(node: Node, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Merge request input_data with all upstream nodes' output_data (last execution output).
+        Only adds keys that are not already present (no key_2/key_3 for duplicates).
+        """
+        merged = dict(input_data)
+        incoming = Connection.objects.filter(target_node=node).order_by("source_node_id").select_related("source_node")
+        for conn in incoming:
+            out = getattr(conn.source_node, "output_data", None)
+            data = out if isinstance(out, dict) else {}
+            for key, value in data.items():
+                if key not in merged:
+                    merged[key] = value
+        return merged
+
+    @staticmethod
     def get_node_for_execution(workflow_id: str, node_id: str) -> Node:
         """
         Get a node instance for execution, verifying it belongs to the workflow.
@@ -188,9 +205,12 @@ class NodeExecutionService:
         
         # Get the node instance (raises NodeNotFoundError if not found)
         node = NodeExecutionService.get_node_for_execution(workflow_id, node_id)
-        
+
+        # Merge upstream nodes' output_data into input so join nodes see same shape as production
+        merged_input_data = NodeExecutionService._merge_upstream_outputs(node, input_data)
+
         # Execute the node
-        result = NodeExecutionService.execute_node(node, form_values, input_data, session_id, timeout)
+        result = NodeExecutionService.execute_node(node, form_values, merged_input_data, session_id, timeout)
         
         # Check if execution failed due to node type not found and raise exception
         if result.get('error_type') == 'NodeTypeNotFound':

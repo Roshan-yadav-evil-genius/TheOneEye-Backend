@@ -16,7 +16,7 @@ from ....Core.Node.Core import BlockingNode, NodeOutput, PoolType
 from ....Core.Form import BaseForm
 from .form import DynamicDelayForm
 from .._shared.constants import TIME_UNIT_TO_SECONDS
-from Workflow.storage.data_store import DataStore
+from .....Workflow.storage.data_store import DataStore
 
 logger = structlog.get_logger(__name__)
 
