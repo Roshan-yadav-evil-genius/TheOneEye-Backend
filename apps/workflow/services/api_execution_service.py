@@ -207,6 +207,10 @@ class APIExecutionService:
                 }
                 
             finally:
+                # Close browser contexts and Playwright in this loop so the profile SingletonLock
+                # is released; otherwise the next request fails with "profile already in use"
+                from .flow_engine_service import FlowEngineService
+                FlowEngineService._cleanup_browser_resources(loop, str(workflow_id))
                 loop.close()
                 
         except WorkFlow.DoesNotExist:

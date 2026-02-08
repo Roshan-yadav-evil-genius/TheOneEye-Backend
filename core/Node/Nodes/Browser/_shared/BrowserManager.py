@@ -67,8 +67,8 @@ VALID_BROWSER_TYPES = ['chromium', 'firefox', 'webkit']
 
 class BrowserManager:
     _instance = None
-    _lock = asyncio.Lock()
-    # Per-session locks so parallel nodes (e.g. fork) share one profile: first launches, second waits and reuses
+    # Lock is created per event loop (see initialize()); class-level Lock would be bound to one loop and break on next request.
+    # Per-session locks so parallel nodes (e.g. fork) share one profile: first launches, second waits and reuses.
     _session_locks: Dict[str, asyncio.Lock] = {}
 
     def __new__(cls):
@@ -79,12 +79,20 @@ class BrowserManager:
             cls._instance._initialized = False
             cls._instance._loop: Optional[asyncio.AbstractEventLoop] = None
             cls._instance._headless: bool = True
+            cls._instance._lock: Optional[asyncio.Lock] = None
         return cls._instance
 
     def _get_session_lock(self, session_id: str) -> asyncio.Lock:
+        """Return a lock for this session; lock is created in the current event loop."""
         if session_id not in self._session_locks:
             self._session_locks[session_id] = asyncio.Lock()
         return self._session_locks[session_id]
+
+    def _ensure_loop_locks(self, running_loop: asyncio.AbstractEventLoop) -> None:
+        """Clear session locks when event loop changed so new locks are created in current loop."""
+        if self._loop is not running_loop:
+            self._session_locks.clear()
+            self._lock = asyncio.Lock()
 
     async def initialize(self, headless: bool = True):
         """Initialize Playwright. Re-initializes if called from a different event loop."""
@@ -94,10 +102,12 @@ class BrowserManager:
         # Different loop (e.g. new request): drop stale state; old Playwright/contexts will be GC'd
         if self._initialized and self._loop is not running_loop:
             self._contexts.clear()
+            self._session_locks.clear()
             self._playwright = None
             self._initialized = False
             self._loop = None
-
+        # Use a lock created in the current loop (avoids "bound to a different event loop" on 2nd request)
+        self._ensure_loop_locks(running_loop)
         async with self._lock:
             if self._initialized and self._loop is running_loop:
                 return
@@ -160,10 +170,12 @@ class BrowserManager:
         Returns:
             The browser context
         """
-        if not self._initialized:
-            await self.initialize()
+        # Always call initialize so that when the event loop changes (e.g. 2nd API request),
+        # we clear stale locks and re-init; otherwise _get_session_lock would return a lock bound to the old loop.
+        await self.initialize()
 
         running_loop = asyncio.get_running_loop()
+        self._ensure_loop_locks(running_loop)
         session_lock = self._get_session_lock(session_id)
 
         async with session_lock:
