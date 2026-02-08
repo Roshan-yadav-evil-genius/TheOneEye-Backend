@@ -1,6 +1,7 @@
 from abc import ABC
-from typing import Optional
+import json
 import re
+from typing import Any, Optional
 
 import structlog
 from .Data import NodeConfig, NodeOutput, ExecutionCompleted
@@ -73,6 +74,28 @@ def contains_jinja_template(value) -> bool:
     if value is None:
         return False
     return bool(JINJA_PATTERN.search(str(value)))
+
+
+def _unwrap_for_json(val: Any) -> Any:
+    """
+    Recursively convert _JinjaDataWrapper to plain dict/list so the result is JSON-serializable.
+    Used by the custom tojson filter so {{ data.forEachNode|tojson }} works.
+    """
+    if isinstance(val, _JinjaDataWrapper):
+        return _unwrap_for_json(val._data)
+    if isinstance(val, dict):
+        return {k: _unwrap_for_json(v) for k, v in val.items()}
+    if isinstance(val, list):
+        return [_unwrap_for_json(v) for v in val]
+    return val
+
+
+def _tojson_filter(val: Any) -> str:
+    """
+    Jinja filter that JSON-serializes a value, unwrapping _JinjaDataWrapper so tojson works.
+    """
+    unwrapped = _unwrap_for_json(val)
+    return json.dumps(unwrapped)
 
 
 class FormValidationError(Exception):
@@ -232,7 +255,7 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         Raises:
             FormValidationError: If form validation fails after rendering.
         """
-        from jinja2 import Template
+        from jinja2 import Environment, Template
         
         if self.form is None:
             return
@@ -252,8 +275,11 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
                 if raw_value is not None:
                     # Update field with the value (will be rendered if it contains Jinja)
                     if contains_jinja_template(str(raw_value)):
-                        # Render with wrapper so data.forEachNode etc. work (dict keys as attributes)
-                        template = Template(str(raw_value))
+                        # Render with wrapper so data.forEachNode etc. work (dict keys as attributes).
+                        # Custom tojson filter unwraps _JinjaDataWrapper so {{ data.forEachNode|tojson }} works.
+                        env = Environment()
+                        env.filters["tojson"] = _tojson_filter
+                        template = env.from_string(str(raw_value))
                         data_for_jinja = _JinjaDataWrapper(node_data.data)
                         rendered_value = template.render(data=data_for_jinja)
                         rendered_values[field_name] = rendered_value
