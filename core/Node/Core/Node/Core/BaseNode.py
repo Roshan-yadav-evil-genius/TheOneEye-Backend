@@ -13,6 +13,61 @@ logger = structlog.get_logger(__name__)
 JINJA_PATTERN = re.compile(r'\{\{.*?\}\}')
 
 
+class _JinjaDataWrapper:
+    """
+    Wraps a dict so Jinja2 dot notation (e.g. data.forEachNode) works via attribute access.
+    Recursively wraps nested dicts. Missing keys return an empty wrapper so chained access
+    (e.g. data.forEachNode.state.item) does not raise.
+    """
+
+    __slots__ = ("_data",)
+
+    def __init__(self, data):
+        self._data = data if isinstance(data, dict) else {}
+
+    def __getattr__(self, name: str):
+        if name.startswith("_"):
+            raise AttributeError(name)
+        val = self._data.get(name)
+        if isinstance(val, dict):
+            return _JinjaDataWrapper(val)
+        if val is None:
+            return _JinjaDataWrapper({})  # safe chained access: data.forEachNode.state
+        if name not in self._data:
+            return _JinjaDataWrapper({})
+        return val
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def __contains__(self, key):
+        return key in self._data
+
+    def get(self, key, default=None):
+        v = self._data.get(key, default)
+        if isinstance(v, dict):
+            return _JinjaDataWrapper(v)
+        return v
+
+    def keys(self):
+        return self._data.keys()
+
+    def values(self):
+        return self._data.values()
+
+    def items(self):
+        return self._data.items()
+
+    def __iter__(self):
+        return iter(self._data)
+
+    def __repr__(self):
+        return repr(self._data)
+
+    def __bool__(self):
+        return bool(self._data)
+
+
 def contains_jinja_template(value) -> bool:
     """Check if a value contains Jinja template syntax."""
     if value is None:
@@ -197,9 +252,10 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
                 if raw_value is not None:
                     # Update field with the value (will be rendered if it contains Jinja)
                     if contains_jinja_template(str(raw_value)):
-                        # Render the Jinja template with node data
+                        # Render with wrapper so data.forEachNode etc. work (dict keys as attributes)
                         template = Template(str(raw_value))
-                        rendered_value = template.render(data=node_data.data)
+                        data_for_jinja = _JinjaDataWrapper(node_data.data)
+                        rendered_value = template.render(data=data_for_jinja)
                         rendered_values[field_name] = rendered_value
                         logger.debug(
                             "Rendered template field",

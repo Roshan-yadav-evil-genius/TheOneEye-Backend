@@ -112,9 +112,6 @@ class WebPageLoader(BlockingNode):
             page = await context.new_page()
             await page.goto(url, wait_until=wait_mode)
             
-            # Wait for page to fully load
-            await page.wait_for_timeout(10000)
-            
             # Extract DOM content
             content = await page.content()
             final_url = page.url
