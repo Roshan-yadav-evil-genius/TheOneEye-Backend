@@ -123,6 +123,104 @@ class APIFlowRunner:
             node_type=f"{node_type(instance)}({next_node_type})",
             output=output.data,
         )
+        # LoopNode: run subDAG per item, build aggregated_output, then continue along default out-edge
+        if isinstance(instance, LoopNode):
+            items = output.data.get("items", [])
+            next_nodes = current_flow_node.next
+            subdag_list = next_nodes.get("subdag") or []
+            entry_flow_node = subdag_list[0] if subdag_list else None
+            if not entry_flow_node:
+                aggregated_data = dict(output.data)
+                aggregated_data["loop_results"] = []
+                aggregated_data["forEachNode"] = {
+                    "input": items,
+                    "results": [],
+                    "state": {"index": len(items) - 1, "item": items[-1]} if items else {"index": 0, "item": None},
+                }
+                output = NodeOutput(
+                    id=output.id,
+                    data=aggregated_data,
+                    metadata=output.metadata,
+                )
+            else:
+                all_results: List = []
+                for idx, element in enumerate(items):
+                    for_each_for_subdag = {
+                        "input": items,
+                        "results": list(all_results),
+                        "state": {"index": idx, "item": element},
+                    }
+                    element_output = NodeOutput(
+                        id=output.id,
+                        data={**output.data, "forEachNode": for_each_for_subdag},
+                        metadata=output.metadata,
+                    )
+                    collected: List[NodeOutput] = []
+                    await self._process_downstream(
+                        entry_flow_node, element_output, sink_collector=collected
+                    )
+                    iteration_data = [o.data for o in collected]
+                    if len(iteration_data) == 1:
+                        all_results.append(iteration_data[0])
+                    elif iteration_data:
+                        all_results.append(iteration_data)
+                aggregated_data = dict(output.data)
+                aggregated_data["loop_results"] = all_results
+                aggregated_data["forEachNode"] = {
+                    "input": items,
+                    "results": all_results,
+                    "state": {"index": len(items) - 1, "item": items[-1]} if items else {"index": 0, "item": None},
+                }
+                output = NodeOutput(
+                    id=output.id,
+                    data=aggregated_data,
+                    metadata=output.metadata,
+                )
+            default_list = next_nodes.get("default") or []
+            if not default_list:
+                return (None, output)
+            next_flow_node = default_list[0]
+            if self.events:
+                self.events.emit_node_started(next_flow_node.id, next_flow_node.instance.identifier())
+            logger.info(
+                "API execution: Executing node",
+                node_id=next_flow_node.id,
+                node_type=f"{node_type(next_flow_node.instance)}({next_flow_node.instance.identifier()})",
+            )
+            try:
+                next_output = await self.executor.execute_in_pool(
+                    next_flow_node.instance.execution_pool,
+                    next_flow_node.instance,
+                    output,
+                )
+            except Exception as e:
+                if self.events:
+                    self.events.emit_node_failed(next_flow_node.id, next_flow_node.instance.identifier(), str(e))
+                logger.exception(
+                    "API execution: Node failed",
+                    node_id=next_flow_node.id,
+                    error=str(e),
+                )
+                raise
+            route = None
+            if isinstance(next_flow_node.instance, ConditionalNode) and next_flow_node.instance.output:
+                route = next_flow_node.instance.output
+            if self.events:
+                self.events.emit_node_completed(
+                    next_flow_node.id,
+                    next_flow_node.instance.identifier(),
+                    output_data=next_output.data if hasattr(next_output, "data") else None,
+                    route=route,
+                )
+            logger.info(
+                "API execution: Node completed",
+                node_id=next_flow_node.id,
+                node_type=f"{node_type(next_flow_node.instance)}({next_flow_node.instance.identifier()})",
+                output=next_output.data,
+            )
+            if self._is_join_node(next_flow_node.id):
+                return (next_flow_node, next_output)
+            return await self._run_branch_until_join_or_sink(next_flow_node, next_output)
         if isinstance(instance, NonBlockingNode):
             return (None, output)
         next_nodes = current_flow_node.next.get("default") or []
