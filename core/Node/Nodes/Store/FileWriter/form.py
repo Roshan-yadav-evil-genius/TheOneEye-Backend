@@ -5,9 +5,9 @@ Single Responsibility: Form field definitions for the FileWriter node.
 """
 
 from django.forms import CharField, ChoiceField
-from django.forms.widgets import Textarea
 
 from ....Core.Form import BaseForm
+from ....Core.Form.Fields import JSONTextareaWidget
 
 
 class FileWriterForm(BaseForm):
@@ -25,11 +25,14 @@ class FileWriterForm(BaseForm):
         help_text="File write mode."
     )
     content = CharField(
-        widget=Textarea(attrs={'rows': 5, 'placeholder': 'Enter content to write, or use Jinja: {{ data.field }}\n\nLeave empty to write node_data.data'}),
+        widget=JSONTextareaWidget(attrs={
+            'rows': 10,
+            'placeholder': 'Enter content (JSON or text). Use Jinja for dynamic values:\n{{ data.result }}\n{{ data.forEachNode.results | tojson }}\n\nLeave empty to write node_data.data.',
+        }),
         required=False,
         help_text=(
-            "Optional content to write to file. Supports Jinja templates like {{ data.field }}. "
-            "If empty, writes node_data.data (current behavior). If provided, uses this content value."
+            "Optional content to write to file. Supports Jinja templates (e.g. {{ data.field }}, {{ data.forEachNode.results | tojson }}). "
+            "If empty, writes node_data.data. Rendered in Monaco with JSON + Jinja support."
         )
     )
 
