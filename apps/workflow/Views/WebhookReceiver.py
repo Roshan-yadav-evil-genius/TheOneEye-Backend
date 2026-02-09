@@ -54,9 +54,18 @@ class WebhookReceiverView(APIView):
             except json.JSONDecodeError:
                 body_data = {}
             
+            # Use same shape as /execute: { "input": { ... }, "timeout": N } → node body = input
+            body_for_node = (
+                body_data["input"]
+                if isinstance(body_data, dict)
+                and "input" in body_data
+                and isinstance(body_data.get("input"), dict)
+                else body_data
+            )
+
             # Prepare data to publish
             webhook_data = {
-                'body': body_data,
+                'body': body_for_node,
                 'headers': dict(request.headers),
                 'method': request.method,
                 'query_params': dict(request.GET),
@@ -69,7 +78,7 @@ class WebhookReceiverView(APIView):
                 "Webhook received and published",
                 webhook_id=webhook_id,
                 subscribers=subscribers,
-                has_body=bool(body_data)
+                has_body=bool(body_for_node)
             )
             
             # Return 202 Accepted (publish-and-forget)
