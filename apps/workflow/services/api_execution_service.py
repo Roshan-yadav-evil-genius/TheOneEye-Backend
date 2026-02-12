@@ -218,6 +218,13 @@ class APIExecutionService:
                     'workflow_id': str(workflow_id),
                     'execution_time_ms': execution_time_ms
                 }
+            finally:
+                # Close idle contexts (only blank page left) on shared loop to free memory
+                from core.Node.Nodes.Browser._shared.BrowserManager import BrowserManager
+                asyncio.run_coroutine_threadsafe(
+                    BrowserManager().close_idle_contexts(),
+                    shared_loop
+                )
                 
         except WorkFlow.DoesNotExist:
             execution_time_ms = int((time.time() - start_time) * 1000)

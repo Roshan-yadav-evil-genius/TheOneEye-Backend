@@ -64,6 +64,17 @@ COMMON_ARGS = [
 # Valid browser types supported by Playwright
 VALID_BROWSER_TYPES = ['chromium', 'firefox', 'webkit']
 
+# URLs considered "blank" (default page, nothing in use) for idle-context cleanup
+BLANK_PAGE_URLS = ('about:blank', 'about:blank#')
+
+
+def _is_blank_url(url: Optional[str]) -> bool:
+    """True if the page URL is considered blank (default, not in use)."""
+    if not url or not url.strip():
+        return True
+    u = url.strip().split('#')[0].rstrip('#')
+    return u.lower() in BLANK_PAGE_URLS
+
 
 class BrowserManager:
     _instance = None
@@ -233,6 +244,42 @@ class BrowserManager:
             )
 
             return context
+
+    async def close_idle_contexts(self) -> None:
+        """
+        Close contexts that have only blank page(s) (e.g. default about:blank).
+        Frees memory when no request is using the context; next request will create it again.
+        Must be called from the same event loop that owns the contexts.
+        """
+        running_loop = asyncio.get_running_loop()
+        to_remove: List[str] = []
+        for session_id, (context, ctx_loop) in list(self._contexts.items()):
+            if ctx_loop is not running_loop:
+                continue
+            try:
+                pages = context.pages
+                if not pages:
+                    continue
+                if all(_is_blank_url(p.url) for p in pages):
+                    to_remove.append(session_id)
+            except Exception as e:
+                logger.warning(
+                    "Error checking context pages for idle cleanup",
+                    session_id=session_id,
+                    error=str(e),
+                )
+        for session_id in to_remove:
+            context, _ = self._contexts[session_id]
+            try:
+                await context.close()
+                del self._contexts[session_id]
+                logger.info("Closed idle browser context", session_id=session_id)
+            except Exception as e:
+                logger.warning(
+                    "Error closing idle context",
+                    session_id=session_id,
+                    error=str(e),
+                )
 
     async def close(self):
         """Close contexts for this event loop and playwright. Always clears _contexts."""
