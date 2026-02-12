@@ -6,6 +6,7 @@ Following SOLID principles:
 - OCP: New schema formats can be added without modifying BaseForm
 - DIP: BaseForm depends on FormSchemaBuilder abstraction
 """
+import json
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
@@ -125,16 +126,22 @@ class DefaultFormSchemaBuilder(FormSchemaBuilder):
         }
     
     def _extract_widget_info(self, field) -> dict:
-        """Extract widget information for a field."""
+        """Extract widget information for a field. Only includes JSON-serializable values."""
         if hasattr(field.widget, 'input_type'):
             input_type = field.widget.input_type
         else:
             input_type = None
-        
-        return {
-            "input_type": input_type,
-            **field.widget.__dict__
-        }
+
+        out = {"input_type": input_type}
+        for key, value in field.widget.__dict__.items():
+            if callable(value):
+                continue
+            try:
+                json.dumps(value)
+            except (TypeError, ValueError):
+                continue
+            out[key] = value
+        return out
     
     def _extract_field_errors(self, form: "BaseForm", field_name: str) -> list:
         """Extract validation errors for a field if form is bound."""

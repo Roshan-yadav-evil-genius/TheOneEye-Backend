@@ -4,7 +4,7 @@ WebPageLoader Form
 Single Responsibility: Form field definitions for the WebPageLoader node.
 """
 
-from django.forms import CharField, ChoiceField
+from django.forms import BooleanField, CharField, ChoiceField
 from django.forms.widgets import Textarea
 
 from ....Core.Form import BaseForm
@@ -31,5 +31,10 @@ class WebPageLoaderForm(BaseForm):
         required=True,
         initial='load',
         help_text="Wait strategy for page loading."
+    )
+    respect_domain_throttle = BooleanField(
+        required=False,
+        initial=True,
+        help_text="When enabled, waits for the session's domain throttle delay before each request. Disable to bypass throttle for this node."
     )
 

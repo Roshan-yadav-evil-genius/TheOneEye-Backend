@@ -332,7 +332,9 @@ class NetworkInterceptor(BlockingNode):
         goto_task = None
 
         try:
-            await wait_before_request(session_name, url)
+            respect_throttle = self.form.cleaned_data.get("respect_domain_throttle", True)
+            if respect_throttle:
+                await wait_before_request(session_name, url)
             # Get timeout from form
             return_timeout_str = self.form.cleaned_data.get('return_timeout', '30000')
             try:

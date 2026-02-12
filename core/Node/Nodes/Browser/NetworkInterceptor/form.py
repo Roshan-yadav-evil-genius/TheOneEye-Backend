@@ -4,7 +4,7 @@ NetworkInterceptor Form
 Single Responsibility: Form field definitions for the NetworkInterceptor node.
 """
 
-from django.forms import CharField, ChoiceField
+from django.forms import BooleanField, CharField, ChoiceField
 from django.forms.widgets import Textarea
 
 from ....Core.Form import BaseForm
@@ -23,7 +23,13 @@ class NetworkInterceptorForm(BaseForm):
     )
     
     session_name = BrowserSessionField()
-    
+
+    respect_domain_throttle = BooleanField(
+        required=False,
+        initial=True,
+        help_text="When enabled, waits for the session's domain throttle delay before each request. Disable to bypass throttle for this node."
+    )
+
     capture_resource_types = ChoiceField(
         choices=[
             ('xhr', 'XHR Only'),

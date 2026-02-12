@@ -95,22 +95,31 @@ class WebPageLoader(BlockingNode):
         # No URLs found
         raise ValueError("No URLs provided. Please provide URLs in form field 'urls', or in input data as 'urls' (list) or 'url' (string).")
 
-    async def _load_single_url(self, url: str, context, wait_mode: str, session_name: str) -> dict:
+    async def _load_single_url(
+        self,
+        url: str,
+        context,
+        wait_mode: str,
+        session_name: str,
+        respect_throttle: bool = True,
+    ) -> dict:
         """
         Load a single URL and return its DOM content.
-        
+
         Args:
             url: The URL to load
             context: Browser context (already obtained, shared across parallel loads)
             wait_mode: Wait strategy for page loading
             session_name: Browser session id for domain throttle
-            
+            respect_throttle: If True, wait for session domain throttle before request.
+
         Returns:
             Dictionary with 'url' and 'response' (DOM content) keys
         """
         page = None
         try:
-            await wait_before_request(session_name, url)
+            if respect_throttle:
+                await wait_before_request(session_name, url)
             # Create new page from the shared context
             page = await context.new_page()
             await page.goto(url, wait_until=wait_mode)
@@ -159,6 +168,7 @@ class WebPageLoader(BlockingNode):
         # Get configuration from form (rendered values)
         session_name = self.form.cleaned_data.get("session_name", "default")
         wait_mode = self.form.cleaned_data.get("wait_mode", "load")  # Default to 'load'
+        respect_throttle = self.form.cleaned_data.get("respect_domain_throttle", True)
 
         # Extract URLs from form or input data
         urls = self._extract_urls(node_data)
@@ -177,7 +187,7 @@ class WebPageLoader(BlockingNode):
 
         # Load all URLs in parallel using the shared context
         tasks = [
-            self._load_single_url(url, context, wait_mode, session_name)
+            self._load_single_url(url, context, wait_mode, session_name, respect_throttle)
             for url in urls
         ]
         
