@@ -10,6 +10,7 @@ import os
 import asyncio
 import time
 import structlog
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import Dict, Any, Optional
 from pathlib import Path
 
@@ -152,29 +153,43 @@ class APIExecutionService:
             engine = FlowEngine(workflow_id=str(workflow_id))
             engine.load_workflow(flow_engine_config)
             
-            # Execute synchronously in a new event loop
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
+            # Execute on shared browser loop (reuse contexts; no per-request cleanup)
+            from core.views.services.shared_browser_loop import get_shared_loop
+            shared_loop = get_shared_loop()
+            future = asyncio.run_coroutine_threadsafe(
+                engine.run_api(input_data, timeout, request_context=request_context),
+                shared_loop
+            )
+            timeout_with_buffer = timeout + 5
+
             try:
-                result = loop.run_until_complete(
-                    engine.run_api(input_data, timeout, request_context=request_context)
-                )
+                result = future.result(timeout=timeout_with_buffer)
                 execution_time_ms = int((time.time() - start_time) * 1000)
-                
                 logger.info(
                     "API workflow execution completed successfully",
                     workflow_id=workflow_id,
                     execution_time_ms=execution_time_ms
                 )
-                
                 return {
                     'success': True,
                     'workflow_id': str(workflow_id),
                     'output': result.data if result else {},
                     'execution_time_ms': execution_time_ms
                 }
-                
+            except FuturesTimeoutError:
+                execution_time_ms = int((time.time() - start_time) * 1000)
+                logger.error(
+                    "API workflow execution timeout (future.result)",
+                    workflow_id=workflow_id,
+                    timeout=timeout,
+                    execution_time_ms=execution_time_ms
+                )
+                return {
+                    'success': False,
+                    'error': f'Execution timeout after {timeout} seconds',
+                    'workflow_id': str(workflow_id),
+                    'execution_time_ms': execution_time_ms
+                }
             except asyncio.TimeoutError:
                 execution_time_ms = int((time.time() - start_time) * 1000)
                 logger.error(
@@ -189,9 +204,7 @@ class APIExecutionService:
                     'workflow_id': str(workflow_id),
                     'execution_time_ms': execution_time_ms
                 }
-                
             except ValueError as e:
-                # Validation errors (e.g., wrong start node)
                 execution_time_ms = int((time.time() - start_time) * 1000)
                 logger.error(
                     "API workflow validation error",
@@ -205,13 +218,6 @@ class APIExecutionService:
                     'workflow_id': str(workflow_id),
                     'execution_time_ms': execution_time_ms
                 }
-                
-            finally:
-                # Close browser contexts and Playwright in this loop so the profile SingletonLock
-                # is released; otherwise the next request fails with "profile already in use"
-                from .flow_engine_service import FlowEngineService
-                FlowEngineService._cleanup_browser_resources(loop, str(workflow_id))
-                loop.close()
                 
         except WorkFlow.DoesNotExist:
             execution_time_ms = int((time.time() - start_time) * 1000)

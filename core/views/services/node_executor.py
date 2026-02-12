@@ -5,7 +5,6 @@ Uses a shared event loop so browser contexts can be reused across requests.
 """
 
 import asyncio
-import threading
 import traceback
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import Any, Dict, Optional
@@ -13,30 +12,7 @@ from typing import Any, Dict, Optional
 from apps.common.exceptions import FormValidationException, ExecutionTimeoutException
 from .node_loader import NodeLoader
 from .node_session_store import NodeSessionStore
-
-# Shared event loop for node execution (browser context reuse across requests)
-_executor_loop: Optional[asyncio.AbstractEventLoop] = None
-_executor_thread: Optional[threading.Thread] = None
-_loop_lock = threading.Lock()
-
-
-def _get_executor_loop() -> asyncio.AbstractEventLoop:
-    """Return the shared executor loop, starting the loop thread lazily."""
-    global _executor_loop, _executor_thread
-    with _loop_lock:
-        if _executor_loop is None:
-            _executor_loop = asyncio.new_event_loop()
-
-            def _run_loop():
-                asyncio.set_event_loop(_executor_loop)
-                _executor_loop.run_forever()
-
-            _executor_thread = threading.Thread(target=_run_loop, daemon=True)
-            _executor_thread.start()
-            # Wait until loop is running
-            while not _executor_loop.is_running():
-                threading.Event().wait(0.01)
-        return _executor_loop
+from .shared_browser_loop import get_shared_loop
 
 
 class NodeExecutor:
@@ -213,7 +189,7 @@ class NodeExecutor:
                 await node_instance.init()
             return await node_instance.run(node_output)
 
-        loop = _get_executor_loop()
+        loop = get_shared_loop()
         timeout_seconds = timeout if (timeout is not None and timeout > 0) else None
         future = asyncio.run_coroutine_threadsafe(run_async(), loop)
         try:
