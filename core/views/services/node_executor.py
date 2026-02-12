@@ -9,10 +9,14 @@ import traceback
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import Any, Dict, Optional
 
+import structlog
+
 from apps.common.exceptions import FormValidationException, ExecutionTimeoutException
 from .node_loader import NodeLoader
 from .node_session_store import NodeSessionStore
 from .shared_browser_loop import get_shared_loop
+
+logger = structlog.get_logger(__name__)
 
 
 class NodeExecutor:
@@ -203,5 +207,26 @@ class NodeExecutor:
             )
         except Exception:
             raise
+
+        # Close idle browser contexts on shared loop (e.g. when all pages processed)
+        try:
+            from ...Node.Nodes.Browser._shared.BrowserManager import BrowserManager
+            cleanup_future = asyncio.run_coroutine_threadsafe(
+                BrowserManager().close_idle_contexts(),
+                loop,
+            )
+            cleanup_future.result(timeout=10)
+        except FuturesTimeoutError:
+            logger.warning(
+                "Browser idle-context cleanup timed out after node execution",
+                identifier=node_metadata.get("identifier"),
+            )
+        except Exception as e:
+            logger.warning(
+                "Browser idle-context cleanup failed after node execution",
+                error=str(e),
+                identifier=node_metadata.get("identifier"),
+            )
+
         return result
 

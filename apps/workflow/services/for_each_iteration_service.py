@@ -28,6 +28,21 @@ from .workflow_converter import workflow_converter
 logger = structlog.get_logger(__name__)
 
 
+def _cleanup_browser_for_loop(loop: asyncio.AbstractEventLoop) -> None:
+    """
+    Close browser contexts and stop Playwright for the given event loop.
+    Used when a ForEach run (which uses a dedicated loop) completes.
+    """
+    try:
+        from core.Node.Nodes.Browser._shared.BrowserManager import BrowserManager
+        loop.run_until_complete(BrowserManager().close())
+    except Exception as e:
+        logger.warning(
+            "Error cleaning up browser resources after ForEach run",
+            error=str(e),
+        )
+
+
 class ForEachIterationService:
     """Service for running ForEach iterations: single (iterate and stop) or full (execute)."""
 
@@ -139,6 +154,7 @@ class ForEachIterationService:
             )
             return result
         finally:
+            _cleanup_browser_for_loop(loop)
             executor.shutdown(wait=True)
             loop.close()
 
@@ -321,6 +337,7 @@ class ForEachIterationService:
             )
             return result
         finally:
+            _cleanup_browser_for_loop(loop)
             executor.shutdown(wait=True)
             loop.close()
 
