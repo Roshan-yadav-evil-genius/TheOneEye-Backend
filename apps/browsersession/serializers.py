@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from apps.browsersession.models import BrowserSession
+from apps.browsersession.models import BrowserSession, DomainThrottleRule
 
 class BrowserSessionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -48,4 +48,37 @@ class BrowserSessionUpdateSerializer(serializers.ModelSerializer):
         if not value or not value.strip():
             raise serializers.ValidationError("Description is required")
         return value.strip()
+
+
+class DomainThrottleRuleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DomainThrottleRule
+        fields = ["id", "session", "domain", "delay_seconds", "created_at", "updated_at"]
+        read_only_fields = ["id", "session", "created_at", "updated_at"]
+
+    def validate_domain(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Domain is required")
+        return value.strip().lower()
+
+    def validate_delay_seconds(self, value):
+        if value is None or value < 0:
+            raise serializers.ValidationError("Delay must be >= 0")
+        return value
+
+
+class DomainThrottleRuleCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DomainThrottleRule
+        fields = ["domain", "delay_seconds"]
+
+    def validate_domain(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Domain is required")
+        return value.strip().lower()
+
+    def validate_delay_seconds(self, value):
+        if value is None or value < 0:
+            raise serializers.ValidationError("Delay must be >= 0")
+        return value
 

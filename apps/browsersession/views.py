@@ -9,11 +9,13 @@ import shutil
 import structlog
 
 logger = structlog.get_logger(__name__)
-from apps.browsersession.models import BrowserSession
+from apps.browsersession.models import BrowserSession, DomainThrottleRule
 from apps.browsersession.serializers import (
-    BrowserSessionSerializer, 
-    BrowserSessionCreateSerializer, 
-    BrowserSessionUpdateSerializer
+    BrowserSessionSerializer,
+    BrowserSessionCreateSerializer,
+    BrowserSessionUpdateSerializer,
+    DomainThrottleRuleSerializer,
+    DomainThrottleRuleCreateSerializer,
 )
 from rest_framework.decorators import action
 
@@ -127,3 +129,37 @@ class BrowserSessionViewSet(ModelViewSet):
                 {'error': 'Session not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+
+class DomainThrottleRuleViewSet(ModelViewSet):
+    """CRUD for domain throttle rules scoped to a browser session (session_id in URL)."""
+    serializer_class = DomainThrottleRuleSerializer
+
+    def get_queryset(self):
+        session_id = self.kwargs.get("session_id")
+        if not session_id:
+            return DomainThrottleRule.objects.none()
+        return DomainThrottleRule.objects.filter(session_id=session_id)
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return DomainThrottleRuleCreateSerializer
+        return DomainThrottleRuleSerializer
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["session_id"] = self.kwargs.get("session_id")
+        return context
+
+    def perform_create(self, serializer):
+        session_id = self.kwargs.get("session_id")
+        session = BrowserSession.objects.get(id=session_id)
+        serializer.save(session=session)
+
+    def get_object(self):
+        obj = super().get_object()
+        session_id = self.kwargs.get("session_id")
+        if str(obj.session_id) != str(session_id):
+            from rest_framework.exceptions import NotFound
+            raise NotFound()
+        return obj

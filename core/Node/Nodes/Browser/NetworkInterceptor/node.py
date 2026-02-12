@@ -17,6 +17,7 @@ from rich import print
 from playwright.async_api import Page, Request, Response
 
 from ....Core.Node.Core import BlockingNode, NodeOutput, PoolType
+from apps.browsersession.services.domain_throttle_service import wait_before_request
 from ....Core.Form import BaseForm
 from .form import NetworkInterceptorForm
 from .._shared.BrowserManager import BrowserManager
@@ -323,7 +324,7 @@ class NetworkInterceptor(BlockingNode):
             )
             return None
 
-    async def _load_single_url_with_interception(self, url: str, context) -> dict:
+    async def _load_single_url_with_interception(self, url: str, context, session_name: str) -> dict:
         page = None
         response_event = asyncio.Event()
         matching_response: Optional[Response] = None
@@ -331,6 +332,7 @@ class NetworkInterceptor(BlockingNode):
         goto_task = None
 
         try:
+            await wait_before_request(session_name, url)
             # Get timeout from form
             return_timeout_str = self.form.cleaned_data.get('return_timeout', '30000')
             try:
@@ -475,7 +477,7 @@ class NetworkInterceptor(BlockingNode):
         context = await self.browser_manager.get_context(session_name)
 
         tasks = [
-            self._load_single_url_with_interception(url, context)
+            self._load_single_url_with_interception(url, context, session_name)
             for url in urls
         ]
         
