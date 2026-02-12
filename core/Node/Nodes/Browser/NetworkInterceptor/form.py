@@ -27,7 +27,8 @@ class NetworkInterceptorForm(BaseForm):
     respect_domain_throttle = BooleanField(
         required=False,
         initial=True,
-        help_text="When enabled, waits for the session's domain throttle delay before each request. Disable to bypass throttle for this node."
+        label="Respect settings",
+        help_text="When enabled, respects the browser session's settings (e.g. throttle delay) before each request. Disable to bypass for this node."
     )
 
     capture_resource_types = ChoiceField(

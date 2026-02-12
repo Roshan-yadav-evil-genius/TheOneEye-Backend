@@ -156,6 +156,14 @@ class DomainThrottleRuleViewSet(ModelViewSet):
         session = BrowserSession.objects.get(id=session_id)
         serializer.save(session=session)
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        instance = serializer.instance
+        response_serializer = DomainThrottleRuleSerializer(instance)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
     def get_object(self):
         obj = super().get_object()
         session_id = self.kwargs.get("session_id")

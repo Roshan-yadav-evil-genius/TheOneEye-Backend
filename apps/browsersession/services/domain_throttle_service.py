@@ -37,12 +37,12 @@ def _is_throttle_enabled_sync(session_id: str) -> bool:
 
 
 def _load_rules_sync(session_id: str) -> List[Tuple[str, float]]:
-    """Load (domain, delay_seconds) for session from DB. Run in executor."""
+    """Load (domain, delay_seconds) for enabled rules only. Run in executor."""
     from apps.browsersession.models import DomainThrottleRule
 
-    rules = DomainThrottleRule.objects.filter(session_id=session_id).values_list(
-        "domain", "delay_seconds"
-    )
+    rules = DomainThrottleRule.objects.filter(
+        session_id=session_id, enabled=True
+    ).values_list("domain", "delay_seconds")
     return [(d, float(delay)) for d, delay in rules]
 
 

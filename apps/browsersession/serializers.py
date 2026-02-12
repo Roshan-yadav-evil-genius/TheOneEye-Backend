@@ -73,7 +73,7 @@ class BrowserSessionUpdateSerializer(serializers.ModelSerializer):
 class DomainThrottleRuleSerializer(serializers.ModelSerializer):
     class Meta:
         model = DomainThrottleRule
-        fields = ["id", "session", "domain", "delay_seconds", "created_at", "updated_at"]
+        fields = ["id", "session", "domain", "delay_seconds", "enabled", "created_at", "updated_at"]
         read_only_fields = ["id", "session", "created_at", "updated_at"]
 
     def validate_domain(self, value):

@@ -53,6 +53,7 @@ class DomainThrottleRule(BaseModel):
     session = ForeignKey(BrowserSession, on_delete=CASCADE, related_name="domain_throttle_rules")
     domain = CharField(max_length=255)
     delay_seconds = FloatField()
+    enabled = BooleanField(default=False)
 
     class Meta:
         ordering = ["domain"]
