@@ -25,6 +25,17 @@ def _extract_domain(url: str) -> str:
     return (parsed.netloc or "").strip().lower()
 
 
+def _is_throttle_enabled_sync(session_id: str) -> bool:
+    """Load session and return domain_throttle_enabled. Run in executor."""
+    from apps.browsersession.models import BrowserSession
+
+    try:
+        session = BrowserSession.objects.get(id=session_id)
+        return getattr(session, "domain_throttle_enabled", True)
+    except BrowserSession.DoesNotExist:
+        return False
+
+
 def _load_rules_sync(session_id: str) -> List[Tuple[str, float]]:
     """Load (domain, delay_seconds) for session from DB. Run in executor."""
     from apps.browsersession.models import DomainThrottleRule
@@ -47,6 +58,9 @@ async def wait_before_request(session_id: str, url: str) -> None:
 
     loop = asyncio.get_running_loop()
     with concurrent.futures.ThreadPoolExecutor() as executor:
+        enabled = await loop.run_in_executor(executor, _is_throttle_enabled_sync, session_id)
+        if not enabled:
+            return
         rules = await loop.run_in_executor(executor, _load_rules_sync, session_id)
 
     delay_by_domain = {d: delay for d, delay in rules}

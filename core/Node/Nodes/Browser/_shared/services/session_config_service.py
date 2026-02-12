@@ -50,12 +50,15 @@ class SessionConfigService:
             user_persistent_directory = PathService.get_browser_session_path(str(session.id))
             
             config = {
-                'browser_type': session.browser_type,
-                'playwright_config': session.playwright_config or {},
-                'status': session.status,
-                'name': session.name,
-                'description': session.description,
-                'user_persistent_directory': user_persistent_directory,
+                "browser_type": session.browser_type,
+                "playwright_config": session.playwright_config or {},
+                "status": session.status,
+                "name": session.name,
+                "description": session.description,
+                "user_persistent_directory": user_persistent_directory,
+                "domain_throttle_enabled": getattr(session, "domain_throttle_enabled", True),
+                "resource_blocking_enabled": getattr(session, "resource_blocking_enabled", False),
+                "blocked_resource_types": session.blocked_resource_types if getattr(session, "blocked_resource_types", None) is not None else [],
             }
             
             logger.debug(

@@ -1,12 +1,12 @@
 from django.db.models import (
-    JSONField,
-    UUIDField,
-    CharField,
-    TextField,
-    DateTimeField,
-    ForeignKey,
+    BooleanField,
     CASCADE,
+    CharField,
+    DateTimeField,
     FloatField,
+    ForeignKey,
+    JSONField,
+    TextField,
     UniqueConstraint,
 )
 from apps.workflow.models import BaseModel
@@ -35,7 +35,12 @@ class BrowserSession(BaseModel):
     
     # Session metadata
     created_by = CharField(max_length=100, blank=True, null=True)
-    
+
+    # Settings: throttling and resource blocking
+    domain_throttle_enabled = BooleanField(default=True)
+    resource_blocking_enabled = BooleanField(default=False)
+    blocked_resource_types = JSONField(default=list, blank=True)
+
     def __str__(self):
         return f"{self.name}({self.id})"
     

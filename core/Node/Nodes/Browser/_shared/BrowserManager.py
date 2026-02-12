@@ -237,6 +237,23 @@ class BrowserManager:
             )
             self._contexts[session_id] = (context, asyncio.get_running_loop())
 
+            blocked_types = (session_config or {}).get("blocked_resource_types") or []
+            if (session_config or {}).get("resource_blocking_enabled") and blocked_types:
+                blocked_set = frozenset(blocked_types)
+
+                async def _block_handler(route):
+                    if route.request.resource_type in blocked_set:
+                        await route.abort()
+                    else:
+                        await route.fallback()
+
+                await context.route("**/*", _block_handler)
+                logger.info(
+                    "Resource blocking enabled for context",
+                    session_id=session_id,
+                    blocked_types=list(blocked_set),
+                )
+
             logger.info(
                 "Browser context created successfully",
                 session_id=session_id,
