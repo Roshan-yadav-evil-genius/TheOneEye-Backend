@@ -7,6 +7,8 @@ Single Responsibility: Send LinkedIn connection requests via browser automation.
 from typing import Optional
 import structlog
 
+from django.conf import settings
+
 from ....Core.Node.Core import BlockingNode, NodeOutput, PoolType
 from ....Core.Form import BaseForm
 from .form import SendConnectionRequestForm
@@ -31,7 +33,8 @@ class SendConnectionRequest(BlockingNode):
     async def setup(self):
         """Initialize BrowserManager connection."""
         self.browser_manager = BrowserManager()
-        await self.browser_manager.initialize(headless=False)
+        headless = getattr(settings, 'PLAYWRIGHT_HEADLESS', False)
+        await self.browser_manager.initialize(headless=headless)
 
     async def execute(self, node_data: NodeOutput) -> NodeOutput:
         """

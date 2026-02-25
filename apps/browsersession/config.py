@@ -1,6 +1,8 @@
 """Configuration management for video streaming."""
 from typing import List
 
+from django.conf import settings
+
 
 class StreamConfig:
     """Centralized configuration for video streaming."""
@@ -24,7 +26,7 @@ class StreamConfig:
     STREAMING_FPS: float = 15.0
     STREAMING_QUALITY: int = 40  # JPEG quality (1-100), lower = less bandwidth, faster streaming
     
-    # Browser settings
-    HEADLESS: bool = False
+    # Browser settings (headless controlled by PLAYWRIGHT_HEADLESS in .env)
+    HEADLESS: bool = getattr(settings, 'PLAYWRIGHT_HEADLESS', False)
     TESTING: bool = False  # If True, opens all TESTING_URLS in separate tabs on launch
 

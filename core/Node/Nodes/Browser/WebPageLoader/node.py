@@ -8,6 +8,8 @@ from typing import Optional, List
 import asyncio
 import structlog
 
+from django.conf import settings
+
 from ....Core.Node.Core import BlockingNode, NodeOutput, PoolType
 from ....Core.Form import BaseForm
 from .form import WebPageLoaderForm
@@ -32,10 +34,8 @@ class WebPageLoader(BlockingNode):
     async def setup(self):
         """Initialize BrowserManager connection."""
         self.browser_manager = BrowserManager()
-        # Ensure browser manager is initialized (it's a singleton, so safe to call repeatedly)
-        await self.browser_manager.initialize(
-            headless=False
-        )  # Default to visible functionality for now as per user preference likely
+        headless = getattr(settings, 'PLAYWRIGHT_HEADLESS', False)
+        await self.browser_manager.initialize(headless=headless)
 
     def _extract_urls(self, node_data: NodeOutput) -> List[str]:
         """

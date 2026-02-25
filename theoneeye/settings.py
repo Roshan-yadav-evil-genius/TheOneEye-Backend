@@ -34,6 +34,9 @@ CORS_ALLOW_ALL_ORIGINS = get_env_bool('CORS_ALLOW_ALL_ORIGINS', True)
 # CORS allowed origins (used when CORS_ALLOW_ALL_ORIGINS is False)
 CORS_ALLOWED_ORIGINS = get_env_list('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')
 
+# Playwright: run browser headless (true) or with visible window (false). Env: PLAYWRIGHT_HEADLESS
+PLAYWRIGHT_HEADLESS = get_env_bool('PLAYWRIGHT_HEADLESS', False)
+
 # Application definition
 
 INSTALLED_APPS = [

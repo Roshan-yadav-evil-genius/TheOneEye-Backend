@@ -16,6 +16,8 @@ from rich import print
 
 from playwright.async_api import Page, Request, Response
 
+from django.conf import settings
+
 from ....Core.Node.Core import BlockingNode, NodeOutput, PoolType
 from apps.browsersession.services.domain_throttle_service import wait_before_request
 from ....Core.Form import BaseForm
@@ -40,10 +42,8 @@ class NetworkInterceptor(BlockingNode):
     async def setup(self):
         """Initialize BrowserManager connection."""
         self.browser_manager = BrowserManager()
-        # Ensure browser manager is initialized (it's a singleton, so safe to call repeatedly)
-        await self.browser_manager.initialize(
-            headless=False
-        )  # Default to visible functionality for now as per user preference likely
+        headless = getattr(settings, 'PLAYWRIGHT_HEADLESS', False)
+        await self.browser_manager.initialize(headless=headless)
 
     def _extract_urls(self, node_data: NodeOutput) -> List[str]:
         """
