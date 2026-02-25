@@ -24,9 +24,9 @@ SECRET_KEY = os.environ.get(
 # DEBUG must be explicitly set to False in production via environment variable
 DEBUG = get_env_bool('DJANGO_DEBUG', True)
 
-# ALLOWED_HOSTS should be set via environment variable in production
-# Format: comma-separated list, e.g., "example.com,www.example.com"
-ALLOWED_HOSTS = get_env_list('DJANGO_ALLOWED_HOSTS', '')
+# ALLOWED_HOSTS: set via DJANGO_ALLOWED_HOSTS in production (comma-separated).
+# Default '*' allows any host (dev/local network). Restrict in production.
+ALLOWED_HOSTS = get_env_list('DJANGO_ALLOWED_HOSTS', '*')
 
 # CORS Configuration - should be restricted in production
 CORS_ALLOW_ALL_ORIGINS = get_env_bool('CORS_ALLOW_ALL_ORIGINS', True)

@@ -14,7 +14,7 @@ class WorkFlowViewSet(ModelViewSet):
     queryset = WorkFlow.objects.all()
     serializer_class = WorkFlowSerializer
 
-    @action(detail=True, methods=["get"])
+    @action(detail=True, methods=["get"], authentication_classes=[], permission_classes=[AllowAny])
     def start_execution(self, request, pk=None):
         """Start workflow execution"""
         from django.db.models import F
@@ -37,7 +37,7 @@ class WorkFlowViewSet(ModelViewSet):
         
         return Response(result)
     
-    @action(detail=True, methods=["get"])
+    @action(detail=True, methods=["get"], authentication_classes=[], permission_classes=[AllowAny])
     def stop_execution(self, request, pk=None):
         """Stop workflow execution"""
         workflow = self.get_object()
