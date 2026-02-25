@@ -9,6 +9,7 @@ import json
 from typing import Optional
 import structlog
 
+from .....log_safe import log_safe_output
 from ....Core.Node.Core import BlockingNode, NodeOutput, PoolType
 from ....Core.Form import BaseForm
 from .form import DataTransformerForm
@@ -92,7 +93,7 @@ class DataTransformer(BlockingNode):
             logger.error(
                 "Invalid JSON after rendering",
                 error=str(e),
-                rendered=rendered_json[:500],  # Log first 500 chars for debugging
+                rendered=log_safe_output(rendered_json),
                 node_id=self.node_config.id
             )
             raise ValueError(f"Invalid JSON in output template: {e}")

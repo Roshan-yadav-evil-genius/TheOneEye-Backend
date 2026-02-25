@@ -3,7 +3,7 @@ import structlog
 from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 from ...Node.Core.Node.Core.BaseNode import ProducerNode, NonBlockingNode, ConditionalNode, LoopNode
 from ...Node.Core.Node.Core.Data import NodeOutput, PoolType
-from ..flow_utils import node_type
+from ..flow_utils import node_type, log_safe_output
 from ..flow_node import FlowNode
 from .pool_executor import PoolExecutor
 from .fork_join import merge_branch_outputs
@@ -86,14 +86,14 @@ class FlowRunner:
             self.events.emit_node_completed(
                 current_flow_node.id,
                 next_node_type,
-                output_data=output.data if hasattr(output, "data") else None,
+                output_data=log_safe_output(output.data) if hasattr(output, "data") and output.data else None,
                 route=route,
             )
         logger.info(
             "Node execution completed",
             node_id=current_flow_node.id,
             node_type=f"{node_type(instance)}({next_node_type})",
-            output=output.data,
+            output=log_safe_output(output.data),
         )
         if isinstance(instance, NonBlockingNode):
             return (None, output)
@@ -135,7 +135,7 @@ class FlowRunner:
                         self.events.emit_node_completed(
                             self.producer_flow_node.id,
                             producer_type,
-                            output_data=data.data if hasattr(data, 'data') else None,
+                            output_data=log_safe_output(data.data) if hasattr(data, 'data') and data.data else None,
                             route=route
                         )
                     
@@ -143,7 +143,7 @@ class FlowRunner:
                         "Node execution completed",
                         node_id=self.producer_flow_node.id,
                         node_type=f"{node_type(producer)}({producer_type})",
-                        output=data.data,
+                        output=log_safe_output(data.data),
                     )
 
                     if isinstance(data, ExecutionCompleted):
@@ -271,7 +271,7 @@ class FlowRunner:
                         self.events.emit_node_completed(
                             next_flow_node.id,
                             next_flow_node.instance.identifier(),
-                            output_data=data.data if hasattr(data, "data") else None,
+                            output_data=log_safe_output(data.data) if hasattr(data, "data") and data.data else None,
                             route=route,
                         )
                     if isinstance(next_flow_node.instance, NonBlockingNode):
@@ -343,13 +343,13 @@ class FlowRunner:
                 self.events.emit_node_completed(
                     current_flow_node.id,
                     instance.identifier(),
-                    output_data=current_output.data if hasattr(current_output, "data") else None,
+                    output_data=log_safe_output(current_output.data) if hasattr(current_output, "data") and current_output.data else None,
                 )
             logger.info(
                 "Node execution completed",
                 node_id=current_flow_node.id,
                 node_type=f"{node_type(instance)}({instance.identifier()})",
-                output=current_output.data,
+                output=log_safe_output(current_output.data),
             )
 
         # Fork path: multiple next nodes and graph available -> run branches in parallel, merge at join
@@ -397,7 +397,7 @@ class FlowRunner:
                     self.events.emit_node_completed(
                         join_flow_node.id,
                         join_node_type,
-                        output_data=join_result.data if hasattr(join_result, "data") else None,
+                        output_data=log_safe_output(join_result.data) if hasattr(join_result, "data") and join_result.data else None,
                     )
                 await self._process_next_nodes(
                     join_flow_node,
@@ -434,7 +434,7 @@ class FlowRunner:
                     self.events.emit_node_completed(
                         next_flow_node.id,
                         next_node_type,
-                        output_data=data.data if hasattr(data, 'data') else None,
+                        output_data=log_safe_output(data.data) if hasattr(data, 'data') and data.data else None,
                         route=route
                     )
 
@@ -442,7 +442,7 @@ class FlowRunner:
                     "Node execution completed",
                     node_id=next_flow_node.id,
                     node_type=f"{node_type(next_instance)}({next_node_type})",
-                    output=data.data,
+                    output=log_safe_output(data.data),
                 )
 
                 if isinstance(next_instance, NonBlockingNode):

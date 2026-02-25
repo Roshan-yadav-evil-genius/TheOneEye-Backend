@@ -18,7 +18,7 @@ from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from ...Node.Core.Node.Core.BaseNode import ProducerNode, NonBlockingNode, ConditionalNode, LoopNode
 from ...Node.Core.Node.Core.Data import NodeOutput, PoolType
-from ..flow_utils import node_type
+from ..flow_utils import node_type, log_safe_output
 from ..flow_node import FlowNode
 from .pool_executor import PoolExecutor
 from .fork_join import merge_branch_outputs
@@ -114,14 +114,14 @@ class APIFlowRunner:
             self.events.emit_node_completed(
                 current_flow_node.id,
                 next_node_type,
-                output_data=output.data if hasattr(output, "data") else None,
+                output_data=log_safe_output(output.data) if hasattr(output, "data") and output.data else None,
                 route=route,
             )
         logger.info(
             "API execution: Node completed",
             node_id=current_flow_node.id,
             node_type=f"{node_type(instance)}({next_node_type})",
-            output=output.data,
+            output=log_safe_output(output.data),
         )
         # LoopNode: run subDAG per item, build aggregated_output, then continue along default out-edge
         if isinstance(instance, LoopNode):
@@ -209,14 +209,14 @@ class APIFlowRunner:
                 self.events.emit_node_completed(
                     next_flow_node.id,
                     next_flow_node.instance.identifier(),
-                    output_data=next_output.data if hasattr(next_output, "data") else None,
+                    output_data=log_safe_output(next_output.data) if hasattr(next_output, "data") and next_output.data else None,
                     route=route,
                 )
             logger.info(
                 "API execution: Node completed",
                 node_id=next_flow_node.id,
                 node_type=f"{node_type(next_flow_node.instance)}({next_flow_node.instance.identifier()})",
-                output=next_output.data,
+                output=log_safe_output(next_output.data),
             )
             if self._is_join_node(next_flow_node.id):
                 return (next_flow_node, next_output)
@@ -276,15 +276,15 @@ class APIFlowRunner:
                 self.events.emit_node_completed(
                     self.start_node.id,
                     start_node_type,
-                    output_data=output.data if hasattr(output, 'data') else None,
+                    output_data=log_safe_output(output.data) if hasattr(output, 'data') and output.data else None,
                     route=route
                 )
-            
+
             logger.info(
                 "API execution: First node completed",
                 node_id=self.start_node.id,
                 node_type=f"{node_type(start_instance)}({start_node_type})",
-                output=output.data
+                output=log_safe_output(output.data)
             )
             
             # Track last output
@@ -431,7 +431,7 @@ class APIFlowRunner:
                         self.events.emit_node_completed(
                             next_flow_node.id,
                             next_flow_node.instance.identifier(),
-                            output_data=output.data if hasattr(output, "data") else None,
+                            output_data=log_safe_output(output.data) if hasattr(output, "data") and output.data else None,
                             route=route,
                         )
                     self.last_output = output
@@ -496,13 +496,13 @@ class APIFlowRunner:
                 self.events.emit_node_completed(
                     current_flow_node.id,
                     instance.identifier(),
-                    output_data=current_output.data if hasattr(current_output, "data") else None,
+                    output_data=log_safe_output(current_output.data) if hasattr(current_output, "data") and current_output.data else None,
                 )
             logger.info(
                 "API execution: Node completed",
                 node_id=current_flow_node.id,
                 node_type=f"{node_type(instance)}({instance.identifier()})",
-                output=current_output.data
+                output=log_safe_output(current_output.data)
             )
         self.last_output = current_output
 
@@ -551,7 +551,7 @@ class APIFlowRunner:
                     self.events.emit_node_completed(
                         join_flow_node.id,
                         join_node_type,
-                        output_data=join_result.data if hasattr(join_result, "data") else None,
+                        output_data=log_safe_output(join_result.data) if hasattr(join_result, "data") and join_result.data else None,
                     )
                 self.last_output = join_result
                 await self._process_downstream(
@@ -589,7 +589,7 @@ class APIFlowRunner:
                     self.events.emit_node_completed(
                         next_flow_node.id,
                         next_node_type,
-                        output_data=output.data if hasattr(output, 'data') else None,
+                        output_data=log_safe_output(output.data) if hasattr(output, 'data') and output.data else None,
                         route=route
                     )
 
@@ -597,7 +597,7 @@ class APIFlowRunner:
                     "API execution: Node completed",
                     node_id=next_flow_node.id,
                     node_type=f"{node_type(next_instance)}({next_node_type})",
-                    output=output.data
+                    output=log_safe_output(output.data)
                 )
 
                 self.last_output = output

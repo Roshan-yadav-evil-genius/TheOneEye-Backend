@@ -4,6 +4,7 @@ import re
 from typing import Any, Optional
 
 import structlog
+from .....log_safe import log_safe_output
 from .Data import NodeConfig, NodeOutput, ExecutionCompleted
 from .BaseNodeProperty import BaseNodeProperty
 from .BaseNodeMethod import BaseNodeMethod
@@ -286,8 +287,8 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
                         logger.debug(
                             "Rendered template field",
                             field=field_name,
-                            raw=raw_value,
-                            rendered=rendered_value,
+                            raw=log_safe_output(raw_value),
+                            rendered=log_safe_output(rendered_value),
                             node_id=self.node_config.id
                         )
                     else:
@@ -296,7 +297,7 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
                         logger.debug(
                             "Set non-template field",
                             field=field_name,
-                            value=raw_value,
+                            value=log_safe_output(raw_value),
                             node_id=self.node_config.id
                         )
         
@@ -348,7 +349,12 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         self.form._field_values = coerced_values.copy()
         self.form.cleaned_data = coerced_values.copy()
         
-        logger.info(f"Form values populated", form=self.form.get_unbound_field_values(), node_id=self.node_config.id, identifier=f"{self.__class__.__name__}({self.identifier()})")
+        logger.info(
+            "Form values populated",
+            form=log_safe_output(self.form.get_unbound_field_values()),
+            node_id=self.node_config.id,
+            identifier=f"{self.__class__.__name__}({self.identifier()})",
+        )
             
     async def run(self, node_data: NodeOutput) -> NodeOutput:
         """

@@ -8,6 +8,7 @@ import json
 import structlog
 from jinja2 import Template
 
+from .....log_safe import log_safe_output
 from ....Core.Node.Core import NodeOutput, ExecutionCompleted
 from .._shared.google_sheets_service import GoogleSheetsService
 
@@ -64,8 +65,8 @@ class GoogleSheetsGetRecordByQueryMixin:
             logger.debug(
                 "Rendered query conditions",
                 node_id=self.node_config.id,
-                raw=query_conditions_raw,
-                rendered=rendered_query
+                raw=log_safe_output(query_conditions_raw),
+                rendered=log_safe_output(rendered_query)
             )
             
             # Parse rendered JSON
@@ -76,7 +77,7 @@ class GoogleSheetsGetRecordByQueryMixin:
                 logger.error(
                     "Failed to parse query conditions",
                     node_id=self.node_config.id,
-                    rendered_query=rendered_query,
+                    rendered_query=log_safe_output(rendered_query),
                     error=error_msg
                 )
                 raise Exception(error_msg)
