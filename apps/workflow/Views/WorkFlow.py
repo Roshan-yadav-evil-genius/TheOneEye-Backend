@@ -2,7 +2,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from apps.workflow.models import WorkFlow
 from apps.workflow.Serializers import WorkFlowSerializer
 from apps.workflow.Serializers.WorkFlow import RawWorkFlawSerializer
@@ -13,6 +13,16 @@ from apps.workflow.services import workflow_execution_service
 class WorkFlowViewSet(ModelViewSet):
     queryset = WorkFlow.objects.all()
     serializer_class = WorkFlowSerializer
+
+    def get_permissions(self):
+        if getattr(self, "action", None) == "list":
+            return [AllowAny()]
+        return [IsAuthenticated()]
+
+    def get_authenticators(self):
+        if getattr(self, "action", None) == "list":
+            return []
+        return super().get_authenticators()
 
     @action(detail=True, methods=["get"], authentication_classes=[], permission_classes=[AllowAny])
     def start_execution(self, request, pk=None):
