@@ -103,14 +103,20 @@ class DataTransformer(BlockingNode):
             node_id=self.node_config.id,
             keys=list(transformed_data.keys()) if isinstance(transformed_data, dict) else type(transformed_data).__name__
         )
-        
-        # Return transformed data as the complete new output (overwrites previous data)
-        return NodeOutput(
-            id=node_data.id,
-            data=transformed_data,
-            metadata={
-                "sourceNodeID": self.node_config.id,
-                "sourceNodeName": self.node_config.type,
-                "operation": "data_transform"
-            }
-        )
+
+        raw_overwrite = self.form.get_field_value("overwrite")
+        overwrite = raw_overwrite not in (False, "false", "off", "0", None, "")
+
+        metadata = {
+            "sourceNodeID": self.node_config.id,
+            "sourceNodeName": self.node_config.type,
+            "operation": "data_transform"
+        }
+
+        if overwrite:
+            return NodeOutput(id=node_data.id, data=transformed_data, metadata=metadata)
+
+        output_key = self.get_unique_output_key(node_data, "data_transformer")
+        existing = dict(node_data.data) if node_data.data else {}
+        output_data = {**existing, output_key: transformed_data}
+        return NodeOutput(id=node_data.id, data=output_data, metadata=metadata)
