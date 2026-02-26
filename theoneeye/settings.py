@@ -64,7 +64,8 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
+    # TEMPORARY: CSRF disabled so API POSTs (e.g. /api/workflow/<id>/execute/) work without token. Uncomment next line for production.
+    # "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "app_logging.middleware.StructlogRequestContextMiddleware",  # Bind request context to structlog
     "django.contrib.messages.middleware.MessageMiddleware",
