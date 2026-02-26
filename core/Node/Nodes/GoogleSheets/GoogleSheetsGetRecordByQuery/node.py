@@ -41,11 +41,12 @@ class GoogleSheetsGetRecordByQueryNode(GoogleSheetsGetRecordByQueryMixin, Blocki
         },
         {
             "column": "Status",
-            "value": "Active",
-            "operator": "contains",
-            "case_sensitive": true
+            "value": ["Active", "Pending", "Done"],
+            "operator": "in",
+            "case_sensitive": false
         }
     ]
+    Operators: "equals", "contains", or "in" (value must be array for "in").
     
     Output:
     - data.google_sheets.values: List of cell values

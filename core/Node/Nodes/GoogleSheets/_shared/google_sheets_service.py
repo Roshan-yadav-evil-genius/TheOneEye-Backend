@@ -800,8 +800,8 @@ class GoogleSheetsService:
             sheet_name: Name of the sheet tab
             query_conditions: List of condition dicts with keys:
                 - column: Column header name
-                - value: Value to match
-                - operator: "equals" or "contains"
+                - value: Value to match (string for equals/contains; array for in)
+                - operator: "equals", "contains", or "in"
                 - case_sensitive: Boolean
             header_row: Row containing column headers (default: 1)
             max_rows: Maximum number of rows to search (default: 1000)
@@ -857,7 +857,7 @@ class GoogleSheetsService:
                 
                 for condition in query_conditions:
                     column = condition.get('column')
-                    query_value = str(condition.get('value', ''))
+                    raw_value = condition.get('value', '')
                     operator = condition.get('operator', 'equals')
                     case_sensitive = condition.get('case_sensitive', False)
                     
@@ -867,22 +867,39 @@ class GoogleSheetsService:
                     # Get cell value (empty string if column doesn't exist in row)
                     cell_value = str(row_values[col_idx]) if col_idx < len(row_values) else ""
                     
-                    # Apply case sensitivity
+                    # Apply case sensitivity to cell value
                     if not case_sensitive:
                         cell_value = cell_value.lower()
-                        query_value = query_value.lower()
                     
                     # Check condition based on operator
                     if operator == 'equals':
+                        query_value = str(raw_value)
+                        if not case_sensitive:
+                            query_value = query_value.lower()
                         if cell_value != query_value:
                             all_match = False
                             break
                     elif operator == 'contains':
+                        query_value = str(raw_value)
+                        if not case_sensitive:
+                            query_value = query_value.lower()
                         if query_value not in cell_value:
                             all_match = False
                             break
+                    elif operator == 'in':
+                        if not isinstance(raw_value, list):
+                            raise Exception(
+                                "Operator 'in' requires value to be a JSON array. "
+                                "Use 'equals' or 'contains' for single values."
+                            )
+                        allowed = [str(v).lower() if not case_sensitive else str(v) for v in raw_value]
+                        if cell_value not in allowed:
+                            all_match = False
+                            break
                     else:
-                        raise Exception(f"Unsupported operator: {operator}. Use 'equals' or 'contains'")
+                        raise Exception(
+                            f"Unsupported operator: {operator}. Use 'equals', 'contains', or 'in'"
+                        )
                 
                 # If all conditions match, return this row
                 if all_match:

@@ -149,11 +149,23 @@ class GoogleSheetsGetRecordByQueryForm(BaseForm):
                 
                 # Validate operator
                 operator = condition.get('operator')
-                if operator not in ['equals', 'contains']:
+                if operator not in ['equals', 'contains', 'in']:
                     raise forms.ValidationError(
                         f"Condition at index {idx} has invalid operator '{operator}'. "
-                        f"Must be 'equals' or 'contains'"
+                        f"Must be 'equals', 'contains', or 'in'"
                     )
+                
+                # For 'in' operator, value must be a non-empty array
+                if operator == 'in':
+                    value = condition.get('value')
+                    if not isinstance(value, list):
+                        raise forms.ValidationError(
+                            f"Condition at index {idx}: when operator is 'in', value must be a JSON array"
+                        )
+                    if len(value) == 0:
+                        raise forms.ValidationError(
+                            f"Condition at index {idx}: when operator is 'in', value array cannot be empty"
+                        )
                 
                 # Validate case_sensitive is boolean
                 case_sensitive = condition.get('case_sensitive')
