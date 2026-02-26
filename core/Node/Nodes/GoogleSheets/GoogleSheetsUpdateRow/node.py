@@ -9,6 +9,7 @@ This node handles:
 - Formatting output with update results
 """
 
+import json
 import structlog
 from typing import Optional
 
@@ -97,7 +98,11 @@ class GoogleSheetsUpdateRowNode(BlockingNode):
         spreadsheet_id = self.form.cleaned_data.get('spreadsheet')
         sheet_name = self.form.cleaned_data.get('sheet')
         row_number = self.form.cleaned_data.get('row_number')
-        row_data = self.form.cleaned_data.get('row_data')  # Already parsed as dict
+        row_data = self.form.cleaned_data.get('row_data')
+        if isinstance(row_data, str):
+            row_data = json.loads(row_data)
+        if row_data is not None and not isinstance(row_data, dict):
+            raise ValueError("row_data must be a JSON object (dictionary)")
         header_row = self.form.cleaned_data.get('header_row', 1)
         
         logger.info(

@@ -550,7 +550,7 @@ Logical nodes provide conditional branching and decision-making.
   - Evaluates Python expressions with `data` context
   - Routes to "yes" or "no" branch
   - Supports complex conditional logic
-- **Output**: `if_condition` with route, expression, result
+- **Output**: `if_condition` (first in path), or `if_condition_2`, `if_condition_3`, etc. when multiple IfCondition nodes appear in the path; each key holds route, expression, result (same pattern as other nodes via `get_unique_output_key`)
 
 ### System Nodes
 

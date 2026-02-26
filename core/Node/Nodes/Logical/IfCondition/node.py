@@ -26,24 +26,22 @@ class IfCondition(ConditionalNode):
         return PoolType.ASYNC
 
     async def execute(self, node_data: NodeOutput) -> NodeOutput:
-        
+        output_key = self.get_unique_output_key(node_data, "if_condition")
+
         # Get processed condition from form (rendered values)
         expression = self.form.cleaned_data.get("condition_expression", "")
-
 
         if not expression:
             logger.warning("No condition expression provided, defaulting to False", node_id=self.node_config.id)
             self.set_output(False)
+            payload = {
+                "route": self.output,
+                "expression": "",
+                "result": False
+            }
             return NodeOutput(
                 id=self.node_config.id,
-                data={
-                    **node_data.data,
-                    "if_condition": {
-                        "route": self.output,
-                        "expression": "",
-                        "result": False
-                    }
-                },
+                data={**node_data.data, output_key: payload},
                 metadata=node_data.metadata
             )
 
@@ -68,17 +66,15 @@ class IfCondition(ConditionalNode):
         except Exception as e:
             logger.error("Condition evaluation failed", error=str(e), expression=expression)
             raise ValueError(f"Failed to evaluate condition '{expression}': {str(e)}")
-        
+
+        payload = {
+            "route": self.output,
+            "expression": expression,
+            "result": is_true
+        }
         return NodeOutput(
             id=self.node_config.id,
-            data={
-                **node_data.data,
-                "if_condition": {
-                    "route": self.output,
-                    "expression": expression,
-                    "result": is_true
-                }
-            },
+            data={**node_data.data, output_key: payload},
             metadata=node_data.metadata
         )
 
