@@ -1,11 +1,11 @@
 """
-Session resolver: map form value (pool:uuid only) to a concrete session_id.
+Session resolver: map form value (pool:uuid only) to a concrete session_id and pool_id.
 Sessions are only used through pools; direct session selection is not allowed.
 Calls pool_service.pick_session_from_pool (via run_in_executor).
 """
 
 import asyncio
-from typing import Optional
+from typing import Optional, Tuple
 from urllib.parse import urlparse
 
 import structlog
@@ -28,12 +28,12 @@ def extract_domain_from_url(url: Optional[str]) -> Optional[str]:
     return netloc or None
 
 
-async def resolve_to_session_id(value: Optional[str], domain: Optional[str] = None) -> str:
+async def resolve_to_session_id(value: Optional[str], domain: Optional[str] = None) -> Tuple[str, str]:
     """
-    Resolve form value to a concrete browser session UUID.
+    Resolve form value to a concrete browser session UUID and pool ID.
 
     Only pool:<uuid> is accepted. Picks a session from the pool via pool_service.
-    Direct session selection is not allowed; sessions are only used through pools.
+    Returns (resolved_session_id, pool_id). pool_id is always set (execution is pool-only).
 
     Must be called from async context; pool_service is run in executor.
     """
@@ -53,7 +53,7 @@ async def resolve_to_session_id(value: Optional[str], domain: Optional[str] = No
             None,
             lambda: pick_session_from_pool(pool_id, domain=domain),
         )
-        return session_id
+        return (session_id, pool_id)
 
     raise ValueError(
         "session_name must be pool:<uuid>; direct session selection is not supported"

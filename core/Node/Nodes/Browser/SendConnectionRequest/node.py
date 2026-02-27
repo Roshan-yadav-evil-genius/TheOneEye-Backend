@@ -66,7 +66,7 @@ class SendConnectionRequest(BlockingNode):
         page = None
         try:
             # Get browser context
-            context, _ = await self.browser_manager.get_context(session_name, domain=domain)
+            context, _, _ = await self.browser_manager.get_context(session_name, domain=domain)
             # Create new page
             page = await context.new_page()
 

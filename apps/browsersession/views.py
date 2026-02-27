@@ -9,7 +9,7 @@ import shutil
 import structlog
 
 logger = structlog.get_logger(__name__)
-from apps.browsersession.models import BrowserSession, BrowserPool, DomainThrottleRule
+from apps.browsersession.models import BrowserSession, BrowserPool, PoolDomainThrottleRule
 from apps.browsersession.serializers import (
     BrowserSessionSerializer,
     BrowserSessionCreateSerializer,
@@ -17,8 +17,8 @@ from apps.browsersession.serializers import (
     BrowserPoolSerializer,
     BrowserPoolCreateSerializer,
     BrowserPoolUpdateSerializer,
-    DomainThrottleRuleSerializer,
-    DomainThrottleRuleCreateSerializer,
+    PoolDomainThrottleRuleSerializer,
+    PoolDomainThrottleRuleCreateSerializer,
 )
 from rest_framework.decorators import action
 
@@ -168,43 +168,43 @@ class BrowserPoolViewSet(ModelViewSet):
         return Response([{"id": str(p["id"]), "name": p["name"]} for p in pools])
 
 
-class DomainThrottleRuleViewSet(ModelViewSet):
-    """CRUD for domain throttle rules scoped to a browser session (session_id in URL)."""
-    serializer_class = DomainThrottleRuleSerializer
+class PoolDomainThrottleRuleViewSet(ModelViewSet):
+    """CRUD for domain throttle rules scoped to a browser pool (pool_id in URL)."""
+    serializer_class = PoolDomainThrottleRuleSerializer
 
     def get_queryset(self):
-        session_id = self.kwargs.get("session_id")
-        if not session_id:
-            return DomainThrottleRule.objects.none()
-        return DomainThrottleRule.objects.filter(session_id=session_id)
+        pool_id = self.kwargs.get("pool_id")
+        if not pool_id:
+            return PoolDomainThrottleRule.objects.none()
+        return PoolDomainThrottleRule.objects.filter(pool_id=pool_id)
 
     def get_serializer_class(self):
         if self.action == "create":
-            return DomainThrottleRuleCreateSerializer
-        return DomainThrottleRuleSerializer
+            return PoolDomainThrottleRuleCreateSerializer
+        return PoolDomainThrottleRuleSerializer
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        context["session_id"] = self.kwargs.get("session_id")
+        context["pool_id"] = self.kwargs.get("pool_id")
         return context
 
     def perform_create(self, serializer):
-        session_id = self.kwargs.get("session_id")
-        session = BrowserSession.objects.get(id=session_id)
-        serializer.save(session=session)
+        pool_id = self.kwargs.get("pool_id")
+        pool = BrowserPool.objects.get(id=pool_id)
+        serializer.save(pool=pool)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         instance = serializer.instance
-        response_serializer = DomainThrottleRuleSerializer(instance)
+        response_serializer = PoolDomainThrottleRuleSerializer(instance)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
     def get_object(self):
         obj = super().get_object()
-        session_id = self.kwargs.get("session_id")
-        if str(obj.session_id) != str(session_id):
+        pool_id = self.kwargs.get("pool_id")
+        if str(obj.pool_id) != str(pool_id):
             from rest_framework.exceptions import NotFound
             raise NotFound()
         return obj

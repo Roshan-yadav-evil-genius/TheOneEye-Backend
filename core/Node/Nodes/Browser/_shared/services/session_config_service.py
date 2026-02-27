@@ -10,45 +10,46 @@ logger = structlog.get_logger(__name__)
 
 class SessionConfigService:
     """Service to fetch browser session configuration from Django models."""
-    
+
     @staticmethod
-    async def get_session_config(session_id: str) -> Optional[Dict[str, Any]]:
+    async def get_session_config(session_id: str, pool_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
-        Fetch full session config from Django model using async-safe calls.
-        Uses a thread pool for the DB call to avoid CurrentThreadExecutor deadlock
-        when the async code is run from NodeExecutor's run_until_complete() loop.
-        
+        Fetch full session config: browser from BrowserSession; throttle/blocking from BrowserPool when pool_id is set.
+        Uses a thread pool for DB calls to avoid CurrentThreadExecutor deadlock.
+
         Args:
-            session_id: The UUID of the browser session
-            
+            session_id: The UUID of the browser session (resolved from pool).
+            pool_id: The UUID of the browser pool (always set when execution is pool-only).
+
         Returns:
-            Session config dict with browser_type, playwright_config, etc.
-            Returns None if session not found.
+            Session config dict with browser_type, playwright_config, user_persistent_directory,
+            and when pool_id is set: domain_throttle_enabled, resource_blocking_enabled, blocked_resource_types from pool.
         """
         try:
-            from apps.browsersession.models import BrowserSession
-            
-            def _fetch_session_sync():
+            from apps.browsersession.models import BrowserSession, BrowserPool
+
+            def _fetch_sync():
                 try:
-                    return BrowserSession.objects.get(id=session_id)
+                    session = BrowserSession.objects.get(id=session_id)
                 except BrowserSession.DoesNotExist:
-                    return None
-            
+                    return None, None
+                pool = None
+                if pool_id:
+                    try:
+                        pool = BrowserPool.objects.get(id=pool_id)
+                    except BrowserPool.DoesNotExist:
+                        pass
+                return session, pool
+
             loop = asyncio.get_running_loop()
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                session = await loop.run_in_executor(executor, _fetch_session_sync)
+                session, pool = await loop.run_in_executor(executor, _fetch_sync)
             if session is None:
-                logger.warning(
-                    "Session not found",
-                    session_id=session_id
-                )
+                logger.warning("Session not found", session_id=session_id)
                 return None
-            
-            # Calculate user_persistent_directory path
-            # No async wrapper needed - Django settings are just Python objects
-            # Use PathService for consistent path construction
+
             user_persistent_directory = PathService.get_browser_session_path(str(session.id))
-            
+
             config = {
                 "browser_type": session.browser_type,
                 "playwright_config": session.playwright_config or {},
@@ -56,23 +57,33 @@ class SessionConfigService:
                 "name": session.name,
                 "description": session.description,
                 "user_persistent_directory": user_persistent_directory,
-                "domain_throttle_enabled": getattr(session, "domain_throttle_enabled", True),
-                "resource_blocking_enabled": getattr(session, "resource_blocking_enabled", False),
-                "blocked_resource_types": session.blocked_resource_types if getattr(session, "blocked_resource_types", None) is not None else [],
             }
-            
+
+            if pool is not None:
+                config["domain_throttle_enabled"] = getattr(pool, "domain_throttle_enabled", True)
+                config["resource_blocking_enabled"] = getattr(pool, "resource_blocking_enabled", False)
+                config["blocked_resource_types"] = (
+                    list(pool.blocked_resource_types) if getattr(pool, "blocked_resource_types", None) else []
+                )
+            else:
+                config["domain_throttle_enabled"] = False
+                config["resource_blocking_enabled"] = False
+                config["blocked_resource_types"] = []
+
             logger.debug(
                 "Fetched session config",
                 session_id=session_id,
-                browser_type=config.get('browser_type'),
-                has_playwright_config=bool(config.get('playwright_config'))
+                pool_id=pool_id,
+                browser_type=config.get("browser_type"),
+                has_playwright_config=bool(config.get("playwright_config")),
             )
             return config
         except Exception as e:
             logger.error(
                 "Unexpected error fetching session config",
                 session_id=session_id,
-                error=str(e)
+                pool_id=pool_id,
+                error=str(e),
             )
         return None
 

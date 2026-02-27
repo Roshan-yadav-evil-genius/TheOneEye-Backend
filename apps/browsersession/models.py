@@ -36,11 +36,6 @@ class BrowserSession(BaseModel):
     # Session metadata
     created_by = CharField(max_length=100, blank=True, null=True)
 
-    # Settings: throttling and resource blocking
-    domain_throttle_enabled = BooleanField(default=True)
-    resource_blocking_enabled = BooleanField(default=False)
-    blocked_resource_types = JSONField(default=list, blank=True)
-
     def __str__(self):
         return f"{self.name}({self.id})"
     
@@ -48,9 +43,26 @@ class BrowserSession(BaseModel):
         ordering = ["-created_at"]
 
 
-class DomainThrottleRule(BaseModel):
-    """Per-session, per-domain delay (seconds) between navigations/requests."""
-    session = ForeignKey(BrowserSession, on_delete=CASCADE, related_name="domain_throttle_rules")
+class BrowserPool(BaseModel):
+    """A pool of browser sessions; at runtime one session is picked (e.g. least used per domain)."""
+    name = CharField(max_length=100)
+    description = TextField(blank=True, null=True)
+
+    # Pool-level settings: throttling and resource blocking (apply to all sessions in pool)
+    domain_throttle_enabled = BooleanField(default=True)
+    resource_blocking_enabled = BooleanField(default=False)
+    blocked_resource_types = JSONField(default=list, blank=True)
+
+    def __str__(self):
+        return f"{self.name}({self.id})"
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class PoolDomainThrottleRule(BaseModel):
+    """Per-pool, per-domain delay (seconds) between navigations/requests."""
+    pool = ForeignKey(BrowserPool, on_delete=CASCADE, related_name="domain_throttle_rules")
     domain = CharField(max_length=255)
     delay_seconds = FloatField()
     enabled = BooleanField(default=False)
@@ -59,25 +71,13 @@ class DomainThrottleRule(BaseModel):
         ordering = ["domain"]
         constraints = [
             UniqueConstraint(
-                fields=["session", "domain"],
-                name="unique_session_domain",
+                fields=["pool", "domain"],
+                name="unique_pool_domain",
             ),
         ]
 
     def __str__(self):
-        return f"{self.session_id} / {self.domain} = {self.delay_seconds}s"
-
-
-class BrowserPool(BaseModel):
-    """A pool of browser sessions; at runtime one session is picked (e.g. least used per domain)."""
-    name = CharField(max_length=100)
-    description = TextField(blank=True, null=True)
-
-    def __str__(self):
-        return f"{self.name}({self.id})"
-
-    class Meta:
-        ordering = ["-created_at"]
+        return f"{self.pool_id} / {self.domain} = {self.delay_seconds}s"
 
 
 class BrowserPoolSession(BaseModel):

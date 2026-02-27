@@ -101,7 +101,8 @@ class WebPageLoader(BlockingNode):
         url: str,
         context,
         wait_mode: str,
-        session_name: str,
+        resolved_session_id: str,
+        pool_id: str,
         respect_throttle: bool = True,
     ) -> dict:
         """
@@ -111,8 +112,9 @@ class WebPageLoader(BlockingNode):
             url: The URL to load
             context: Browser context (already obtained, shared across parallel loads)
             wait_mode: Wait strategy for page loading
-            session_name: Browser session id for domain throttle
-            respect_throttle: If True, wait for session domain throttle before request.
+            resolved_session_id: Resolved browser session id (for throttle key).
+            pool_id: Pool id for domain throttle rules.
+            respect_throttle: If True, wait for pool domain throttle before request.
 
         Returns:
             Dictionary with 'url' and 'response' (DOM content) keys
@@ -120,7 +122,7 @@ class WebPageLoader(BlockingNode):
         page = None
         try:
             if respect_throttle:
-                await wait_before_request(session_name, url)
+                await wait_before_request(resolved_session_id, url, pool_id)
             # Create new page from the shared context
             page = await context.new_page()
             await page.goto(url, wait_until=wait_mode)
@@ -186,11 +188,11 @@ class WebPageLoader(BlockingNode):
 
         # Get context ONCE before parallel loads to avoid race condition
         # This ensures all pages are created from the same context
-        context, resolved_session_id = await self.browser_manager.get_context(session_name, domain=domain)
+        context, resolved_session_id, pool_id = await self.browser_manager.get_context(session_name, domain=domain)
 
-        # Load all URLs in parallel using the shared context (use resolved_session_id for throttle)
+        # Load all URLs in parallel using the shared context (use resolved_session_id + pool_id for throttle)
         tasks = [
-            self._load_single_url(url, context, wait_mode, resolved_session_id, respect_throttle)
+            self._load_single_url(url, context, wait_mode, resolved_session_id, pool_id, respect_throttle)
             for url in urls
         ]
         

@@ -168,23 +168,23 @@ class BrowserManager:
         
         return getattr(self._playwright, browser_type)
 
-    async def get_context(self, session_id: str, domain: Optional[str] = None, **kwargs) -> Tuple[BrowserContext, str]:
+    async def get_context(self, session_id: str, domain: Optional[str] = None, **kwargs) -> Tuple[BrowserContext, str, str]:
         """
         Get an existing persistent context by session_id or create a new one.
-        Resolves session_id (session:uuid or pool:uuid) to a concrete session UUID via resolve_to_session_id.
+        Resolves pool:uuid to (resolved_session_id, pool_id) via resolve_to_session_id.
         Uses a per-session lock so when multiple nodes use the same resolved session, they reuse the same context.
 
         Args:
-            session_id: Form value: session:<uuid> or pool:<uuid>
+            session_id: Form value: pool:<uuid>
             domain: Optional domain from the URL being loaded (for pool selection).
             **kwargs: Additional launch arguments to override defaults
 
         Returns:
-            Tuple of (browser context, resolved_session_id). Use resolved_session_id for e.g. domain throttle.
+            Tuple of (browser context, resolved_session_id, pool_id). Use pool_id for domain throttle and config.
         """
         await self.initialize()
 
-        resolved_id = await resolve_to_session_id(session_id, domain=domain)
+        resolved_id, pool_id = await resolve_to_session_id(session_id, domain=domain)
 
         running_loop = asyncio.get_running_loop()
         self._ensure_loop_locks(running_loop)
@@ -195,11 +195,11 @@ class BrowserManager:
                 context, ctx_loop = self._contexts[resolved_id]
                 if ctx_loop is running_loop:
                     logger.info("Reusing existing persistent context", session_id=resolved_id)
-                    return (context, resolved_id)
+                    return (context, resolved_id, pool_id)
                 del self._contexts[resolved_id]
 
-            # Fetch session config from Django model
-            session_config = await SessionConfigService.get_session_config(resolved_id)
+            # Fetch session config (browser from session; throttle/blocking from pool)
+            session_config = await SessionConfigService.get_session_config(resolved_id, pool_id=pool_id)
 
             browser_type = 'chromium'
             playwright_config = {}
@@ -261,7 +261,7 @@ class BrowserManager:
                 browser_type=browser_type
             )
 
-            return (context, resolved_id)
+            return (context, resolved_id, pool_id)
 
     async def close_idle_contexts(self) -> None:
         """

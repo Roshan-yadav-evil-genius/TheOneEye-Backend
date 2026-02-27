@@ -1,7 +1,7 @@
 """
-Domain throttle service: wait before navigating to a URL when the session has
+Domain throttle service: wait before navigating to a URL when the pool has
 a throttle rule for that URL's domain, so requests to the domain are spaced
-by the configured delay.
+by the configured delay. Uses pool-level settings only (pool_id required).
 """
 
 import asyncio
@@ -25,32 +25,32 @@ def _extract_domain(url: str) -> str:
     return (parsed.netloc or "").strip().lower()
 
 
-def _is_throttle_enabled_sync(session_id: str) -> bool:
-    """Load session and return domain_throttle_enabled. Run in executor."""
-    from apps.browsersession.models import BrowserSession
+def _is_throttle_enabled_sync(pool_id: str) -> bool:
+    """Load pool and return domain_throttle_enabled. Run in executor."""
+    from apps.browsersession.models import BrowserPool
 
     try:
-        session = BrowserSession.objects.get(id=session_id)
-        return getattr(session, "domain_throttle_enabled", True)
-    except BrowserSession.DoesNotExist:
+        pool = BrowserPool.objects.get(id=pool_id)
+        return getattr(pool, "domain_throttle_enabled", True)
+    except BrowserPool.DoesNotExist:
         return False
 
 
-def _load_rules_sync(session_id: str) -> List[Tuple[str, float]]:
-    """Load (domain, delay_seconds) for enabled rules only. Run in executor."""
-    from apps.browsersession.models import DomainThrottleRule
+def _load_rules_sync(pool_id: str) -> List[Tuple[str, float]]:
+    """Load (domain, delay_seconds) for enabled pool rules only. Run in executor."""
+    from apps.browsersession.models import PoolDomainThrottleRule
 
-    rules = DomainThrottleRule.objects.filter(
-        session_id=session_id, enabled=True
+    rules = PoolDomainThrottleRule.objects.filter(
+        pool_id=pool_id, enabled=True
     ).values_list("domain", "delay_seconds")
     return [(d, float(delay)) for d, delay in rules]
 
 
-async def wait_before_request(session_id: str, url: str) -> None:
+async def wait_before_request(session_id: str, url: str, pool_id: str) -> None:
     """
-    If the session has a throttle rule for the URL's domain, wait until at least
+    If the pool has a throttle rule for the URL's domain, wait until at least
     delay_seconds have passed since the last request to that domain for this session.
-    Must be called from the same event loop that runs browser nodes (e.g. shared loop).
+    pool_id is required (execution is pool-only). Must be called from the same event loop that runs browser nodes.
     """
     domain = _extract_domain(url)
     if not domain:
@@ -58,10 +58,10 @@ async def wait_before_request(session_id: str, url: str) -> None:
 
     loop = asyncio.get_running_loop()
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        enabled = await loop.run_in_executor(executor, _is_throttle_enabled_sync, session_id)
+        enabled = await loop.run_in_executor(executor, _is_throttle_enabled_sync, pool_id)
         if not enabled:
             return
-        rules = await loop.run_in_executor(executor, _load_rules_sync, session_id)
+        rules = await loop.run_in_executor(executor, _load_rules_sync, pool_id)
 
     delay_by_domain = {d: delay for d, delay in rules}
     delay_seconds = delay_by_domain.get(domain)
@@ -81,6 +81,7 @@ async def wait_before_request(session_id: str, url: str) -> None:
                 logger.debug(
                     "Domain throttle: sleeping before request",
                     session_id=session_id,
+                    pool_id=pool_id,
                     domain=domain,
                     sleep_seconds=round(sleep_time, 2),
                 )

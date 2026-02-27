@@ -325,7 +325,7 @@ class NetworkInterceptor(BlockingNode):
             )
             return None
 
-    async def _load_single_url_with_interception(self, url: str, context, session_name: str) -> dict:
+    async def _load_single_url_with_interception(self, url: str, context, resolved_session_id: str, pool_id: str) -> dict:
         page = None
         response_event = asyncio.Event()
         matching_response: Optional[Response] = None
@@ -335,7 +335,7 @@ class NetworkInterceptor(BlockingNode):
         try:
             respect_throttle = self.form.cleaned_data.get("respect_domain_throttle", True)
             if respect_throttle:
-                await wait_before_request(session_name, url)
+                await wait_before_request(resolved_session_id, url, pool_id)
             # Get timeout from form
             return_timeout_str = self.form.cleaned_data.get('return_timeout', '30000')
             try:
@@ -478,10 +478,10 @@ class NetworkInterceptor(BlockingNode):
             node_id=self.node_config.id,
         )
 
-        context, resolved_session_id = await self.browser_manager.get_context(session_name, domain=domain)
+        context, resolved_session_id, pool_id = await self.browser_manager.get_context(session_name, domain=domain)
 
         tasks = [
-            self._load_single_url_with_interception(url, context, resolved_session_id)
+            self._load_single_url_with_interception(url, context, resolved_session_id, pool_id)
             for url in urls
         ]
         

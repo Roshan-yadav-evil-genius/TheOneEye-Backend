@@ -4,7 +4,7 @@ from apps.browsersession.views import (
     BrowserSessionViewSet,
     BrowserSessionChoicesView,
     BrowserPoolViewSet,
-    DomainThrottleRuleViewSet,
+    PoolDomainThrottleRuleViewSet,
 )
 
 router = DefaultRouter()
@@ -14,16 +14,16 @@ router.register("browser-pools", BrowserPoolViewSet, basename="browser-pools")
 urlpatterns = [
     path("browser-sessions/choices/", BrowserSessionChoicesView.as_view(), name="browser-session-choices"),
     path(
-        "browser-sessions/<uuid:session_id>/domain-throttle-rules/",
-        DomainThrottleRuleViewSet.as_view({"get": "list", "post": "create"}),
-        name="domain-throttle-rule-list",
+        "browser-pools/<uuid:pool_id>/domain-throttle-rules/",
+        PoolDomainThrottleRuleViewSet.as_view({"get": "list", "post": "create"}),
+        name="pool-domain-throttle-rule-list",
     ),
     path(
-        "browser-sessions/<uuid:session_id>/domain-throttle-rules/<uuid:pk>/",
-        DomainThrottleRuleViewSet.as_view(
+        "browser-pools/<uuid:pool_id>/domain-throttle-rules/<uuid:pk>/",
+        PoolDomainThrottleRuleViewSet.as_view(
             {"get": "retrieve", "put": "update", "patch": "partial_update", "delete": "destroy"}
         ),
-        name="domain-throttle-rule-detail",
+        name="pool-domain-throttle-rule-detail",
     ),
 ] + router.urls
 
