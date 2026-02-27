@@ -14,6 +14,7 @@ from ....Core.Node.Core import BlockingNode, NodeOutput, PoolType
 from ....Core.Form import BaseForm
 from .form import WebPageLoaderForm
 from .._shared.BrowserManager import BrowserManager
+from .._shared.services.session_resolver import extract_domain_from_url
 from apps.browsersession.services.domain_throttle_service import wait_before_request
 
 logger = structlog.get_logger(__name__)
@@ -173,6 +174,8 @@ class WebPageLoader(BlockingNode):
         # Extract URLs from form or input data
         urls = self._extract_urls(node_data)
 
+        domain = extract_domain_from_url(urls[0]) if urls else None
+
         logger.info(
             "Loading webpages",
             url_count=len(urls),
@@ -183,11 +186,11 @@ class WebPageLoader(BlockingNode):
 
         # Get context ONCE before parallel loads to avoid race condition
         # This ensures all pages are created from the same context
-        context = await self.browser_manager.get_context(session_name)
+        context, resolved_session_id = await self.browser_manager.get_context(session_name, domain=domain)
 
-        # Load all URLs in parallel using the shared context
+        # Load all URLs in parallel using the shared context (use resolved_session_id for throttle)
         tasks = [
-            self._load_single_url(url, context, wait_mode, session_name, respect_throttle)
+            self._load_single_url(url, context, wait_mode, resolved_session_id, respect_throttle)
             for url in urls
         ]
         

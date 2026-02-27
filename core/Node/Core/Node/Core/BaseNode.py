@@ -182,10 +182,14 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         for field_name, field in self.form.fields.items():
             value = form_data.get(field_name)
             
-            # For Jinja templates OR DependentChoiceField: only check required + not empty
-            # (Templates can't be validated, DependentChoiceField loaders can't run in async context)
-            # Also check for _dependent_on attribute as fallback for class identity issues
-            if contains_jinja_template(value) or isinstance(field, DependentChoiceField) or hasattr(field, '_dependent_on'):
+            # For Jinja templates, DependentChoiceField, or fields that use sync ORM in clean():
+            # only check required + not empty (full clean would run from async context and fail).
+            if (
+                contains_jinja_template(value)
+                or isinstance(field, DependentChoiceField)
+                or hasattr(field, '_dependent_on')
+                or getattr(field, '_skip_clean_in_async', False)
+            ):
                 if field.required and (value is None or str(value).strip() == ''):
                     if self.form._errors is None:
                         from django.forms.utils import ErrorDict

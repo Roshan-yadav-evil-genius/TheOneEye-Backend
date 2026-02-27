@@ -23,6 +23,7 @@ from apps.browsersession.services.domain_throttle_service import wait_before_req
 from ....Core.Form import BaseForm
 from .form import NetworkInterceptorForm
 from .._shared.BrowserManager import BrowserManager
+from .._shared.services.session_resolver import extract_domain_from_url
 
 logger = structlog.get_logger(__name__)
 
@@ -467,6 +468,7 @@ class NetworkInterceptor(BlockingNode):
         session_name = self.form.cleaned_data.get("session_name", "default")
 
         urls = self._extract_urls(node_data)
+        domain = extract_domain_from_url(urls[0]) if urls else None
 
         logger.info(
             "Starting network interception",
@@ -476,10 +478,10 @@ class NetworkInterceptor(BlockingNode):
             node_id=self.node_config.id,
         )
 
-        context = await self.browser_manager.get_context(session_name)
+        context, resolved_session_id = await self.browser_manager.get_context(session_name, domain=domain)
 
         tasks = [
-            self._load_single_url_with_interception(url, context, session_name)
+            self._load_single_url_with_interception(url, context, resolved_session_id)
             for url in urls
         ]
         

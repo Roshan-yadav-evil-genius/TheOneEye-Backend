@@ -9,11 +9,14 @@ import shutil
 import structlog
 
 logger = structlog.get_logger(__name__)
-from apps.browsersession.models import BrowserSession, DomainThrottleRule
+from apps.browsersession.models import BrowserSession, BrowserPool, DomainThrottleRule
 from apps.browsersession.serializers import (
     BrowserSessionSerializer,
     BrowserSessionCreateSerializer,
     BrowserSessionUpdateSerializer,
+    BrowserPoolSerializer,
+    BrowserPoolCreateSerializer,
+    BrowserPoolUpdateSerializer,
     DomainThrottleRuleSerializer,
     DomainThrottleRuleCreateSerializer,
 )
@@ -129,6 +132,40 @@ class BrowserSessionViewSet(ModelViewSet):
                 {'error': 'Session not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+
+class BrowserPoolViewSet(ModelViewSet):
+    """CRUD for browser pools (pool of sessions for rotation)."""
+    queryset = BrowserPool.objects.all()
+    serializer_class = BrowserPoolSerializer
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return BrowserPoolCreateSerializer
+        if self.action in ["update", "partial_update"]:
+            return BrowserPoolUpdateSerializer
+        return BrowserPoolSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        instance = serializer.save()
+        response_serializer = BrowserPoolSerializer(instance)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=(kwargs.get("partial", False)))
+        serializer.is_valid(raise_exception=True)
+        instance = serializer.save()
+        response_serializer = BrowserPoolSerializer(instance)
+        return Response(response_serializer.data)
+
+    @action(detail=False, methods=["get"], url_path="choices")
+    def choices(self, request):
+        """Return pool choices for dropdowns."""
+        pools = BrowserPool.objects.all().values("id", "name")
+        return Response([{"id": str(p["id"]), "name": p["name"]} for p in pools])
 
 
 class DomainThrottleRuleViewSet(ModelViewSet):

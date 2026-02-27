@@ -13,6 +13,7 @@ from ....Core.Node.Core import BlockingNode, NodeOutput, PoolType
 from ....Core.Form import BaseForm
 from .form import SendConnectionRequestForm
 from .._shared.BrowserManager import BrowserManager
+from .._shared.services.session_resolver import extract_domain_from_url
 from ..automation.linkedin.profile_page import ProfilePage
 
 logger = structlog.get_logger(__name__)
@@ -51,6 +52,8 @@ class SendConnectionRequest(BlockingNode):
         send_request = self.form.cleaned_data.get("send_connection_request", True)
         follow_profile = self.form.cleaned_data.get("follow", False)
 
+        domain = extract_domain_from_url(profile_url) if profile_url else None
+
         logger.info(
             "Starting LinkedIn profile actions",
             session=session_name,
@@ -63,7 +66,7 @@ class SendConnectionRequest(BlockingNode):
         page = None
         try:
             # Get browser context
-            context = await self.browser_manager.get_context(session_name)
+            context, _ = await self.browser_manager.get_context(session_name, domain=domain)
             # Create new page
             page = await context.new_page()
 

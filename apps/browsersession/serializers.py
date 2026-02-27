@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from apps.browsersession.models import BrowserSession, DomainThrottleRule
+from apps.browsersession.models import BrowserSession, BrowserPool, BrowserPoolSession, DomainThrottleRule
 
 ALLOWED_RESOURCE_TYPES = frozenset({
     "document", "stylesheet", "image", "media", "font", "script",
@@ -68,6 +68,62 @@ class BrowserSessionUpdateSerializer(serializers.ModelSerializer):
                     f"Each item must be one of: {sorted(ALLOWED_RESOURCE_TYPES)}"
                 )
         return value
+
+
+class BrowserPoolSerializer(serializers.ModelSerializer):
+    session_ids = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BrowserPool
+        fields = ["id", "name", "description", "session_ids", "created_at", "updated_at"]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def get_session_ids(self, obj):
+        return [str(ps.session_id) for ps in obj.pool_sessions.all().order_by("usage_count")]
+
+
+class BrowserPoolCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=100)
+    description = serializers.CharField(allow_blank=True, allow_null=True, required=False, default=None)
+    session_ids = serializers.ListField(child=serializers.UUIDField(), allow_empty=False)
+
+    def validate_session_ids(self, value):
+        if not value or len(value) < 1:
+            raise serializers.ValidationError("At least one session is required in the pool.")
+        return value
+
+    def create(self, validated_data):
+        session_ids = validated_data.pop("session_ids")
+        pool = BrowserPool.objects.create(
+            name=validated_data["name"],
+            description=validated_data.get("description"),
+        )
+        for sid in session_ids:
+            BrowserPoolSession.objects.create(pool=pool, session_id=sid)
+        return pool
+
+
+class BrowserPoolUpdateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=100, required=False)
+    description = serializers.CharField(allow_blank=True, allow_null=True, required=False)
+    session_ids = serializers.ListField(child=serializers.UUIDField(), required=False)
+
+    def validate_session_ids(self, value):
+        if value is not None and len(value) < 1:
+            raise serializers.ValidationError("At least one session is required in the pool.")
+        return value
+
+    def update(self, instance, validated_data):
+        if "name" in validated_data:
+            instance.name = validated_data["name"]
+        if "description" in validated_data:
+            instance.description = validated_data["description"]
+        if "session_ids" in validated_data:
+            BrowserPoolSession.objects.filter(pool=instance).delete()
+            for sid in validated_data["session_ids"]:
+                BrowserPoolSession.objects.create(pool=instance, session_id=sid)
+        instance.save()
+        return instance
 
 
 class DomainThrottleRuleSerializer(serializers.ModelSerializer):

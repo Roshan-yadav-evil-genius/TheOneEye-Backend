@@ -18,6 +18,7 @@ import structlog
 
 from .services.session_config_service import SessionConfigService
 from .services.path_service import PathService
+from .services.session_resolver import resolve_to_session_id
 
 logger = structlog.get_logger(__name__)
 
@@ -167,38 +168,38 @@ class BrowserManager:
         
         return getattr(self._playwright, browser_type)
 
-    async def get_context(self, session_id: str, **kwargs) -> BrowserContext:
+    async def get_context(self, session_id: str, domain: Optional[str] = None, **kwargs) -> Tuple[BrowserContext, str]:
         """
         Get an existing persistent context by session_id or create a new one.
-        Uses a per-session lock so when multiple nodes (e.g. WebPageLoader and NetworkInterceptor
-        in a fork) use the same session_id, only one launches the profile; others wait and reuse
-        the same context (shared session/memory, no ProcessSingleton conflict).
+        Resolves session_id (session:uuid or pool:uuid) to a concrete session UUID via resolve_to_session_id.
+        Uses a per-session lock so when multiple nodes use the same resolved session, they reuse the same context.
 
         Args:
-            session_id: The UUID of the browser session from the database
+            session_id: Form value: session:<uuid> or pool:<uuid>
+            domain: Optional domain from the URL being loaded (for pool selection).
             **kwargs: Additional launch arguments to override defaults
 
         Returns:
-            The browser context
+            Tuple of (browser context, resolved_session_id). Use resolved_session_id for e.g. domain throttle.
         """
-        # Always call initialize so that when the event loop changes (e.g. 2nd API request),
-        # we clear stale locks and re-init; otherwise _get_session_lock would return a lock bound to the old loop.
         await self.initialize()
+
+        resolved_id = await resolve_to_session_id(session_id, domain=domain)
 
         running_loop = asyncio.get_running_loop()
         self._ensure_loop_locks(running_loop)
-        session_lock = self._get_session_lock(session_id)
+        session_lock = self._get_session_lock(resolved_id)
 
         async with session_lock:
-            if session_id in self._contexts:
-                context, ctx_loop = self._contexts[session_id]
+            if resolved_id in self._contexts:
+                context, ctx_loop = self._contexts[resolved_id]
                 if ctx_loop is running_loop:
-                    logger.info("Reusing existing persistent context", session_id=session_id)
-                    return context
-                del self._contexts[session_id]
+                    logger.info("Reusing existing persistent context", session_id=resolved_id)
+                    return (context, resolved_id)
+                del self._contexts[resolved_id]
 
             # Fetch session config from Django model
-            session_config = await SessionConfigService.get_session_config(session_id)
+            session_config = await SessionConfigService.get_session_config(resolved_id)
 
             browser_type = 'chromium'
             playwright_config = {}
@@ -211,13 +212,13 @@ class BrowserManager:
                 user_data_dir = None
 
             if not user_data_dir:
-                user_data_dir = PathService.get_browser_session_path(session_id)
+                user_data_dir = PathService.get_browser_session_path(resolved_id)
 
             Path(user_data_dir).mkdir(parents=True, exist_ok=True)
 
             logger.info(
                 "Creating browser context",
-                session_id=session_id,
+                session_id=resolved_id,
                 browser_type=browser_type,
                 has_user_agent=bool(playwright_config.get('user_agent')),
                 user_data_dir=user_data_dir
@@ -235,7 +236,7 @@ class BrowserManager:
             context = await browser_launcher.launch_persistent_context(
                 user_data_dir, **launch_args
             )
-            self._contexts[session_id] = (context, asyncio.get_running_loop())
+            self._contexts[resolved_id] = (context, asyncio.get_running_loop())
 
             blocked_types = (session_config or {}).get("blocked_resource_types") or []
             if (session_config or {}).get("resource_blocking_enabled") and blocked_types:
@@ -250,17 +251,17 @@ class BrowserManager:
                 await context.route("**/*", _block_handler)
                 logger.info(
                     "Resource blocking enabled for context",
-                    session_id=session_id,
+                    session_id=resolved_id,
                     blocked_types=list(blocked_set),
                 )
 
             logger.info(
                 "Browser context created successfully",
-                session_id=session_id,
+                session_id=resolved_id,
                 browser_type=browser_type
             )
 
-            return context
+            return (context, resolved_id)
 
     async def close_idle_contexts(self) -> None:
         """

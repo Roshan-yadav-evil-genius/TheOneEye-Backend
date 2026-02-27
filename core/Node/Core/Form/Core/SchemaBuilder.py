@@ -141,6 +141,12 @@ class DefaultFormSchemaBuilder(FormSchemaBuilder):
             except (TypeError, ValueError):
                 continue
             out[key] = value
+        # Ensure ChoiceField choices are in schema for frontend select
+        if hasattr(field, 'choices') and field.choices:
+            try:
+                out['choices'] = list(field.choices)
+            except (TypeError, ValueError):
+                pass
         return out
     
     def _extract_field_errors(self, form: "BaseForm", field_name: str) -> list:

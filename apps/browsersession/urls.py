@@ -3,11 +3,13 @@ from rest_framework.routers import DefaultRouter
 from apps.browsersession.views import (
     BrowserSessionViewSet,
     BrowserSessionChoicesView,
+    BrowserPoolViewSet,
     DomainThrottleRuleViewSet,
 )
 
 router = DefaultRouter()
 router.register("browser-sessions", BrowserSessionViewSet, basename="browser-sessions")
+router.register("browser-pools", BrowserPoolViewSet, basename="browser-pools")
 
 urlpatterns = [
     path("browser-sessions/choices/", BrowserSessionChoicesView.as_view(), name="browser-session-choices"),

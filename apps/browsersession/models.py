@@ -5,12 +5,12 @@ from django.db.models import (
     DateTimeField,
     FloatField,
     ForeignKey,
+    IntegerField,
     JSONField,
     TextField,
     UniqueConstraint,
 )
 from apps.workflow.models import BaseModel
-import uuid
 
 
 class BrowserSession(BaseModel):
@@ -66,3 +66,48 @@ class DomainThrottleRule(BaseModel):
 
     def __str__(self):
         return f"{self.session_id} / {self.domain} = {self.delay_seconds}s"
+
+
+class BrowserPool(BaseModel):
+    """A pool of browser sessions; at runtime one session is picked (e.g. least used per domain)."""
+    name = CharField(max_length=100)
+    description = TextField(blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.name}({self.id})"
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class BrowserPoolSession(BaseModel):
+    """Membership of a session in a pool; usage_count used when domain is not provided (fallback)."""
+    pool = ForeignKey(BrowserPool, on_delete=CASCADE, related_name="pool_sessions")
+    session = ForeignKey(BrowserSession, on_delete=CASCADE, related_name="pool_memberships")
+    usage_count = IntegerField(default=0)
+
+    class Meta:
+        ordering = ["usage_count"]
+        constraints = [
+            UniqueConstraint(fields=["pool", "session"], name="unique_pool_session"),
+        ]
+
+    def __str__(self):
+        return f"{self.pool_id} / {self.session_id}"
+
+
+class BrowserPoolSessionDomainUsage(BaseModel):
+    """Per-domain usage count for (pool, session); used to pick least-used session for a domain."""
+    pool = ForeignKey(BrowserPool, on_delete=CASCADE, related_name="domain_usages")
+    session = ForeignKey(BrowserSession, on_delete=CASCADE, related_name="pool_domain_usages")
+    domain = CharField(max_length=255)
+    usage_count = IntegerField(default=0)
+
+    class Meta:
+        ordering = ["usage_count"]
+        constraints = [
+            UniqueConstraint(fields=["pool", "session", "domain"], name="unique_pool_session_domain"),
+        ]
+
+    def __str__(self):
+        return f"{self.pool_id} / {self.session_id} / {self.domain} = {self.usage_count}"

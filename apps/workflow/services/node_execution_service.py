@@ -90,9 +90,9 @@ class NodeExecutionService:
                     'node_type': node.node_type,
                 }
             
-            # Execute the node with session support
+            # Execute the node with session support (node_id keys instance per workflow node)
             result = services.node_executor.execute(
-                node_metadata, input_data, form_values, session_id, timeout
+                node_metadata, input_data, form_values, session_id, timeout, node_id=str(node.id)
             )
             
             # Save output_data if execution was successful

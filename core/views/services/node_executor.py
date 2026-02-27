@@ -41,28 +41,30 @@ class NodeExecutor:
         self._session_store = NodeSessionStore()
     
     def execute(
-        self, 
-        node_metadata: Dict, 
-        input_data: Dict, 
+        self,
+        node_metadata: Dict,
+        input_data: Dict,
         form_data: Dict,
         session_id: Optional[str] = None,
-        timeout: Optional[float] = None
+        timeout: Optional[float] = None,
+        node_id: Optional[str] = None,
     ) -> Dict:
         """
         Execute a node with the given input and form data.
-        
+
         Args:
             node_metadata: Node metadata dict.
             input_data: Input data to pass to the node.
             form_data: Form field values.
-            session_id: Session ID for stateful execution (reuses instance).
+            session_id: Session ID for stateful execution (reuses instance per session+instance_key).
             timeout: Optional timeout in seconds (default: None, no timeout).
-            
+            node_id: Optional workflow node UUID; when set, instance is keyed by (session_id, node_id).
+
         Returns:
             Dict with execution result or error information.
         """
         node_class = self._node_loader.load_class(node_metadata)
-        
+
         if node_class is None:
             return {
                 'success': False,
@@ -70,10 +72,10 @@ class NodeExecutor:
                 'identifier': node_metadata.get('identifier'),
                 'file_path': node_metadata.get('file_path')
             }
-        
+
         try:
             result = self._run_node(
-                node_class, node_metadata, input_data, form_data, session_id, timeout
+                node_class, node_metadata, input_data, form_data, session_id, timeout, node_id
             )
             
             return {
@@ -91,8 +93,7 @@ class NodeExecutor:
         except asyncio.TimeoutError:
             # Handle timeout - clean up and raise ExecutionTimeoutException
             if session_id:
-                # Clear session on timeout
-                self._session_store.clear(session_id)
+                self._session_store.clear_session(session_id)
             raise ExecutionTimeoutException(
                 timeout=timeout or 0,
                 detail=f'Node execution exceeded timeout of {timeout} seconds'
@@ -133,42 +134,42 @@ class NodeExecutor:
     
     def clear_session(self, session_id: str) -> bool:
         """
-        Clear a session and its node instance.
-        
+        Clear all node instances for this session.
+
         Args:
             session_id: Session ID to clear.
-            
+
         Returns:
-            True if session was cleared, False if not found.
+            True if any instance was cleared, False otherwise.
         """
-        return self._session_store.clear(session_id)
+        return self._session_store.clear_session(session_id) > 0
     
     def _run_node(
-        self, 
-        node_class, 
-        node_metadata: Dict, 
-        input_data: Dict, 
+        self,
+        node_class,
+        node_metadata: Dict,
+        input_data: Dict,
         form_data: Dict,
         session_id: Optional[str] = None,
-        timeout: Optional[float] = None
+        timeout: Optional[float] = None,
+        node_id: Optional[str] = None,
     ) -> Any:
         """
         Run the node asynchronously and return the result.
-        
-        If session_id is provided, reuses existing instance or creates new one.
-        If timeout is provided, execution will be cancelled after timeout seconds.
+
+        If session_id is provided, reuses existing instance for (session_id, instance_key).
+        instance_key is node_id when provided (workflow), else node type identifier (direct API).
         """
         from ...Node.Core.Node.Core.Data import NodeConfig, NodeConfigData, NodeOutput
-        
-        # Check if we have an existing instance for this session
+
+        instance_key = node_id if node_id is not None else node_metadata.get("identifier", "")
         node_instance = None
         is_new_instance = False
-        
-        if session_id:
-            node_instance = self._session_store.get(session_id)
-        
+
+        if session_id and instance_key:
+            node_instance = self._session_store.get(session_id, instance_key)
+
         if node_instance is None:
-            # Create new instance
             node_config = NodeConfig(
                 id=f"exec_{node_metadata.get('identifier')}",
                 type=node_metadata.get('identifier'),
@@ -176,10 +177,9 @@ class NodeExecutor:
             )
             node_instance = node_class(node_config)
             is_new_instance = True
-            
-            # Store in session if session_id provided
-            if session_id:
-                self._session_store.set(session_id, node_instance)
+
+            if session_id and instance_key:
+                self._session_store.set(session_id, instance_key, node_instance)
         else:
             # Update form data on existing instance
             node_instance.node_config.data.form = form_data
@@ -201,7 +201,7 @@ class NodeExecutor:
         except FuturesTimeoutError:
             future.cancel()
             if session_id:
-                self._session_store.clear(session_id)
+                self._session_store.clear_session(session_id)
             raise asyncio.TimeoutError(
                 f"Node execution exceeded timeout of {timeout or 0} seconds"
             )

@@ -8,22 +8,27 @@ import time
 from typing import Any, Dict, Optional, Tuple
 
 
+def _composite_key(session_id: str, instance_key: str) -> str:
+    """Build store key from session_id and instance_key (e.g. workflow node id or node type identifier)."""
+    return f"{session_id}:{instance_key}"
+
+
 class NodeSessionStore:
     """
-    In-memory store for node instances keyed by session_id.
+    In-memory store for node instances keyed by (session_id, instance_key).
     
-    Enables stateful node execution by reusing the same instance
-    across multiple execute calls within a session.
+    Enables stateful node execution by reusing the same instance per (session, node).
+    Each workflow node or node type gets its own instance within a session.
     
     Features:
     - Thread-safe singleton pattern
-    - 30-minute TTL auto-cleanup for unused sessions
+    - 30-minute TTL auto-cleanup for unused entries
     """
     
     _instance = None
     _lock = threading.Lock()
     
-    # Sessions unused for 30 minutes are automatically cleaned up
+    # Entries unused for 30 minutes are automatically cleaned up
     TTL_SECONDS = 30 * 60  # 30 minutes
     
     def __new__(cls):
@@ -31,77 +36,82 @@ class NodeSessionStore:
             with cls._lock:
                 if cls._instance is None:
                     cls._instance = super().__new__(cls)
-                    # Store: {session_id: (instance, last_accessed_timestamp)}
+                    # Store: {composite_key: (instance, last_accessed_timestamp)}
                     cls._instance._sessions: Dict[str, Tuple[Any, float]] = {}
                     cls._instance._session_lock = threading.Lock()
         return cls._instance
     
     def _cleanup_expired(self) -> int:
         """
-        Remove sessions that haven't been accessed within TTL.
+        Remove entries that haven't been accessed within TTL.
         Called internally on each get/set operation (lazy cleanup).
         
         Returns:
-            Number of sessions cleaned up
+            Number of entries cleaned up
         """
         now = time.time()
         expired = [
-            session_id 
-            for session_id, (_, last_accessed) in self._sessions.items()
+            key
+            for key, (_, last_accessed) in self._sessions.items()
             if now - last_accessed > self.TTL_SECONDS
         ]
-        for session_id in expired:
-            del self._sessions[session_id]
+        for key in expired:
+            del self._sessions[key]
         return len(expired)
     
-    def get(self, session_id: str) -> Optional[Any]:
+    def get(self, session_id: str, instance_key: str) -> Optional[Any]:
         """
-        Get a node instance by session_id.
+        Get a node instance by session_id and instance_key.
         Updates the last accessed timestamp.
         
         Args:
-            session_id: Unique session identifier
+            session_id: Session identifier
+            instance_key: Node identity (e.g. workflow node UUID or node type identifier)
             
         Returns:
             Node instance if exists, None otherwise
         """
         with self._session_lock:
             self._cleanup_expired()
-            
-            if session_id in self._sessions:
-                instance, _ = self._sessions[session_id]
-                # Update last accessed time
-                self._sessions[session_id] = (instance, time.time())
+            key = _composite_key(session_id, instance_key)
+            if key in self._sessions:
+                instance, _ = self._sessions[key]
+                self._sessions[key] = (instance, time.time())
                 return instance
             return None
     
-    def set(self, session_id: str, instance: Any) -> None:
+    def set(self, session_id: str, instance_key: str, instance: Any) -> None:
         """
-        Store a node instance for a session.
+        Store a node instance for (session_id, instance_key).
         
         Args:
-            session_id: Unique session identifier
+            session_id: Session identifier
+            instance_key: Node identity (e.g. workflow node UUID or node type identifier)
             instance: Node instance to store
         """
         with self._session_lock:
             self._cleanup_expired()
-            self._sessions[session_id] = (instance, time.time())
+            key = _composite_key(session_id, instance_key)
+            self._sessions[key] = (instance, time.time())
     
-    def clear(self, session_id: str) -> bool:
+    def clear_session(self, session_id: str) -> int:
         """
-        Clear a session and its node instance.
+        Clear all node instances for this session_id.
+        Used on timeout and for reset-session API.
         
         Args:
-            session_id: Unique session identifier
+            session_id: Session identifier
             
         Returns:
-            True if session existed and was cleared, False otherwise
+            Number of entries removed
         """
         with self._session_lock:
-            if session_id in self._sessions:
-                del self._sessions[session_id]
-                return True
-            return False
+            self._cleanup_expired()
+            prefix = session_id + ":"
+            to_remove = [key for key in self._sessions if key.startswith(prefix)]
+            for key in to_remove:
+                del self._sessions[key]
+            return len(to_remove)
     
     def clear_all(self) -> int:
         """
