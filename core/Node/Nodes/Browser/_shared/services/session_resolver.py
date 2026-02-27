@@ -1,6 +1,7 @@
 """
-Session resolver: map form value (session:uuid or pool:uuid) to a concrete session_id.
-When value is pool:uuid, calls pool_service.pick_session_from_pool (via run_in_executor).
+Session resolver: map form value (pool:uuid only) to a concrete session_id.
+Sessions are only used through pools; direct session selection is not allowed.
+Calls pool_service.pick_session_from_pool (via run_in_executor).
 """
 
 import asyncio
@@ -12,7 +13,6 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 POOL_PREFIX = "pool:"
-SESSION_PREFIX = "session:"
 
 
 def extract_domain_from_url(url: Optional[str]) -> Optional[str]:
@@ -32,21 +32,20 @@ async def resolve_to_session_id(value: Optional[str], domain: Optional[str] = No
     """
     Resolve form value to a concrete browser session UUID.
 
-    - pool:<uuid> -> pick session from pool (via pool_service), return that session_id.
-    - session:<uuid> -> strip prefix and return the uuid.
-    - None, empty, or other format -> raise ValueError (no raw UUID; total replace).
+    Only pool:<uuid> is accepted. Picks a session from the pool via pool_service.
+    Direct session selection is not allowed; sessions are only used through pools.
 
     Must be called from async context; pool_service is run in executor.
     """
     if value is None or (isinstance(value, str) and not value.strip()):
-        raise ValueError("session_name is required; use session:<uuid> or pool:<uuid>")
+        raise ValueError("session_name is required; use pool:<uuid>")
 
     value = value.strip()
 
     if value.startswith(POOL_PREFIX):
         pool_id = value[len(POOL_PREFIX) :].strip()
         if not pool_id:
-            raise ValueError("Invalid pool value: pool:id is required")
+            raise ValueError("Invalid pool value: pool:<uuid> is required")
         from apps.browsersession.services.pool_service import pick_session_from_pool
 
         loop = asyncio.get_running_loop()
@@ -56,12 +55,6 @@ async def resolve_to_session_id(value: Optional[str], domain: Optional[str] = No
         )
         return session_id
 
-    if value.startswith(SESSION_PREFIX):
-        session_id = value[len(SESSION_PREFIX) :].strip()
-        if not session_id:
-            raise ValueError("Invalid session value: session:uuid is required")
-        return session_id
-
     raise ValueError(
-        "session_name must be session:<uuid> or pool:<uuid>; raw UUID is not supported"
+        "session_name must be pool:<uuid>; direct session selection is not supported"
     )

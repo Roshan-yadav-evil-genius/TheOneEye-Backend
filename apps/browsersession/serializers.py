@@ -83,6 +83,7 @@ class BrowserPoolSerializer(serializers.ModelSerializer):
 
 
 class BrowserPoolCreateSerializer(serializers.Serializer):
+    """Create a pool; at least one session is required."""
     name = serializers.CharField(max_length=100)
     description = serializers.CharField(allow_blank=True, allow_null=True, required=False, default=None)
     session_ids = serializers.ListField(child=serializers.UUIDField(), allow_empty=False)
@@ -104,6 +105,7 @@ class BrowserPoolCreateSerializer(serializers.Serializer):
 
 
 class BrowserPoolUpdateSerializer(serializers.Serializer):
+    """Update a pool; when session_ids is provided, at least one session is required."""
     name = serializers.CharField(max_length=100, required=False)
     description = serializers.CharField(allow_blank=True, allow_null=True, required=False)
     session_ids = serializers.ListField(child=serializers.UUIDField(), required=False)
