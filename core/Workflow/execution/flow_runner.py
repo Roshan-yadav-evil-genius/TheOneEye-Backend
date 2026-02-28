@@ -121,8 +121,10 @@ class FlowRunner:
                         self.events.emit_node_started(self.producer_flow_node.id, producer_type)
                     
                     logger.info("Initiating node execution", node_id=self.producer_flow_node.id, node_type=f"{node_type(producer)}({producer_type})")
+                    workflow_env = getattr(self.flow_graph, "workflow_env", None) or {}
+                    producer_input = NodeOutput(data={}, metadata={"workflow_env": workflow_env})
                     data = await self.executor.execute_in_pool(
-                        producer.execution_pool, producer, NodeOutput(data={})
+                        producer.execution_pool, producer, producer_input
                     )
                     
                     # Determine route for conditional nodes

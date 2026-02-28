@@ -271,7 +271,8 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         self.form._original_field_values = form_data.copy()
         
         rendered_values = {}
-        
+        workflow_env = (node_data.metadata or {}).get("workflow_env") or {}
+
         # First, initialize ALL form fields with their values from form_data
         # This ensures fields without Jinja templates are also populated
         for field_name in self.form.fields:
@@ -286,7 +287,7 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
                         env.filters["tojson"] = _tojson_filter
                         template = env.from_string(str(raw_value))
                         data_for_jinja = _JinjaDataWrapper(node_data.data)
-                        rendered_value = template.render(data=data_for_jinja)
+                        rendered_value = template.render(data=data_for_jinja, workflowenv=workflow_env)
                         rendered_values[field_name] = rendered_value
                         logger.debug(
                             "Rendered template field",

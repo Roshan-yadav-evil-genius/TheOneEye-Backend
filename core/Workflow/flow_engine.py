@@ -206,10 +206,12 @@ class FlowEngine:
             events=self.events,
         )
         
-        # Build metadata with API mode marker and request context
+        # Build metadata with API mode marker, request context, and workflow env for Jinja
+        workflow_env = getattr(self.flow_graph, "workflow_env", None) or {}
         metadata = {
             '__api_mode__': True,
-            '__request_context__': request_context or {}
+            '__request_context__': request_context or {},
+            "workflow_env": workflow_env,
         }
         
         # Wrap input in NodeOutput with API mode marker and request context

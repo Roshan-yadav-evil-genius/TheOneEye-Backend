@@ -27,6 +27,7 @@ class FlowBuilder:
         pool = settings.get("fork_execution_pool")
         if pool is not None and pool in ("process", "thread", "async"):
             self.graph.fork_execution_pool = pool
+        self.graph.workflow_env = workflow_json.get("env") or {}
 
     def _add_nodes(self, nodes: List[Dict[str, Any]]):
         for node_def in nodes:

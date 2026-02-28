@@ -52,7 +52,8 @@ class WorkflowConverter:
         
         return {
             "nodes": nodes,
-            "edges": edges
+            "edges": edges,
+            "env": workflow_config.get("env") or {},
         }
     
     @staticmethod

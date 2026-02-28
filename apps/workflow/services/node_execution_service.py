@@ -91,8 +91,9 @@ class NodeExecutionService:
                 }
             
             # Execute the node with session support (node_id keys instance per workflow node)
+            workflow_env = getattr(node.workflow, "env", None) or {}
             result = services.node_executor.execute(
-                node_metadata, input_data, form_values, session_id, timeout, node_id=str(node.id)
+                node_metadata, input_data, form_values, session_id, timeout, node_id=str(node.id), workflow_env=workflow_env
             )
             
             # Save output_data if execution was successful

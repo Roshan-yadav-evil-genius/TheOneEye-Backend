@@ -173,7 +173,8 @@ class ForEachIterationService:
         """Run ForEach once to get items, then run subDAG once for the given index; merge with previous_results."""
         from core.Node.Core.Node.Core.Data import NodeOutput
 
-        node_output = NodeOutput(data=input_data)
+        workflow_env = getattr(engine.flow_graph, "workflow_env", None) or {}
+        node_output = NodeOutput(data=input_data, metadata={"workflow_env": workflow_env})
         try:
             for_each_result = await executor.execute_in_pool(
                 flow_node.instance.execution_pool,
@@ -351,7 +352,8 @@ class ForEachIterationService:
         timeout: Optional[float] = None,
     ) -> Dict[str, Any]:
         """Run ForEach once to get items, then run subDAG for each item; return aggregated output."""
-        node_output = NodeOutput(data=input_data)
+        workflow_env = getattr(engine.flow_graph, "workflow_env", None) or {}
+        node_output = NodeOutput(data=input_data, metadata={"workflow_env": workflow_env})
         try:
             for_each_result = await executor.execute_in_pool(
                 flow_node.instance.execution_pool,

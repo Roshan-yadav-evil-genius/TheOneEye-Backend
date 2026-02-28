@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 import structlog
 from ..Node.Core.Node.Core.BaseNode import BaseNode
@@ -18,6 +18,8 @@ class FlowGraph:
         self.node_map: Dict[str, FlowNode] = {}
         # Optional: "process" | "thread" | "async" for fork branch execution pool
         self.fork_execution_pool: Optional[str] = None
+        # Workflow-level variables for Jinja (workflowenv.<key>)
+        self.workflow_env: Dict[str, Any] = {}
 
     def add_node(self, flow_node: FlowNode):
         """

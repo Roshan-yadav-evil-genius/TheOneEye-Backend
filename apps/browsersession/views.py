@@ -136,6 +136,8 @@ class BrowserSessionViewSet(ModelViewSet):
 
 class BrowserPoolViewSet(ModelViewSet):
     """CRUD for browser pools (pool of sessions for rotation)."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
     queryset = BrowserPool.objects.all()
     serializer_class = BrowserPoolSerializer
 
