@@ -9,6 +9,7 @@ import sys
 import os
 import asyncio
 import structlog
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Dict, Any, Optional
 from pathlib import Path
@@ -31,6 +32,16 @@ logger = structlog.get_logger(__name__)
 
 # Global reference to track running engines for shutdown
 _running_engines: Dict[str, Any] = {}
+
+# Thread pool for persisting runtime_state from async event callbacks (Django ORM is sync-only)
+_persist_executor: Optional[ThreadPoolExecutor] = None
+
+
+def _get_persist_executor() -> ThreadPoolExecutor:
+    global _persist_executor
+    if _persist_executor is None:
+        _persist_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="runtime_persist")
+    return _persist_executor
 
 
 class FlowEngineService:
@@ -64,8 +75,8 @@ class FlowEngineService:
             total_nodes = len(engine.flow_graph.node_map)
             redis_state_store.start_workflow(workflow_id, total_nodes)
             
-            # Subscribe to events for WebSocket broadcasting AND Redis state updates
-            FlowEngineService._subscribe_to_events(workflow_id, engine.events)
+            # Subscribe to events for WebSocket broadcasting, Redis state updates, and runtime_state persistence
+            FlowEngineService._subscribe_to_events(workflow_id, engine.events, engine)
             
             # Run the workflow in production mode
             loop = asyncio.new_event_loop()
@@ -74,6 +85,9 @@ class FlowEngineService:
             try:
                 loop.run_until_complete(engine.run_production())
                 logger.info("Workflow execution completed successfully", workflow_id=workflow_id)
+                
+                # Persist final runtime_state to DB so /env shows updated runtime on refresh
+                FlowEngineService._persist_runtime_state(workflow_id, engine._runtime)
                 
                 # Mark workflow as completed in Redis
                 redis_state_store.complete_workflow(workflow_id, "completed")
@@ -91,6 +105,8 @@ class FlowEngineService:
                     "message": "Workflow execution completed successfully"
                 }
             except Exception as e:
+                # Persist runtime_state so /env shows whatever was set before failure
+                FlowEngineService._persist_runtime_state(workflow_id, engine._runtime)
                 # Mark workflow as failed in Redis
                 redis_state_store.fail_workflow(workflow_id, str(e))
                 # Broadcast workflow failed
@@ -173,13 +189,33 @@ class FlowEngineService:
                 logger.warning("Error cleaning up browser resources", error=str(browser_cleanup_error))
     
     @staticmethod
-    def _subscribe_to_events(workflow_id: str, events) -> None:
+    def _persist_runtime_state(workflow_id: str, runtime: Dict[str, Any]) -> None:
         """
-        Subscribe to FlowEngine events for Redis state updates and WebSocket broadcasting.
+        Save runtime_state to WorkFlow so /env shows updated runtime on refresh.
+        Single responsibility: DB persistence of runtime dict.
+        """
+        try:
+            from ..models import WorkFlow
+            workflow = WorkFlow.objects.get(id=workflow_id)
+            workflow.runtime_state = dict(runtime) if isinstance(runtime, dict) else {}
+            workflow.save(update_fields=["runtime_state"])
+        except Exception as e:
+            logger.warning(
+                "Failed to persist runtime_state",
+                workflow_id=workflow_id,
+                error=str(e),
+            )
+
+    @staticmethod
+    def _subscribe_to_events(workflow_id: str, events, engine) -> None:
+        """
+        Subscribe to FlowEngine events for Redis state updates, WebSocket broadcasting,
+        and runtime_state persistence after each node.
         
         Args:
             workflow_id: The workflow ID
             events: The WorkflowEventEmitter instance
+            engine: FlowEngine instance (used to read _runtime for persistence)
         """
         from core.Workflow.events import WorkflowEventEmitter
         
@@ -219,6 +255,14 @@ class FlowEngineService:
                 duration=duration,
                 route=route,
                 output_data=data.get("output_data")
+            )
+            # Persist runtime_state after every node so /env shows updates on refresh.
+            # Run in thread: this callback runs in async context and Django ORM cannot be called from async.
+            runtime_snapshot = dict(getattr(engine, "_runtime", {}))
+            _get_persist_executor().submit(
+                FlowEngineService._persist_runtime_state,
+                workflow_id,
+                runtime_snapshot,
             )
         events.subscribe(WorkflowEventEmitter.NODE_COMPLETED, on_node_completed)
         
