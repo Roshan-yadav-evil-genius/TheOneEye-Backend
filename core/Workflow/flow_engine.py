@@ -34,7 +34,7 @@ class FlowEngine:
         self.flow_graph = FlowGraph()
         self.flow_analyzer = FlowAnalyzer(self.flow_graph)
         self.flow_builder = FlowBuilder(self.flow_graph, NodeRegistry())
-        
+        self._runtime: Dict[str, Any] = {}
         # Event system for real-time updates
         self.events = WorkflowEventEmitter(workflow_id)
         self.state_tracker: Optional[ExecutionStateTracker] = None
@@ -49,6 +49,7 @@ class FlowEngine:
             flow_graph=self.flow_graph,
             fork_execution_pool=fork_pool,
             events=self.events,
+            shared_runtime=self._runtime,
         )
         self.flow_runners.append(runner)
 
@@ -204,14 +205,16 @@ class FlowEngine:
             fork_execution_pool=fork_pool,
             executor=PoolExecutor(),
             events=self.events,
+            shared_runtime=self._runtime,
         )
         
-        # Build metadata with API mode marker, request context, and workflow env for Jinja
+        # Build metadata with API mode marker, request context, workflow env and runtime for Jinja
         workflow_env = getattr(self.flow_graph, "workflow_env", None) or {}
         metadata = {
             '__api_mode__': True,
             '__request_context__': request_context or {},
             "workflow_env": workflow_env,
+            "runtime": self._runtime,
         }
         
         # Wrap input in NodeOutput with API mode marker and request context

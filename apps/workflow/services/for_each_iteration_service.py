@@ -174,7 +174,11 @@ class ForEachIterationService:
         from core.Node.Core.Node.Core.Data import NodeOutput
 
         workflow_env = getattr(engine.flow_graph, "workflow_env", None) or {}
-        node_output = NodeOutput(data=input_data, metadata={"workflow_env": workflow_env})
+        runtime_ref = getattr(engine, "_runtime", None) or {}
+        node_output = NodeOutput(
+            data=input_data,
+            metadata={"workflow_env": workflow_env, "runtime": runtime_ref},
+        )
         try:
             for_each_result = await executor.execute_in_pool(
                 flow_node.instance.execution_pool,
@@ -243,7 +247,12 @@ class ForEachIterationService:
         )
 
         from core.Workflow.execution.api_flow_runner import APIFlowRunner
-        runner = APIFlowRunner(start_node=entry_flow_node, executor=executor, events=engine.events)
+        runner = APIFlowRunner(
+            start_node=entry_flow_node,
+            executor=executor,
+            events=engine.events,
+            shared_runtime=node_output.metadata.get("runtime") if isinstance(node_output.metadata, dict) else None,
+        )
         await runner._init_nodes()
         collected: List[NodeOutput] = await runner.run_subdag_once(entry_flow_node, element_output)
         iteration_output = [o.data for o in collected]
@@ -353,7 +362,11 @@ class ForEachIterationService:
     ) -> Dict[str, Any]:
         """Run ForEach once to get items, then run subDAG for each item; return aggregated output."""
         workflow_env = getattr(engine.flow_graph, "workflow_env", None) or {}
-        node_output = NodeOutput(data=input_data, metadata={"workflow_env": workflow_env})
+        runtime_ref = getattr(engine, "_runtime", None) or {}
+        node_output = NodeOutput(
+            data=input_data,
+            metadata={"workflow_env": workflow_env, "runtime": runtime_ref},
+        )
         try:
             for_each_result = await executor.execute_in_pool(
                 flow_node.instance.execution_pool,
@@ -395,7 +408,10 @@ class ForEachIterationService:
         from core.Workflow.execution.api_flow_runner import APIFlowRunner
 
         runner = APIFlowRunner(
-            start_node=entry_flow_node, executor=executor, events=engine.events
+            start_node=entry_flow_node,
+            executor=executor,
+            events=engine.events,
+            shared_runtime=node_output.metadata.get("runtime") if isinstance(node_output.metadata, dict) else None,
         )
         await runner._init_nodes()
 

@@ -99,6 +99,48 @@ def _tojson_filter(val: Any) -> str:
     return json.dumps(unwrapped)
 
 
+class RuntimeMutable:
+    """
+    Wrapper so Jinja can read runtime variables via {{ runtime.keyname }}.
+    Holds a reference to the same dict stored in metadata["runtime"].
+    """
+
+    __slots__ = ("_dict",)
+
+    def __init__(self, runtime_dict: dict):
+        self._dict = runtime_dict if isinstance(runtime_dict, dict) else {}
+
+    def __getattr__(self, name: str) -> Any:
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return self._dict.get(name, "")
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self._dict.get(key, default)
+
+
+def _make_set_runtime(runtime_dict: dict):
+    """Return a Jinja filter that sets runtime_dict[key] = val and returns the left-hand value."""
+
+    def set_runtime(value: Any, key: str, val: Any) -> Any:
+        if isinstance(runtime_dict, dict):
+            runtime_dict[key] = val
+        return value
+
+    return set_runtime
+
+
+def _make_delete_runtime(runtime_dict: dict):
+    """Return a Jinja filter that removes key from runtime_dict and returns the left-hand value."""
+
+    def delete_runtime(value: Any, key: str) -> Any:
+        if isinstance(runtime_dict, dict):
+            runtime_dict.pop(key, None)
+        return value
+
+    return delete_runtime
+
+
 class FormValidationError(Exception):
     """
     Exception raised when form validation fails after Jinja template rendering.
@@ -271,7 +313,15 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         self.form._original_field_values = form_data.copy()
         
         rendered_values = {}
-        workflow_env = (node_data.metadata or {}).get("workflow_env") or {}
+        meta = node_data.metadata or {}
+        if not isinstance(meta, dict):
+            meta = {}
+        workflow_env = meta.get("workflow_env") or {}
+        runtime_dict = meta.get("runtime")
+        if not isinstance(runtime_dict, dict):
+            runtime_dict = {}
+            if isinstance(node_data.metadata, dict):
+                node_data.metadata["runtime"] = runtime_dict
 
         # First, initialize ALL form fields with their values from form_data
         # This ensures fields without Jinja templates are also populated
@@ -285,9 +335,15 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
                         # Custom tojson filter unwraps _JinjaDataWrapper so {{ data.forEachNode|tojson }} works.
                         env = Environment()
                         env.filters["tojson"] = _tojson_filter
+                        env.filters["set_runtime"] = _make_set_runtime(runtime_dict)
+                        env.filters["delete_runtime"] = _make_delete_runtime(runtime_dict)
                         template = env.from_string(str(raw_value))
                         data_for_jinja = _JinjaDataWrapper(node_data.data)
-                        rendered_value = template.render(data=data_for_jinja, workflowenv=workflow_env)
+                        rendered_value = template.render(
+                            data=data_for_jinja,
+                            workflowenv=workflow_env,
+                            runtime=RuntimeMutable(runtime_dict),
+                        )
                         rendered_values[field_name] = rendered_value
                         logger.debug(
                             "Rendered template field",
@@ -381,7 +437,15 @@ class BaseNode(BaseNodeProperty, BaseNodeMethod, ABC):
         self.populate_form_values(node_data)
         output = await self.execute(node_data)
         self.execution_count += 1
-        return output
+        # Shallow merge: carry forward runtime/workflow_env from input when output omits them
+        input_meta = node_data.metadata if isinstance(node_data.metadata, dict) else {}
+        output_meta = getattr(output, "metadata", None) or {}
+        if not isinstance(output_meta, dict):
+            output_meta = {}
+        merged = {**input_meta, **output_meta}
+        if hasattr(output, "model_copy"):
+            return output.model_copy(update={"metadata": merged})
+        return NodeOutput(id=getattr(output, "id", None), data=getattr(output, "data", {}), metadata=merged)
 
     async def cleanup(self, node_data: Optional[NodeOutput] = None):
         """

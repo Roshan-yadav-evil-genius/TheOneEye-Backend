@@ -52,6 +52,7 @@ class APIFlowRunner:
         events: Optional["WorkflowEventEmitter"] = None,
         flow_graph: Optional["FlowGraph"] = None,
         fork_execution_pool: Optional[str] = None,
+        shared_runtime: Optional[Dict] = None,
     ):
         """
         Initialize the API flow runner.
@@ -62,12 +63,14 @@ class APIFlowRunner:
             events: Optional event emitter for workflow events
             flow_graph: Optional graph for join detection (len(upstream) > 1)
             fork_execution_pool: Optional "process" | "thread" | "async" for fork branches
+            shared_runtime: Optional shared dict for runtime variables (same ref across runners)
         """
         self.start_node = start_node
         self.executor = executor or PoolExecutor()
         self.events = events
         self.flow_graph = flow_graph
         self.fork_execution_pool = fork_execution_pool
+        self._runtime = shared_runtime if shared_runtime is not None else {}
         self.last_output: Optional[NodeOutput] = None
 
     def _get_pool_for_fork_branch(self, flow_node: FlowNode) -> PoolType:

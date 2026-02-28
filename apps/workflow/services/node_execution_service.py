@@ -92,8 +92,16 @@ class NodeExecutionService:
             
             # Execute the node with session support (node_id keys instance per workflow node)
             workflow_env = getattr(node.workflow, "env", None) or {}
+            initial_runtime = getattr(node.workflow, "runtime_state", None) or {}
             result = services.node_executor.execute(
-                node_metadata, input_data, form_values, session_id, timeout, node_id=str(node.id), workflow_env=workflow_env
+                node_metadata,
+                input_data,
+                form_values,
+                session_id,
+                timeout,
+                node_id=str(node.id),
+                workflow_env=workflow_env,
+                initial_runtime=initial_runtime,
             )
             
             # Save output_data if execution was successful
@@ -105,6 +113,12 @@ class NodeExecutionService:
                 else:
                     node.output_data = output
                 node.save()
+                # Persist runtime state to workflow for Env page
+                if isinstance(output, dict) and "metadata" in output:
+                    runtime = output["metadata"].get("runtime")
+                    if isinstance(runtime, dict):
+                        node.workflow.runtime_state = dict(runtime)
+                        node.workflow.save(update_fields=["runtime_state"])
             
             # Return the execution result
             return {

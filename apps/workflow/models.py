@@ -48,6 +48,7 @@ class WorkFlow(BaseModel):
     created_by = CharField(max_length=100, blank=True, null=True)
     task_id = CharField(max_length=255, blank=True, null=True)  # Store Celery task ID
     env = JSONField(default=dict, blank=True)  # Workflow-level variables for Jinja (workflowenv.<key>)
+    runtime_state = JSONField(default=dict, blank=True)  # Last-run snapshot of runtime variables (runtime.<key>)
 
     def __str__(self):
         return f"{self.name}({self.id})"

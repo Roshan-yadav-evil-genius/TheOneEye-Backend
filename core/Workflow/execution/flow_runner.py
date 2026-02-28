@@ -1,6 +1,6 @@
 import asyncio
 import structlog
-from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 from ...Node.Core.Node.Core.BaseNode import ProducerNode, NonBlockingNode, ConditionalNode, LoopNode
 from ...Node.Core.Node.Core.Data import NodeOutput, PoolType
 from ..flow_utils import node_type, log_safe_output
@@ -29,6 +29,7 @@ class FlowRunner:
         events: Optional["WorkflowEventEmitter"] = None,
         flow_graph: Optional["FlowGraph"] = None,
         fork_execution_pool: Optional[str] = None,
+        shared_runtime: Optional[Dict] = None,
     ):
         self.producer_flow_node = producer_flow_node
         self.producer = producer_flow_node.instance
@@ -36,6 +37,7 @@ class FlowRunner:
         self.events = events
         self.flow_graph = flow_graph
         self.fork_execution_pool = fork_execution_pool
+        self._runtime = shared_runtime if shared_runtime is not None else {}
         self.running = False
         self.loop_count = 0
 
@@ -122,7 +124,10 @@ class FlowRunner:
                     
                     logger.info("Initiating node execution", node_id=self.producer_flow_node.id, node_type=f"{node_type(producer)}({producer_type})")
                     workflow_env = getattr(self.flow_graph, "workflow_env", None) or {}
-                    producer_input = NodeOutput(data={}, metadata={"workflow_env": workflow_env})
+                    producer_input = NodeOutput(
+                        data={},
+                        metadata={"workflow_env": workflow_env, "runtime": self._runtime},
+                    )
                     data = await self.executor.execute_in_pool(
                         producer.execution_pool, producer, producer_input
                     )

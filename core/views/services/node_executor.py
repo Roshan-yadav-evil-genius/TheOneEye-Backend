@@ -49,6 +49,7 @@ class NodeExecutor:
         timeout: Optional[float] = None,
         node_id: Optional[str] = None,
         workflow_env: Optional[Dict[str, Any]] = None,
+        initial_runtime: Optional[Dict[str, Any]] = None,
     ) -> Dict:
         """
         Execute a node with the given input and form data.
@@ -61,6 +62,7 @@ class NodeExecutor:
             timeout: Optional timeout in seconds (default: None, no timeout).
             node_id: Optional workflow node UUID; when set, instance is keyed by (session_id, node_id).
             workflow_env: Optional workflow-level env for Jinja (workflowenv.<key>). Pass when running in workflow context.
+            initial_runtime: Optional initial runtime dict for Jinja (runtime.<key>). Pass e.g. workflow.runtime_state for canvas runs.
 
         Returns:
             Dict with execution result or error information.
@@ -77,7 +79,7 @@ class NodeExecutor:
 
         try:
             result = self._run_node(
-                node_class, node_metadata, input_data, form_data, session_id, timeout, node_id, workflow_env
+                node_class, node_metadata, input_data, form_data, session_id, timeout, node_id, workflow_env, initial_runtime
             )
             
             return {
@@ -156,6 +158,7 @@ class NodeExecutor:
         timeout: Optional[float] = None,
         node_id: Optional[str] = None,
         workflow_env: Optional[Dict[str, Any]] = None,
+        initial_runtime: Optional[Dict[str, Any]] = None,
     ) -> Any:
         """
         Run the node asynchronously and return the result.
@@ -163,6 +166,7 @@ class NodeExecutor:
         If session_id is provided, reuses existing instance for (session_id, instance_key).
         instance_key is node_id when provided (workflow), else node type identifier (direct API).
         If workflow_env is provided (e.g. when running from workflow canvas), Jinja can use workflowenv.<key>.
+        If initial_runtime is provided (e.g. workflow.runtime_state), Jinja can use runtime.<key>.
         """
         from ...Node.Core.Node.Core.Data import NodeConfig, NodeConfigData, NodeOutput
 
@@ -189,8 +193,12 @@ class NodeExecutor:
             node_instance.node_config.data.form = form_data
 
         env = workflow_env if workflow_env is not None else {}
-        # Create NodeOutput from input data; include workflow env for Jinja (workflowenv.<key>)
-        node_output = NodeOutput(data=input_data, metadata={"workflow_env": env})
+        runtime = initial_runtime if initial_runtime is not None else {}
+        # Create NodeOutput from input data; include workflow env and runtime for Jinja
+        node_output = NodeOutput(
+            data=input_data,
+            metadata={"workflow_env": env, "runtime": runtime},
+        )
         
         # Run the node asynchronously on the shared loop (browser context is reused)
         async def run_async():
