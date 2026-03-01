@@ -293,14 +293,17 @@ class WorkFlowViewSet(ModelViewSet):
             "timeout": 300     // Optional timeout in seconds (default: 300)
         }
         
-        Response (success):
+        Response (success, default): JSON envelope with HTTP 200:
         {
             "success": true,
             "workflow_id": "uuid",
             "output": { ... },  // Output from the last executed node
             "execution_time_ms": 523
         }
-        
+
+        Response (success, when last node is HTTP Response node): Raw body and status
+        from that node (e.g. 201, 404) with no envelope; body is the node's body only.
+
         Response (error):
         {
             "success": false,
@@ -329,7 +332,13 @@ class WorkFlowViewSet(ModelViewSet):
             timeout,
             request_context=request_context
         )
-        
-        # Return appropriate status code based on success
+
+        # When last node is HTTP Response node, return its status and body directly
+        if result.get('http_response'):
+            status_code = result['http_response']['status']
+            body = result['http_response'].get('body')
+            return Response(body, status=status_code)
+
+        # Default: envelope with 200 on success, 400 on failure
         status_code = status.HTTP_200_OK if result.get('success') else status.HTTP_400_BAD_REQUEST
         return Response(result, status=status_code)

@@ -170,6 +170,18 @@ class APIExecutionService:
                     workflow_id=workflow_id,
                     execution_time_ms=execution_time_ms
                 )
+                data = getattr(result, 'data', None)
+                is_http_response = isinstance(data, dict) and data.get('__http_response__') is True
+                if is_http_response:
+                    return {
+                        'success': True,
+                        'workflow_id': str(workflow_id),
+                        'http_response': {
+                            'status': data['status'],
+                            'body': data.get('body'),
+                        },
+                        'execution_time_ms': execution_time_ms,
+                    }
                 return {
                     'success': True,
                     'workflow_id': str(workflow_id),

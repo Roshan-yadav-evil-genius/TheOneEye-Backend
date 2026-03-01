@@ -22,8 +22,12 @@ class NodeListView(APIView):
     
     def get(self, request):
         services = get_node_services()
-        nodes = services.node_registry.get_all_nodes()
-        return Response(nodes)
+        tree = services.node_registry.get_all_nodes()
+        enriched_tree = {
+            category: _enrich_folder_with_supported_workflow_types(folder_data)
+            for category, folder_data in tree.items()
+        }
+        return Response(enriched_tree)
 
 
 class NodeFlatListView(APIView):
@@ -37,7 +41,8 @@ class NodeFlatListView(APIView):
     def get(self, request):
         services = get_node_services()
         nodes = services.node_registry.get_nodes_flat()
-        return Response(nodes)
+        enriched = [_enrich_node_with_supported_workflow_types(n) for n in nodes]
+        return Response(enriched)
 
 
 class NodeCountView(APIView):
@@ -339,6 +344,24 @@ def _format_node_response(node: dict, include_form_class: bool = False, include_
         response['file_path'] = node.get('file_path')
     
     return response
+
+
+def _enrich_node_with_supported_workflow_types(node: dict) -> dict:
+    """Return a copy of the node dict with supported_workflow_types added."""
+    enriched = node.copy()
+    enriched['supported_workflow_types'] = _get_node_supported_workflow_types(node)
+    return enriched
+
+
+def _enrich_folder_with_supported_workflow_types(folder_data: dict) -> dict:
+    """Recursively add supported_workflow_types to every node in a tree folder."""
+    return {
+        'nodes': [_enrich_node_with_supported_workflow_types(n) for n in folder_data['nodes']],
+        'subfolders': {
+            k: _enrich_folder_with_supported_workflow_types(v)
+            for k, v in folder_data['subfolders'].items()
+        },
+    }
 
 
 def _get_node_supported_workflow_types(node: dict) -> list:
