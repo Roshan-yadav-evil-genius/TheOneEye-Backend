@@ -22,7 +22,6 @@ class ClickOnConnectButton(LinkedInBaseAtomicAction):
             await self.profile.connect_button().click()
             await self._wait_for_dialog("clicking Connect")
 
-        
     async def verify_action(self)->bool:
         if await self.profile.dialog().is_visible():
             return True
@@ -36,7 +35,6 @@ class ClickOnAddNoteButton(LinkedInBaseAtomicAction):
         if await self.profile.dialog().is_visible():
             await self.profile.add_note_button().click()
             await self.profile.add_note_input().wait_for(state="visible")
-
 
     async def verify_action(self)->bool:
         if await self.profile.add_note_input().is_visible():
@@ -52,10 +50,9 @@ class ClickOnSendWithoutNoteButton(LinkedInBaseAtomicAction):
             await self.profile.send_without_note_button().click(timeout=10000)
             await self.profile.pending_button().wait_for(state="visible")
         except Exception as e:
-            logger.error(e)
+            logger.error("%s: %s", self.__class__.__name__, e)
 
     async def verify_action(self)->bool:
-
         if await self.profile.pending_button().is_visible():
             return True
         return False
@@ -67,9 +64,7 @@ class FillAddNoteInput(LinkedInBaseAtomicAction):
         self.invitation_note = invitation_note
 
     async def perform_action(self):
-        """Type text with randomized per-keystroke delay to mimic human input."""
         await human_type(self.profile.add_note_input(), self.invitation_note)
-        
 
     async def verify_action(self)->bool:
         if await self.profile.add_note_input().input_value() == self.invitation_note:
@@ -81,8 +76,11 @@ class SubmitInvitationNote(LinkedInBaseAtomicAction):
         super().__init__(page)
 
     async def perform_action(self):
-        await self.profile.send_button().click()
-        await self.page.wait_for_timeout(500)
+        try:
+            await self.profile.send_button().click()
+            await self.page.wait_for_timeout(500)
+        except Exception as e:
+            logger.error("%s: %s", self.__class__.__name__, e)
 
     async def verify_action(self)->bool:
         if not await self.profile.send_button().is_visible():
@@ -159,9 +157,9 @@ class WithdrawConnectionRequest(LinkedInBaseMolecularAction):
     async def perform_action(self):
         connection_status = await self._get_connection_status()
         if connection_status == ConnectionStatus.PENDING:
-            self._accomplished=await self.execute_chain_of_actions()
+            self._accomplished = await self.execute_chain_of_actions()
         else:
             logger.warning("Failed to withdraw connection request. User is not in pending state")
-    
+
     async def verify_action(self)->bool:
         return self._accomplished

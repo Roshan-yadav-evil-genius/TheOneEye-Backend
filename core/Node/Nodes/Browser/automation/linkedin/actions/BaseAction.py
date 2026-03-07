@@ -27,8 +27,13 @@ class AtomicAction:
         pass
 
     async def accomplish(self):
-        await self.perform_action()
-        self._accomplished = await self.verify_action()  
+        try:
+            logger.debug("Accomplishing action: %s", self.__class__.__name__)
+            await self.perform_action()
+            self._accomplished = await self.verify_action()
+        except Exception as e:
+            logger.error(f"{self.__class__.__name__} Failed: {e}")
+            self._accomplished = False
         return self
 
 class MoleculerAction(AtomicAction):

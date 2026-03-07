@@ -54,7 +54,7 @@ class ClickOnDialogUnfollowButton(LinkedInBaseAtomicAction):
     async def perform_action(self):
         await self.profile.dialog_unfollow_button().click()
         await self.profile.dialog_unfollow_button().wait_for(state="hidden")
-    
+
     async def verify_action(self)->bool:
         if not await self.profile.dialog_unfollow_button().is_visible():
             return True
