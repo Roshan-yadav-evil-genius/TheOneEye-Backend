@@ -98,16 +98,25 @@ class SubmitInvitationNote(BaseProfilePageAction):
         return False
 
 class SendConnectionRequest(BaseProfilePageAction):
-    def __init__(self, page: Page):
+    def __init__(self, page: Page, invitation_note:str=""):
         super().__init__(page)
-        self.chain_of_actions = [
+        self.invitation_note = invitation_note
+        self.send_without_note = [
             ClickOnMoreButton(self.page), 
             ClickOnConnectButton(self.page), 
-            # ClickOnSendWithoutNoteButton(self.page)
+            ClickOnSendWithoutNoteButton(self.page)
+        ]
+        self.send_with_note = [
+            ClickOnMoreButton(self.page), 
+            ClickOnConnectButton(self.page), 
             ClickOnAddNoteButton(self.page), 
-            FillAddNoteInput(self.page, "Hello, I want to connect with you"),
+            FillAddNoteInput(self.page, self.invitation_note),
             SubmitInvitationNote(self.page)
-            ]
+        ]
+        if self.invitation_note:
+            self.chain_of_actions = self.send_with_note
+        else:
+            self.chain_of_actions = self.send_without_note
 
     async def human_wait(self, min_ms=50, max_ms=500):
         delay = random.randint(min_ms, max_ms)

@@ -23,9 +23,5 @@ class BaseAction:
 
     async def accomplish(self):
         await self.perform_action()
-        if await self.verify_action():
-            self._accomplished = True
-        else:
-            self._accomplished = False
-    
+        self._accomplished = await self.verify_action()  
         return self

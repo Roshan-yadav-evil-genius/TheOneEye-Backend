@@ -63,17 +63,6 @@ class ProfilePage:
         else:
             logger.info("Already not following this profile")
 
-    async def send_connection_request(self, note: str = ""):
-        connection_status = await self._get_connection_status()
-        logger.debug("Current connection status: %s", connection_status)
-
-        if connection_status == ConnectionStatus.NOT_CONNECTED:
-            logger.info("Sending connection request")
-            await self._send_connection_request(note)
-            logger.info("Connection request sent successfully")
-        else:
-            logger.info("Cannot send connection request - status is %s", connection_status)
-
     async def withdraw_connection_request(self):
         connection_status = await self._get_connection_status()
         logger.debug("Current connection status: %s", connection_status)
@@ -102,34 +91,6 @@ class ProfilePage:
     # ─────────────────────────────────────────────────────────────
     # Private Methods
     # ─────────────────────────────────────────────────────────────
-
-    async def _send_connection_request(self, note: str = ""):
-        connect_btn = self.profile.connect_button()
-
-        if not await self._click_or_expand_more_menu(connect_btn, "Connect"):
-            return
-
-        dialog = await self._wait_for_dialog("clicking Connect")
-        if not dialog:
-            logger.error("Connection dialog did not appear")
-            return
-
-        if note:
-            logger.debug("Sending connection request with note")
-            add_note_btn = self.profile.add_note_button()
-            if await add_note_btn.is_visible():
-                await add_note_btn.click()
-                await self.profile.add_note_input().fill(note)
-                await self.profile.send_button().click()
-            else:
-                logger.warning("'Add a note' button not found")
-        else:
-            logger.debug("Sending connection request without note")
-            send_without_note_btn = self.profile.send_without_note_button()
-            if await send_without_note_btn.is_visible():
-                await send_without_note_btn.click()
-            else:
-                logger.warning("'Send without a note' button not found")
 
     @staticmethod
     def _is_valid_linkedin_profile_url(profile_url: str) -> bool:
