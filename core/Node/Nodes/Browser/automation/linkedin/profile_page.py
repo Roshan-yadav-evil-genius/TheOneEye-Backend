@@ -1,21 +1,14 @@
 import logging
 from playwright.async_api import Page, Locator
+
+from linkedin.enums.Status import ConnectionStatus, FollowingStatus
 from .selectors.profile_page import LinkedInProfilePageSelectors
 from urllib.parse import urlparse
-from enum import Enum
 
 logger = logging.getLogger(__name__)
 
 
-class ConnectionStatus(Enum):
-    NOT_CONNECTED = "not_connected"
-    CONNECTED = "connected"
-    PENDING = "pending"
 
-
-class FollowingStatus(Enum):
-    NOT_FOLLOWING = "not_following"
-    FOLLOWING = "following"
 
 
 class ProfilePage:
@@ -126,7 +119,7 @@ class ProfilePage:
             add_note_btn = self.profile.add_note_button()
             if await add_note_btn.is_visible():
                 await add_note_btn.click()
-                await self.profile.message_input().fill(note)
+                await self.profile.add_note_input().fill(note)
                 await self.profile.send_button().click()
             else:
                 logger.warning("'Add a note' button not found")
@@ -195,36 +188,5 @@ class ProfilePage:
             logger.error("Could not find '%s' even in More menu", button_name)
             return False
 
-    async def _wait_for_dialog(self, context: str = "action") -> Locator | None:
-        """
-        Wait for dialog to appear.
 
-        Args:
-            context: Description of what triggered the dialog (for error message)
 
-        Returns:
-            Dialog locator if found, None otherwise.
-        """
-        logger.debug("Waiting for dialog after %s", context)
-        dialog = self.profile.dialog()
-        try:
-            await dialog.wait_for(state="visible", timeout=5000)
-            logger.debug("Dialog appeared successfully")
-            return dialog
-        except Exception:
-            logger.warning("Dialog did not appear after %s", context)
-            return None
-
-    async def _get_connection_status(self) -> ConnectionStatus:
-        if await self.profile.connect_button().count():
-            return ConnectionStatus.NOT_CONNECTED
-
-        if await self.profile.pending_button().count():
-            return ConnectionStatus.PENDING
-
-        return ConnectionStatus.CONNECTED
-
-    async def _get_following_status(self) -> FollowingStatus:
-        if await self.profile.follow_button().count():
-            return FollowingStatus.NOT_FOLLOWING
-        return FollowingStatus.FOLLOWING

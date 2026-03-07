@@ -44,6 +44,10 @@ class LinkedInProfilePageSelectors(BasePage):
         """Returns the More menu trigger button locator."""
         return self.get(ProfilePageKey.MORE_MENU_BUTTON)
     
+    def more_menu_dialog(self) -> Locator:
+        """Returns the More menu dialog locator."""
+        return self.get(ProfilePageKey.MORE_MENU_DIALOG)
+    
     def follow_button(self) -> Locator:
         """Returns the Follow button locator."""
         return self.get(ProfilePageKey.FOLLOW_BUTTON)
@@ -80,9 +84,9 @@ class LinkedInProfilePageSelectors(BasePage):
         """Returns the Send button locator."""
         return self.get(ProfilePageKey.SEND_BUTTON)
     
-    def message_input(self) -> Locator:
+    def add_note_input(self) -> Locator:
         """Returns the message textarea locator."""
-        return self.get(ProfilePageKey.MESSAGE_INPUT)
+        return self.get(ProfilePageKey.ADD_NOTE_INPUT)
     
     # ─────────────────────────────────────────────────────────────
     #  Withdraw Connection Request Dialog Actions

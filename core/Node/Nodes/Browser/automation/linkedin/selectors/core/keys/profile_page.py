@@ -14,6 +14,7 @@ class ProfilePageKey(Enum):
     
     # Menus
     MORE_MENU_BUTTON = "more_menu_trigger"
+    MORE_MENU_DIALOG = "more_menu_dialog"
     
     # Dialogs
     DIALOG = "dialog"
@@ -23,8 +24,8 @@ class ProfilePageKey(Enum):
     SEND_WITHOUT_NOTE_BUTTON = "send_without_note_button"
 
     # Connection request with msg dialog
+    ADD_NOTE_INPUT = "add_note_input"
     SEND_BUTTON = "send_button"
-    MESSAGE_INPUT = "message_input"
 
     # Withdraw connection request dialog
     WITHDRAW_BUTTON = "withdraw_button"
