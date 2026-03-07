@@ -27,6 +27,7 @@ class AtomicAction:
         pass
 
     async def accomplish(self):
+        """Run perform_action then verify_action; set _accomplished. Catches exceptions, logs, and sets _accomplished False on failure."""
         try:
             logger.debug("Accomplishing action: %s", self.__class__.__name__)
             await self.perform_action()

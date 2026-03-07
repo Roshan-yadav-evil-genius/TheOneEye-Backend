@@ -1,13 +1,12 @@
 import logging
-from playwright.async_api import Page, Locator
 
+from playwright.async_api import Page
+
+from linkedin.actions.BaseAction import PageAction
 from linkedin.actions.ConnectionRequest import SendConnectionRequest, WithdrawConnectionRequest
 from linkedin.actions.FollowUnFollow import FollowProfile, UnfollowProfile
-from linkedin.enums.Status import ConnectionStatus, FollowingStatus
-from .selectors.profile_page import LinkedInProfilePageSelectors
-from urllib.parse import urlparse
-from abc import ABC, abstractmethod
-from linkedin.actions.BaseAction import PageAction
+from linkedin.profile import extract_profile_user_id, is_valid_linkedin_profile_url
+
 logger = logging.getLogger(__name__)
 
 
@@ -15,37 +14,22 @@ logger = logging.getLogger(__name__)
 
 
 class ProfilePageAction(PageAction):
+    """Orchestrates profile flows; delegates to action classes (SendConnectionRequest, WithdrawConnectionRequest, FollowProfile, UnfollowProfile)."""
+
     def __init__(self, page: Page):
         super().__init__(page)
 
         self.profile_url = self.page.url
-
-        if not self.is_valid_page():
+        if not is_valid_linkedin_profile_url(self.profile_url):
             logger.error("Invalid LinkedIn profile URL: %s", self.profile_url)
             raise ValueError("Invalid LinkedIn profile URL.")
-
-        self.user_id = self.extract_user_id(self.profile_url)
+        self.user_id = extract_profile_user_id(self.profile_url)
     # ─────────────────────────────────────────────────────────────
     # Public Methods
     # ─────────────────────────────────────────────────────────────
 
-    def is_valid_page(self)->bool:
-        return self.extract_user_id(self.profile_url) is not None
-
-
-    def extract_user_id(self, url: str):
-        parsed = urlparse(url)
-
-        if parsed.netloc != "www.linkedin.com":
-            return None
-
-        parts = parsed.path.strip("/").split("/")
-
-        if len(parts) == 2 and parts[0] == "in":
-            return parts[1]
-
-        return None
-
+    def is_valid_page(self) -> bool:
+        return is_valid_linkedin_profile_url(self.profile_url)
 
     async def follow_profile(self):
         action = await FollowProfile(self.page).accomplish()

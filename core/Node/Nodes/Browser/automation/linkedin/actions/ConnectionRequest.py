@@ -46,11 +46,8 @@ class ClickOnSendWithoutNoteButton(LinkedInBaseAtomicAction):
         super().__init__(page)
 
     async def perform_action(self):
-        try:
-            await self.profile.send_without_note_button().click(timeout=10000)
-            await self.profile.pending_button().wait_for(state="visible")
-        except Exception as e:
-            logger.error("%s: %s", self.__class__.__name__, e)
+        await self.profile.send_without_note_button().click(timeout=10000)
+        await self.profile.pending_button().wait_for(state="visible")
 
     async def verify_action(self)->bool:
         if await self.profile.pending_button().is_visible():
@@ -76,11 +73,8 @@ class SubmitInvitationNote(LinkedInBaseAtomicAction):
         super().__init__(page)
 
     async def perform_action(self):
-        try:
-            await self.profile.send_button().click()
-            await self.page.wait_for_timeout(500)
-        except Exception as e:
-            logger.error("%s: %s", self.__class__.__name__, e)
+        await self.profile.send_button().click()
+        await self.page.wait_for_timeout(500)
 
     async def verify_action(self)->bool:
         if not await self.profile.send_button().is_visible():
