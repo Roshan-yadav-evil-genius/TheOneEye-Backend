@@ -1,27 +1,8 @@
+from linkedin.actions.utils import human_type, human_wait
 from linkedin.enums.Status import ConnectionStatus
-from .BaseProfilePageAction import BaseProfilePageAction
+from .BaseProfilePageAction import BaseProfilePageAction, ClickOnMoreButton
 from playwright.async_api import Page,Locator
-from linkedin.selectors.profile_page import LinkedInProfilePageSelectors
 import random
-
-
-async def human_type(locator: Locator, text: str, min_ms: int = 50, max_ms: int = 300):
-    for ch in text:
-        await locator.type(ch,delay=random.randint(min_ms, max_ms))
-
-class ClickOnMoreButton(BaseProfilePageAction):
-    def __init__(self, page: Page):
-        super().__init__(page)
-
-    async def perform_action(self):
-        await self.profile.more_menu_button().click()
-        await self.profile.more_menu_dialog().wait_for(state="visible")
-
-        
-    async def verify_action(self)->bool:
-        if await self.profile.more_menu_dialog().is_visible():
-            return True
-        return False
 
 
 class ClickOnConnectButton(BaseProfilePageAction):

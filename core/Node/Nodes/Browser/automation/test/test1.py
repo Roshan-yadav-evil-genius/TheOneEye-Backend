@@ -7,9 +7,7 @@ from pathlib import Path
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from linkedin.actions.SendConnectionRequest import SendConnectionRequest
-from linkedin.actions.SendConnectionRequest import FillAddNoteInput
-from linkedin.actions.SendConnectionRequest import ClickOnMoreButton
+from linkedin.actions.SendConnectionRequest import SendConnectionRequest,FollowProfile, UnfollowProfile
 
 
 CHROME_PROFILE = Path("/home/roshan-yadav/Desktop/TheOneEye/backend/core/Node/Nodes/Browser/automation/data/RoshanYadavOnWorkProfile")
@@ -41,10 +39,11 @@ async def main():
         )
 
         page = await context.new_page()
-        await page.goto("https://www.linkedin.com/in/malosugunj/",wait_until="load")
+        await page.goto("https://www.linkedin.com/in/kelly-yu-57dy/",wait_until="load")
 
         
-        await SendConnectionRequest(page).accomplish()
+        # await SendConnectionRequest(page).accomplish()
+        await UnfollowProfile(page).accomplish()
 
         # action = await ClickOnMoreButton(page).accomplish()
         # if action.accomplished:

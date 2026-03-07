@@ -1,12 +1,12 @@
 import logging
 from playwright.async_api import Page, Locator
 
+from linkedin.actions import SendConnectionRequest
 from linkedin.enums.Status import ConnectionStatus, FollowingStatus
 from .selectors.profile_page import LinkedInProfilePageSelectors
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
-
 
 
 
@@ -62,6 +62,13 @@ class ProfilePage:
                 logger.info("Profile unfollowed successfully")
         else:
             logger.info("Already not following this profile")
+
+    async def send_connection_request(self, note: str = ""):
+        action = SendConnectionRequest(self.page, note).accomplish()
+        if not action.accomplished:
+            logger.error(f"{action.__class__.__name__} failed While Sending Connection Request")
+        else:
+            logger.info("Connection request sent successfully")
 
     async def withdraw_connection_request(self):
         connection_status = await self._get_connection_status()
@@ -124,30 +131,3 @@ class ProfilePage:
         
         # Rebuild with https
         return f"https://{netloc}{parsed.path}"
-
-    async def _click_or_expand_more_menu(self, button: Locator, button_name: str) -> bool:
-        """
-        Click button directly, or expand More menu first if needed.
-
-        Returns:
-            True if button was clicked successfully, False otherwise.
-        """
-        if await button.is_visible():
-            logger.debug("Clicking '%s' button", button_name)
-            await button.click()
-            return True
-
-        logger.debug("Button '%s' not visible, expanding More menu", button_name)
-        await self.profile.more_menu_button().click()
-
-        try:
-            await button.wait_for(state="visible", timeout=5000)
-            await button.click()
-            logger.debug("Clicked '%s' button from More menu", button_name)
-            return True
-        except Exception:
-            logger.error("Could not find '%s' even in More menu", button_name)
-            return False
-
-
-
