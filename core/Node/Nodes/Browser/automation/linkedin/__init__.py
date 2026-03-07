@@ -1,1 +1,1 @@
-from .profile_page import ProfilePage
+from .profile_page import ProfilePageAction

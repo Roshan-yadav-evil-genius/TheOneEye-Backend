@@ -1,13 +1,24 @@
 # async playwright script navigate to google.com and wait for close event timeout 0
 import asyncio
-from playwright.async_api import async_playwright
-from playwright_stealth import Stealth
-from pathlib import Path
-
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from linkedin.actions.SendConnectionRequest import SendConnectionRequest,FollowProfile, UnfollowProfile
+import logging
+_test_dir = Path(__file__).resolve().parent
+_automation_dir = _test_dir.parent
+sys.path.insert(0, str(_automation_dir))
+sys.path.insert(0, str(_test_dir))
+from rich.logging import RichHandler
+
+
+handler = RichHandler()
+handler.setFormatter(logging.Formatter("%(message)s"))
+logging.basicConfig(level=logging.DEBUG, handlers=[handler])
+
+from playwright.async_api import async_playwright
+from playwright_stealth import Stealth
+from linkedin.actions.ConnectionRequest import ClickOnSendWithoutNoteButton, WithdrawConnectionRequest
+from linkedin.profile_page import ProfilePageAction
+from linkedin.actions.utils import human_wait
 
 
 CHROME_PROFILE = Path("/home/roshan-yadav/Desktop/TheOneEye/backend/core/Node/Nodes/Browser/automation/data/RoshanYadavOnWorkProfile")
@@ -39,17 +50,15 @@ async def main():
         )
 
         page = await context.new_page()
-        await page.goto("https://www.linkedin.com/in/kelly-yu-57dy/",wait_until="load")
+        # await page.goto("https://www.linkedin.com/in/kelly-yu-57dy/",wait_until="load")
+        await page.goto("https://www.linkedin.com/in/christina-turnbull-8770697/",wait_until="load")
+        page_action = ProfilePageAction(page)
+        await page.wait_for_timeout(5000)
+        # await page_action.follow_profile()
+        # await page_action.unfollow_profile()
+        await page_action.send_connection_request()
 
-        
-        # await SendConnectionRequest(page).accomplish()
-        await UnfollowProfile(page).accomplish()
-
-        # action = await ClickOnMoreButton(page).accomplish()
-        # if action.accomplished:
-        #     print("More button clicked successfully")
-        # else:
-        #     print("More button not clicked")
+        # await page_action.withdraw_connection_request()
         await context.wait_for_event("close",timeout=0)
         await context.close()
 

@@ -1,11 +1,19 @@
-from linkedin.actions.utils import human_type, human_wait
-from linkedin.enums.Status import ConnectionStatus
-from .BaseProfilePageAction import BaseProfilePageAction, ClickOnMoreButton
-from playwright.async_api import Page,Locator
+import logging
 import random
 
+from linkedin.actions.LinkedInBaseAction import (
+    LinkedInBaseAtomicAction,
+    LinkedInBaseMolecularAction,
+)
+from linkedin.actions.ClickOnMoreButtonAction import ClickOnMoreButton
+from linkedin.actions.utils import human_type, human_wait
+from linkedin.enums.Status import ConnectionStatus
+from playwright.async_api import Page, Locator
 
-class ClickOnConnectButton(BaseProfilePageAction):
+logger = logging.getLogger(__name__)
+
+
+class ClickOnConnectButton(LinkedInBaseAtomicAction):
     def __init__(self, page: Page):
         super().__init__(page)
 
@@ -20,7 +28,7 @@ class ClickOnConnectButton(BaseProfilePageAction):
             return True
         return False
 
-class ClickOnAddNoteButton(BaseProfilePageAction):
+class ClickOnAddNoteButton(LinkedInBaseAtomicAction):
     def __init__(self, page: Page):
         super().__init__(page)
 
@@ -35,22 +43,25 @@ class ClickOnAddNoteButton(BaseProfilePageAction):
             return True
         return False
 
-class ClickOnSendWithoutNoteButton(BaseProfilePageAction):
+class ClickOnSendWithoutNoteButton(LinkedInBaseAtomicAction):
     def __init__(self, page: Page):
         super().__init__(page)
 
     async def perform_action(self):
-        await self.profile.send_without_note_button().click()
-        await self.page.wait_for_timeout(500)
-
+        try:
+            await self.profile.send_without_note_button().click(timeout=10000)
+            await self.profile.pending_button().wait_for(state="visible")
+        except Exception as e:
+            logger.error(e)
 
     async def verify_action(self)->bool:
-        if not await self.profile.send_without_note_button().is_visible():
+
+        if await self.profile.pending_button().is_visible():
             return True
         return False
 
 
-class FillAddNoteInput(BaseProfilePageAction):
+class FillAddNoteInput(LinkedInBaseAtomicAction):
     def __init__(self, page: Page, invitation_note:str):
         super().__init__(page)
         self.invitation_note = invitation_note
@@ -65,7 +76,7 @@ class FillAddNoteInput(BaseProfilePageAction):
             return True
         return False
 
-class SubmitInvitationNote(BaseProfilePageAction):
+class SubmitInvitationNote(LinkedInBaseAtomicAction):
     def __init__(self, page: Page):
         super().__init__(page)
 
@@ -78,7 +89,7 @@ class SubmitInvitationNote(BaseProfilePageAction):
             return True
         return False
 
-class SendConnectionRequest(BaseProfilePageAction):
+class SendConnectionRequest(LinkedInBaseMolecularAction):
     def __init__(self, page: Page, invitation_note:str=""):
         super().__init__(page)
         self.invitation_note = invitation_note
@@ -99,28 +110,58 @@ class SendConnectionRequest(BaseProfilePageAction):
         else:
             self.chain_of_actions = self.send_without_note
 
-    async def human_wait(self, min_ms=50, max_ms=500):
-        delay = random.randint(min_ms, max_ms)
-        await self.page.wait_for_timeout(delay)
-
-
-    async def execute_chain_of_actions(self):
-        for action in self.chain_of_actions:
-            action = await action.accomplish()
-            if not action.accomplished:
-                print(f"Action {action.__class__.__name__} failed")
-                return
-            
-            await self.human_wait()
-
-
     async def perform_action(self):
         connection_status = await self._get_connection_status()
-        print(connection_status.name)
+        logger.debug("Connection status: %s", connection_status.name)
         if connection_status == ConnectionStatus.NOT_CONNECTED:
-            await self.execute_chain_of_actions()
+            self._accomplished = await self.execute_chain_of_actions()
         else:
-            print("Connection already established")
+            logger.info("Connection already established")
 
     async def verify_action(self)->bool:
-        pass
+        return self._accomplished
+
+class ClickOnPendingButton(LinkedInBaseAtomicAction):
+    def __init__(self, page: Page):
+        super().__init__(page)
+
+    async def perform_action(self):
+        await self.profile.pending_button().click()
+        await self.profile.withdraw_button().wait_for(state="visible")
+
+    async def verify_action(self)->bool:
+        if await self.profile.withdraw_button().is_visible():
+            return True
+        return False
+
+class ClickOnWithdrawButton(LinkedInBaseAtomicAction):
+    def __init__(self, page: Page):
+        super().__init__(page)
+
+    async def perform_action(self):
+        await self.profile.withdraw_button().click()
+        await self.profile.withdraw_button().wait_for(state="hidden")
+
+    async def verify_action(self)->bool:
+        if not await self.profile.withdraw_button().is_visible():
+            return True
+        return False
+
+class WithdrawConnectionRequest(LinkedInBaseMolecularAction):
+    def __init__(self, page: Page):
+        super().__init__(page)
+        self.chain_of_actions = [
+            ClickOnMoreButton(self.page), 
+            ClickOnPendingButton(self.page),
+            ClickOnWithdrawButton(self.page)
+        ]
+    
+    async def perform_action(self):
+        connection_status = await self._get_connection_status()
+        if connection_status == ConnectionStatus.PENDING:
+            self._accomplished=await self.execute_chain_of_actions()
+        else:
+            logger.warning("Failed to withdraw connection request. User is not in pending state")
+    
+    async def verify_action(self)->bool:
+        return self._accomplished

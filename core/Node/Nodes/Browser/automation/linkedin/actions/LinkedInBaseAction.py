@@ -1,4 +1,4 @@
-from .BaseAction import BaseAction
+from .BaseAction import AtomicAction, MoleculerAction
 from linkedin.selectors.profile_page import LinkedInProfilePageSelectors
 from playwright.async_api import Locator, Page
 from linkedin.enums.Status import ConnectionStatus, FollowingStatus
@@ -6,14 +6,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-class BaseProfilePageAction(BaseAction):
-    def __init__(self, page: Page):
-        super().__init__(page)
+class LinkedInProfilePageMixin:
+    def __init__(self, page: Page,**kwargs):
+        super().__init__(page,**kwargs)
         self.profile = LinkedInProfilePageSelectors(self.page)
     
     async def _get_connection_status(self) -> ConnectionStatus:
-        print("Getting connection status")
-        print(await self.profile.connect_button().count())
         if await self.profile.connect_button().count():
             return ConnectionStatus.NOT_CONNECTED
 
@@ -47,18 +45,12 @@ class BaseProfilePageAction(BaseAction):
             logger.warning("Dialog did not appear after %s", context)
             return None
 
-
-class ClickOnMoreButton(BaseProfilePageAction):
+# For atomic actions that need profile + the three methods
+class LinkedInBaseAtomicAction(LinkedInProfilePageMixin, AtomicAction):
     def __init__(self, page: Page):
         super().__init__(page)
 
-    async def perform_action(self):
-        if not await self.profile.more_menu_dialog().is_visible():
-            await self.profile.more_menu_button().click()
-            await self.profile.more_menu_dialog().wait_for(state="visible")
-
-        
-    async def verify_action(self)->bool:
-        if await self.profile.more_menu_dialog().is_visible():
-            return True
-        return False
+# For molecular actions that need profile + the three methods
+class LinkedInBaseMolecularAction(LinkedInProfilePageMixin, MoleculerAction):
+    def __init__(self, page: Page):
+        super().__init__(page)
