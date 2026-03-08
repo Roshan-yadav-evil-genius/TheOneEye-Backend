@@ -52,7 +52,7 @@ async def main():
         logger.info("Navigating to profile: %s", profile_url)
         await page.goto(profile_url, wait_until="load")
         page_action = ProfilePageAction(page)
-        await page.wait_for_timeout(5000)
+        await page_action.wait_for_page_to_load()
         logger.info("Running follow_profile")
         await page_action.follow_profile()
         logger.info("Running unfollow_profile")
@@ -61,6 +61,7 @@ async def main():
         await page_action.send_connection_request()
         logger.info("Running withdraw_connection_request")
         await page_action.withdraw_connection_request()
+
         await context.wait_for_event("close",timeout=0)
         await context.close()
 

@@ -15,6 +15,15 @@ PROFILE_PAGE_SELECTORS.register(
         parent=None,
     )
 )
+PROFILE_PAGE_SELECTORS.register(
+    SelectorEntry(
+        key=ProfilePageKey.ACTIVITY_SECTION_TEXT,
+        selectors=[
+            "//section[contains(@class,'artdeco-card')]//span[normalize-space()='Activity' and not(contains(@class,'visually-hidden'))]",
+        ],
+        parent=None,
+    )
+)
 # Buttons scoped to PROFILE_CARD
 PROFILE_PAGE_SELECTORS.register(
     SelectorEntry(

@@ -3,6 +3,7 @@ from enum import Enum
 
 class ProfilePageKey(Enum):
     PROFILE_CARD = "action_bar"
+    ACTIVITY_SECTION_TEXT = "activity_section_text"
     CONNECT_BUTTON = "connect_button"
     PENDING_BUTTON = "pending_button"
     MESSAGE_BUTTON = "message_button"

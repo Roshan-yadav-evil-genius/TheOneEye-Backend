@@ -14,6 +14,9 @@ class LinkedInProfilePageMixin:
     def __init__(self, page: Page, **kwargs):
         super().__init__(page, **kwargs)
         self.profile = LinkedInProfilePageSelectors(self.page)
+    
+    async def _wait_for_page_to_load(self):
+        await self.profile.activity_section_text().wait_for(state="visible", timeout=20000)
 
     async def _get_connection_status(self) -> ConnectionStatus:
         if await self.profile.connect_button().count():

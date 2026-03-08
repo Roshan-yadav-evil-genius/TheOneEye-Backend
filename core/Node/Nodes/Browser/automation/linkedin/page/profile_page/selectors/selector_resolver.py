@@ -23,6 +23,9 @@ class LinkedInProfilePageSelectors(SelectorResolver):
     def __init__(self, page: Page) -> None:
         super().__init__(page, PROFILE_PAGE_SELECTORS)
 
+    def activity_section_text(self) -> Locator:
+        return self.get(ProfilePageKey.ACTIVITY_SECTION_TEXT)
+
     def connect_button(self) -> Locator:
         return self.get(ProfilePageKey.CONNECT_BUTTON)
 
