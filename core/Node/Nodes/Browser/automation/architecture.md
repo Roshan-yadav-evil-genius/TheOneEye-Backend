@@ -1,146 +1,151 @@
-# LinkedIn Connection Automation Architecture
+# Browser Automation Architecture
 
 ## Overview
-This module provides an asynchronous system for automating LinkedIn profile interactions: sending and withdrawing connection requests, and following or unfollowing profiles. It uses **Playwright** for browser automation and separates **orchestration** (ProfilePageAction), **actions** (atomic and molecular), **validation** (profile URL), and **selectors**.
 
-## Entry points
-- **Public API:** `linkedin/__init__.py` exports `ProfilePageAction`.
-- **Usage:** Callers (e.g. `test/test_1.py`) obtain a Playwright `Page` (after navigating to a LinkedIn profile URL), create `ProfilePageAction(page)`, then call:
-  - `send_connection_request(note="")`
-  - `withdraw_connection_request()`
-  - `follow_profile()`
-  - `unfollow_profile()`
-- **Flow:** Each method instantiates the corresponding action with `self.page`, calls `await action.accomplish()`, logs success or failure, and returns `action.accomplished`.
+This module provides an asynchronous, multi-site browser automation framework built on **Playwright**. A **core** package supplies reusable building blocks: an action hierarchy (atomic, molecular, page-level), a selector resolution system, delay configuration, and human-like wait/typing helpers. **Site packages** implement specific domains and pages by defining selectors and actions that use core. Adding a new site or page follows a consistent pattern so anyone can extend the automation to more targets.
 
 ## Directory structure
 
+Generic layout:
+
 ```text
 automation/
-├── linkedin/
-│   ├── __init__.py              # Exports ProfilePageAction
-│   ├── profile.py                # URL validation: is_valid_linkedin_profile_url, extract_profile_user_id
-│   ├── profile_page.py           # Orchestration: ProfilePageAction
-│   ├── actions/
-│   │   ├── BaseAction.py         # AtomicAction, MoleculerAction, PageAction
-│   │   ├── LinkedInBaseAction.py # LinkedInProfilePageMixin, LinkedInBaseAtomicAction, LinkedInBaseMolecularAction
-│   │   ├── ClickOnMoreButtonAction.py
-│   │   ├── ConnectionRequest.py  # Connection-related atomic and molecular actions
-│   │   ├── FollowUnFollow.py     # Follow/unfollow actions
-│   │   └── utils.py              # human_type, human_wait
-│   ├── enums/
-│   │   └── Status.py             # ConnectionStatus, FollowingStatus
-│   └── selectors/
-│       ├── base_page.py          # BasePage: get(key), parent resolution, cache, .or_() fallbacks
-│       ├── profile_page.py       # LinkedInProfilePageSelectors (typed accessors)
-│       └── core/
-│           ├── profile_page.py  # PROFILE_PAGE_SELECTORS registry
-│           └── keys/profile_page.py  # ProfilePageKey enum
-└── test/
-    ├── test_1.py                 # Example test script
-    └── setup_logging.py          # Optional: Rich console logging for tests
+├── core/                          # Site-agnostic framework
+│   ├── actions.py                 # AtomicAction, MoleculerAction, PageAction
+│   ├── selector_resolver.py       # SelectorResolver
+│   ├── models.py                  # SelectorEntry, SelectorRegistry
+│   ├── delays.py                  # DelayConfig, jitter_ms
+│   └── human_behavior.py          # human_wait, human_typing
+├── <site>/                        # One package per site (e.g. linkedin)
+│   ├── utils.py                   # Site-level helpers (e.g. URL validation)
+│   └── page/
+│       └── <page_name>/           # One folder per page (e.g. profile_page)
+│           ├── actions/          # base_action, atomic_action, molecular_action, page_action
+│           └── selectors/         # selector_keys, selector_registry, selector_resolver
+└── test/                          # Example scripts
 ```
 
-## Key components
+**Example: LinkedIn** implements a profile page with connection and follow/unfollow flows. It follows the pattern above: `linkedin/page/profile_page/actions/` (base_action, atomic_action, molecular_action, page_action, profile_state) and `linkedin/page/profile_page/selectors/` (selector_keys, selector_registry, selector_resolver).
 
-### 1. Validation (`linkedin/profile.py`)
-- **Responsibility:** Determine if a URL is a valid LinkedIn profile and extract the profile user id.
-- **Functions:**
-  - `is_valid_linkedin_profile_url(url: str) -> bool`
-  - `extract_profile_user_id(url: str) -> str | None` (path must be `in/<id>` on `www.linkedin.com`).
+---
 
-### 2. Orchestration: ProfilePageAction (`linkedin/profile_page.py`)
-- **Responsibility:** Orchestrate profile flows; delegate to action classes. Does not contain selectors or URL parsing logic.
-- **Constructor:** Uses `is_valid_linkedin_profile_url` and `extract_profile_user_id` from `profile.py`; sets `profile_url`, `user_id`; raises `ValueError` if URL is invalid.
-- **Public methods:** `follow_profile()`, `unfollow_profile()`, `send_connection_request(note="")`, `withdraw_connection_request()` — each builds the corresponding action and calls `accomplish()`.
+## Core package
 
-### 3. Actions (`linkedin/actions/`)
+The core package lives under `core/` and has no dependency on any specific site. All site implementations depend on it.
 
-**BaseAction.py**
-- **AtomicAction:** One browser step. Subclasses implement `perform_action()` and `verify_action()`. `accomplish()` runs both, sets `_accomplished`, and **centralizes exception handling** (try/except; on exception logs and sets `_accomplished = False`).
-- **MoleculerAction(AtomicAction):** Holds `chain_of_actions`. `execute_chain_of_actions()` runs each action’s `accomplish()` and `human_wait()` between them; stops on first failure. `perform_action()` runs the chain; `verify_action()` returns `_accomplished`.
-- **PageAction(ABC):** Abstract base with `page` and `is_valid_page()`; used by ProfilePageAction.
+### Actions (`core/actions.py`)
 
-**LinkedInBaseAction.py**
-- **LinkedInProfilePageMixin:** Injects `self.profile = LinkedInProfilePageSelectors(self.page)` and helpers:
-  - `_get_connection_status() -> ConnectionStatus`
-  - `_get_following_status() -> FollowingStatus`
-  - `_wait_for_dialog(context) -> Locator | None`
-- **LinkedInBaseAtomicAction:** For atomic actions that need the profile and the three helpers.
-- **LinkedInBaseMolecularAction:** For molecular actions that need the same.
+- **AtomicAction:** A single browser step. Subclasses implement `perform_action()` and `verify_action()`. The base method `accomplish()` runs both in sequence and **centralizes exception handling**: on any exception it logs (with traceback) and sets `_accomplished = False`. Callers check `action.accomplished` after `await action.accomplish()`.
+- **MoleculerAction:** Subclass of AtomicAction. Holds a `chain_of_actions` list. `execute_chain_of_actions()` runs each action’s `accomplish()` with `human_wait()` between steps and stops on first failure. `perform_action()` runs the chain; `verify_action()` returns the resulting `_accomplished` state.
+- **PageAction (ABC):** Abstract base with a `page` (Playwright Page) and `is_valid_page()`. Concrete page implementations (e.g. a profile page orchestrator) extend PageAction and expose high-level methods that build and run the appropriate Molecular or Atomic actions.
 
-**Concrete actions**
-- **ConnectionRequest.py:** ClickOnConnectButton, ClickOnAddNoteButton, ClickOnSendWithoutNoteButton, FillAddNoteInput, SubmitInvitationNote (atomic); SendConnectionRequest, WithdrawConnectionRequest (molecular, each with status-check then run chain).
-- **FollowUnFollow.py:** FollowProfile (atomic: opens More menu then clicks follow), ClickOnUnfollowButton, ClickOnDialogUnfollowButton (atomic); UnfollowProfile (molecular).
-- **ClickOnMoreButtonAction.py:** ClickOnMoreButton (atomic).
+### Selector system
 
-**verify_action:** All implementations use only instant checks (`is_visible()`, `input_value()`); no `wait_for` or `wait_for_timeout` inside verify_action.
+- **Models** (`core/models.py`):  
+  - **SelectorEntry:** Pydantic model with `key` (enum), `selectors` (list of XPath/CSS strings), and optional `parent` key for scoping. First selector is primary; others are used as fallbacks via `.or_()`.  
+  - **SelectorRegistry:** Generic over the key enum. You `register(SelectorEntry)` for each key; the registry validates that parent keys are registered before children. Duplicate key raises.
+- **SelectorResolver** (`core/selector_resolver.py`): Takes a Playwright `Page` and a `SelectorRegistry`. `get(key)` resolves the parent hierarchy from the registry, builds a Playwright locator (with fallbacks), and caches by key. Any site can subclass SelectorResolver, pass its own registry, and add typed accessors (e.g. `connect_button()`) that call `get(SomeKey)`.
 
-### 4. Selectors (`linkedin/selectors/`)
-- **ProfilePageKey** (core/keys/profile_page.py): Enum of selector keys.
-- **PROFILE_PAGE_SELECTORS** (core/profile_page.py): Registry mapping keys to `selectors` (XPath list) and optional `parent` key.
-- **BasePage:** `get(key)` resolves parent recursively, builds locator with `.or_()` for fallbacks, caches result. `clear_cache()` available.
-- **LinkedInProfilePageSelectors(BasePage):** Typed methods (e.g. `connect_button()`, `dialog()`, `more_menu_button()`) that call `get(ProfilePageKey.XXX)`.
+### Delays (`core/delays.py`)
 
-### 5. Enums (`linkedin/enums/Status.py`)
-- **ConnectionStatus:** NOT_CONNECTED, CONNECTED, PENDING.
-- **FollowingStatus:** NOT_FOLLOWING, FOLLOWING.
+- **DelayConfig:** Pydantic model with `min_ms` and `max_ms` (validated: min ≤ max). Used wherever a bounded random delay is needed.
+- **jitter_ms(config):** Returns a random integer in `[min_ms, max_ms]` for use in custom flows or by human_behavior.
+
+### Human behavior (`core/human_behavior.py`)
+
+- **human_wait(page, config):** Waits a random delay (via `jitter_ms(config)`) to mimic human pause. Uses `DelayConfig`.
+- **human_typing(locator, text, config):** Types text character-by-character with a random delay per key. Uses `DelayConfig` and `jitter_ms`. Both are reusable across any site.
+
+---
+
+## Pattern for adding a site and a page
+
+To add automation for a new site or a new page type:
+
+1. **Site package:** Create a top-level package (e.g. `mysite/`). Add `utils.py` for site-level helpers (e.g. URL validation, ID extraction). Optionally add `__init__.py` that exports the main page action(s).
+
+2. **Page layout:** Under the site, use `page/<page_name>/` with two subpackages:
+   - **actions:**  
+     - `base_action.py`: A mixin that injects a page-specific SelectorResolver (e.g. `self.selectors = MyPageSelectors(self.page)`) and any page-specific helpers (e.g. status checks, wait-for-dialog). Define base classes that combine this mixin with core `AtomicAction` and `MoleculerAction` so concrete actions have access to selectors and helpers.  
+     - `atomic_action.py`: Concrete atomic steps (e.g. click button, fill input) that use the resolver and implement `perform_action()` and `verify_action()`.  
+     - `molecular_action.py`: Concrete chains that compose atomic actions and optionally check page state before running the chain.  
+     - `page_action.py`: Concrete `PageAction` that exposes high-level methods (e.g. `send_request()`, `withdraw_request()`); each method builds the right Molecular/Atomic action, calls `await action.accomplish()`, and returns `action.accomplished`.  
+     - Optional: a small module (e.g. `profile_state.py`) for page-specific enums used by actions (e.g. connection status, follow status).
+   - **selectors:**  
+     - `selector_keys.py`: An enum of all selector keys for that page (e.g. `CONNECT_BUTTON`, `DIALOG`).  
+     - `selector_registry.py`: Build a `SelectorRegistry`, create `SelectorEntry` per key (with key, selectors list, optional parent), and call `registry.register(entry)` for each. Export the filled registry (e.g. `PAGE_SELECTORS`).  
+     - `selector_resolver.py`: Subclass core `SelectorResolver`; in `__init__` pass the page and the registry. Expose `get(Key)` and optionally typed methods that delegate to `get(SomeKey)`.
+
+3. **Flow:** The caller obtains a Playwright `Page` (e.g. after navigating to a URL), instantiates the page’s PageAction with that page, and calls high-level methods. PageAction builds the corresponding Molecular or Atomic actions and calls `accomplish()`. Those actions use the page’s resolver to get locators and perform/verify steps; molecular actions use `human_wait()` between steps (from core).
+
+---
+
+## Key components (summary)
+
+| Layer | Responsibility |
+|-------|----------------|
+| **Core actions** | AtomicAction (one step, perform + verify, centralized exception handling); MoleculerAction (chain + human_wait); PageAction (abstract entry point). |
+| **Core selectors** | SelectorEntry (key, selectors, parent); SelectorRegistry (register entries, validate order); SelectorResolver (get(key) → locator, cache, parent resolution). |
+| **Core delays / human** | DelayConfig, jitter_ms; human_wait, human_typing. |
+| **Site** | Utils (e.g. URL validation); one or more pages. |
+| **Page** | base_action (mixin + resolver + helpers); atomic_action; molecular_action; page_action; selectors (keys, registry, resolver). |
+
+---
 
 ## Class relationships
 
 ```mermaid
 flowchart LR
   subgraph entry [Entry]
-    Test[test_1.py]
-    ProfilePage[ProfilePageAction]
+    Caller[Caller]
+    PageAction[PageAction]
   end
   subgraph actions [Actions]
-    Base[AtomicAction / MoleculerAction]
-    LinkedInBase[LinkedInBaseAtomicAction / LinkedInBaseMolecularAction]
-    Concrete[ConnectionRequest, FollowUnFollow, ClickOnMore]
+    Atomic[AtomicAction]
+    Molecular[MoleculerAction]
   end
   subgraph support [Support]
-    ProfileModule[profile.py]
-    Selectors[LinkedInProfilePageSelectors]
-    BasePage[BasePage]
-    Registry[PROFILE_PAGE_SELECTORS]
-    Keys[ProfilePageKey]
+    Resolver[SelectorResolver]
+    Registry[SelectorRegistry]
+    Human[human_wait / human_typing]
   end
-  Test --> ProfilePage
-  ProfilePage --> Concrete
-  ProfilePage --> ProfileModule
-  Base --> LinkedInBase --> Concrete
-  Concrete --> Selectors
-  Selectors --> BasePage --> Registry --> Keys
+  Caller --> PageAction
+  PageAction --> Molecular
+  PageAction --> Atomic
+  Molecular --> Atomic
+  Atomic --> Resolver
+  Molecular --> Human
+  Resolver --> Registry
 ```
 
-## Interaction flow (example: send connection request)
+---
+
+## Interaction flow (generic)
 
 ```mermaid
 sequenceDiagram
-  participant Caller as test_1.py
-  participant ProfilePage as ProfilePageAction
-  participant Action as SendConnectionRequest
-  participant Base as BaseAction
-  participant Selectors as LinkedInProfilePageSelectors
+  participant Caller
+  participant PageAction
+  participant Molecular as MolecularAction
+  participant Atomic as AtomicAction
+  participant Resolver as SelectorResolver
   participant Playwright as Playwright
 
-  Caller->>ProfilePage: send_connection_request(note)
-  ProfilePage->>Action: SendConnectionRequest(page, note).accomplish()
-  Action->>Base: accomplish()
-  Base->>Action: perform_action()
-  Action->>Action: _get_connection_status()
-  Action->>Selectors: connect_button(), pending_button()
-  Selectors->>Playwright: locator(...)
-  alt NOT_CONNECTED
-    Action->>Action: execute_chain_of_actions()
-    Action->>Base: chain items: accomplish() + human_wait()
-  end
-  Base->>Action: verify_action()
-  Action-->>ProfilePage: action.accomplished
-  ProfilePage-->>Caller: return action.accomplished
+  Caller->>PageAction: high_level_method()
+  PageAction->>Molecular: SomeMolecularAction(page).accomplish()
+  Molecular->>Atomic: accomplish() for each in chain
+  Atomic->>Resolver: get(Key)
+  Resolver->>Playwright: locator(...)
+  Atomic->>Playwright: click / type / wait
+  Molecular->>Molecular: human_wait() between steps
+  Molecular-->>PageAction: action.accomplished
+  PageAction-->>Caller: return action.accomplished
 ```
 
+---
+
 ## Design notes
-- **Exception handling:** Centralized in `AtomicAction.accomplish()`; no need for try/except inside individual `perform_action` implementations.
-- **Validation:** Lives in `profile.py`; ProfilePageAction uses it in `__init__` and `is_valid_page()`.
-- **Molecular status pattern:** SendConnectionRequest, WithdrawConnectionRequest, and UnfollowProfile each get status (connection or following), then run their chain only when the condition holds; otherwise they log and do not set `_accomplished` to True.
+
+- **Exception handling:** Centralized in `AtomicAction.accomplish()`. Implementations of `perform_action()` and `verify_action()` do not need their own try/except; failures are logged with traceback and `_accomplished` is set to False.
+- **Selectors:** Registry, resolver, and keys are defined per page; core only defines the contract (SelectorEntry, SelectorRegistry, SelectorResolver). Each site/page builds its own registry and resolver subclass.
+- **Molecular flows:** A molecular action can check page-specific state (e.g. connection status) before running its chain. If the state does not allow the flow, it logs and does not set `_accomplished` to True. This pattern is reusable for any site that has gated flows.
