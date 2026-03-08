@@ -16,12 +16,10 @@ logging.basicConfig(level=logging.DEBUG, handlers=[handler])
 
 from playwright.async_api import async_playwright
 from playwright_stealth import Stealth
-from linkedin.actions.ConnectionRequest import ClickOnSendWithoutNoteButton, WithdrawConnectionRequest
-from linkedin.profile_page import ProfilePageAction
-from linkedin.actions.utils import human_wait
+from linkedin import ProfilePageAction
 
 
-CHROME_PROFILE = Path("/home/roshan-yadav/Desktop/TheOneEye/backend/core/Node/Nodes/Browser/automation/data/RoshanYadavOnWorkProfile")
+CHROME_PROFILE = Path("/home/roshan-yadav/Desktop/TheOneEye/backend/core/Node/Nodes/Browser/automation/linkedin/test/data/RoshanYadavOnWorkProfile")
 
 chromium_args_reason = {
     "--disable-blink-features=AutomationControlled":
@@ -51,14 +49,14 @@ async def main():
 
         page = await context.new_page()
         # await page.goto("https://www.linkedin.com/in/kelly-yu-57dy/",wait_until="load")
-        await page.goto("https://www.linkedin.com/in/christina-turnbull-8770697/",wait_until="load")
+        await page.goto("https://www.linkedin.com/in/patricia-nittel-mha/",wait_until="load")
         page_action = ProfilePageAction(page)
         await page.wait_for_timeout(5000)
-        # await page_action.follow_profile()
-        # await page_action.unfollow_profile()
+        await page_action.follow_profile()
+        await page_action.unfollow_profile()
         await page_action.send_connection_request()
 
-        # await page_action.withdraw_connection_request()
+        await page_action.withdraw_connection_request()
         await context.wait_for_event("close",timeout=0)
         await context.close()
 
