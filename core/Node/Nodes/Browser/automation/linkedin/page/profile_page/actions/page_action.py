@@ -31,6 +31,7 @@ class ProfilePageAction(PageAction):
         return is_valid_linkedin_profile_url(self.profile_url)
 
     async def follow_profile(self):
+        logger.info("Following profile...")
         action = await FollowProfile(self.page).accomplish()
         if not action.accomplished:
             logger.error("%s failed While Following Profile", action.__class__.__name__)
@@ -47,6 +48,7 @@ class ProfilePageAction(PageAction):
         return action.accomplished
 
     async def send_connection_request(self, note: str = ""):
+        logger.info("Sending connection request...")
         action = await SendConnectionRequest(self.page, note).accomplish()
         if not action.accomplished:
             logger.error("%s failed While Sending Connection Request", action.__class__.__name__)
@@ -55,6 +57,7 @@ class ProfilePageAction(PageAction):
         return action.accomplished
 
     async def withdraw_connection_request(self):
+        logger.info("Withdrawing connection request...")
         action = await WithdrawConnectionRequest(self.page).accomplish()
         if not action.accomplished:
             logger.error("%s failed While Withdrawing Connection Request", action.__class__.__name__)

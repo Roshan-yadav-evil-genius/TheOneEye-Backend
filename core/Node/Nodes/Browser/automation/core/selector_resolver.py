@@ -18,7 +18,8 @@ class SelectorResolver:
         self.page = page
         self.registry = registry
         self._locator_cache: dict = {}
-        logger.debug("SelectorResolver initialized with %d registry entries", len(registry))
+        if len(registry) == 0:
+            logger.warning("SelectorResolver initialized with empty registry")
 
     def get(self, key: E) -> Locator:
         """
@@ -31,10 +32,7 @@ class SelectorResolver:
         Returns:
             Locator with all fallback selectors chained via .or_()
         """
-        logger.debug("Getting locator for key: %s", key)
-
         if key in self._locator_cache:
-            logger.debug("Cache hit for key: %s", key)
             return self._locator_cache[key]
 
         entry = self.registry.get(key)
@@ -50,7 +48,6 @@ class SelectorResolver:
             raise ValueError(f"No selectors defined for key: {key}")
 
         if parent_key is not None:
-            logger.debug("Resolving parent key: %s", parent_key)
             base = self.get(parent_key)
         else:
             base = self.page
@@ -59,7 +56,6 @@ class SelectorResolver:
         for selector in selectors[1:]:
             locator = locator.or_(base.locator(selector))
 
-        logger.debug("Built locator with %d fallback selectors for key: %s", len(selectors), key)
         self._locator_cache[key] = locator
         return locator
 

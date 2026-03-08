@@ -1,23 +1,23 @@
 # async playwright script navigate to google.com and wait for close event timeout 0
 import asyncio
+import logging
 import sys
 from pathlib import Path
-import logging
+
 _test_dir = Path(__file__).resolve().parent
-_automation_dir = _test_dir.parent
+_automation_dir = _test_dir.parent.parent  # automation dir so linkedin is a top-level package
 sys.path.insert(0, str(_automation_dir))
 sys.path.insert(0, str(_test_dir))
 from rich.logging import RichHandler
 
-
 handler = RichHandler()
 handler.setFormatter(logging.Formatter("%(message)s"))
 logging.basicConfig(level=logging.DEBUG, handlers=[handler])
+logger = logging.getLogger(__name__)
 
 from playwright.async_api import async_playwright
 from playwright_stealth import Stealth
-from linkedin import ProfilePageAction
-
+from linkedin.page.profile_page.actions import ProfilePageAction
 
 CHROME_PROFILE = Path("/home/roshan-yadav/Desktop/TheOneEye/backend/core/Node/Nodes/Browser/automation/linkedin/test/data/RoshanYadavOnWorkProfile")
 
@@ -48,14 +48,18 @@ async def main():
         )
 
         page = await context.new_page()
-        # await page.goto("https://www.linkedin.com/in/kelly-yu-57dy/",wait_until="load")
-        await page.goto("https://www.linkedin.com/in/patricia-nittel-mha/",wait_until="load")
+        profile_url = "https://www.linkedin.com/in/patricia-nittel-mha/"
+        logger.info("Navigating to profile: %s", profile_url)
+        await page.goto(profile_url, wait_until="load")
         page_action = ProfilePageAction(page)
         await page.wait_for_timeout(5000)
+        logger.info("Running follow_profile")
         await page_action.follow_profile()
+        logger.info("Running unfollow_profile")
         await page_action.unfollow_profile()
+        logger.info("Running send_connection_request")
         await page_action.send_connection_request()
-
+        logger.info("Running withdraw_connection_request")
         await page_action.withdraw_connection_request()
         await context.wait_for_event("close",timeout=0)
         await context.close()

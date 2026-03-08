@@ -35,11 +35,10 @@ class AtomicAction:
     async def accomplish(self) -> "AtomicAction":
         """Run perform_action then verify_action; set _accomplished. Logs and sets False on failure."""
         try:
-            logger.debug("Accomplishing action: %s", self.__class__.__name__)
             await self.perform_action()
             self._accomplished = await self.verify_action()
         except Exception as e:
-            logger.error("%s Failed: %s", self.__class__.__name__, e)
+            logger.exception("%s Failed: %s", self.__class__.__name__, e)
             self._accomplished = False
         return self
 

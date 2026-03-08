@@ -34,8 +34,8 @@ class LinkedInProfilePageMixin:
             await dialog.wait_for(state="visible", timeout=5000)
             logger.debug("Dialog appeared successfully")
             return dialog
-        except Exception:
-            logger.warning("Dialog did not appear after %s", context)
+        except Exception as e:
+            logger.warning("Dialog did not appear after %s: %s", context, e)
             return None
 
 
