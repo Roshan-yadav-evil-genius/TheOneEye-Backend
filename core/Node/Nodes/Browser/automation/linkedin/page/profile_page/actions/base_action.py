@@ -1,8 +1,8 @@
 """Profile-page base actions: mixin and base classes for atomic/molecular actions."""
 import logging
 
-from core.actions import AtomicAction, MoleculerAction
-from linkedin.page.profile_page.selectors.selector_resolver import LinkedInProfilePageSelectors
+from core.Node.Nodes.Browser.automation.core.actions import AtomicAction, MoleculerAction
+from core.Node.Nodes.Browser.automation.linkedin.page.profile_page.selectors.selector_resolver import LinkedInProfilePageSelectors
 from playwright.async_api import Locator, Page
 
 from .profile_state import ConnectionStatus, FollowingStatus

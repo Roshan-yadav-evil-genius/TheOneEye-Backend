@@ -1,7 +1,7 @@
 """Selector resolver for LinkedIn profile page."""
 from playwright.async_api import Page, Locator
 
-from core.selector_resolver import SelectorResolver
+from core.Node.Nodes.Browser.automation.core.selector_resolver import SelectorResolver
 
 from .selector_keys import ProfilePageKey
 from .selector_registry import PROFILE_PAGE_SELECTORS

@@ -2,7 +2,7 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
-
+from langchain_huggingface import HuggingFaceEmbeddings
 
 def main():
     """Run administrative tasks."""

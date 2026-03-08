@@ -1,7 +1,7 @@
 """Atomic actions for LinkedIn profile page."""
 from .base_action import LinkedInBaseAtomicAction
-from core.delays import DelayConfig
-from core.human_behavior import human_typing
+from core.Node.Nodes.Browser.automation.core.delays import DelayConfig
+from core.Node.Nodes.Browser.automation.core.human_behavior import human_typing
 from playwright.async_api import Page
 
 

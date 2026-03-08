@@ -3,8 +3,8 @@ import logging
 
 from playwright.async_api import Page
 
-from core.actions import PageAction
-from linkedin.utils import extract_profile_user_id, is_valid_linkedin_profile_url
+from core.Node.Nodes.Browser.automation.core.actions import PageAction
+from core.Node.Nodes.Browser.automation.linkedin.utils import extract_profile_user_id, is_valid_linkedin_profile_url
 
 from .base_action import LinkedInProfilePageMixin
 from .molecular_action import (

@@ -1,5 +1,5 @@
 """Selector registry for LinkedIn profile page."""
-from core.models import SelectorEntry, SelectorRegistry
+from core.Node.Nodes.Browser.automation.core.models import SelectorEntry, SelectorRegistry
 
 from .selector_keys import ProfilePageKey
 
