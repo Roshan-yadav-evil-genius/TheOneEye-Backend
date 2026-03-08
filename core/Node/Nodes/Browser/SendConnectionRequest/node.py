@@ -14,7 +14,7 @@ from ....Core.Form import BaseForm
 from .form import SendConnectionRequestForm
 from .._shared.BrowserManager import BrowserManager
 from .._shared.services.session_resolver import extract_domain_from_url
-from ..automation.linkedin.profile_page import ProfilePage
+from ..automation.linkedin.page.profile_page.actions import ProfilePageAction
 
 logger = structlog.get_logger(__name__)
 
@@ -72,19 +72,17 @@ class SendConnectionRequest(BlockingNode):
 
             connection_status = None
             following_status = None
-            
-            # Create ProfilePage and let it handle navigation
-            profile_page = ProfilePage(page, profile_url)
-            await profile_page.load()
-            # Perform actions based on form configuration
-            if send_request:
-                await profile_page.send_connection_request()
-                connection_status = await profile_page._get_connection_status()
 
+            await page.goto(profile_url, wait_until="load")
+            profile_action = ProfilePageAction(page)
+            await profile_action.wait_for_page_to_load()
+            if send_request:
+                await profile_action.send_connection_request()
+                connection_status = await profile_action._get_connection_status()
 
             if follow_profile:
-                await profile_page.follow_profile()
-                following_status = await profile_page._get_following_status()
+                await profile_action.follow_profile()
+                following_status = await profile_action._get_following_status()
             
             final_data = {
                 "connection_request_status": connection_status.value if connection_status else None,
