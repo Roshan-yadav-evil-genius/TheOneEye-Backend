@@ -60,13 +60,9 @@ class CosineSimilarity(BlockingNode):
 
     async def init(self):
         """Initialize the embedding model."""
-        from langchain_huggingface import HuggingFaceEmbeddings
+        from sentence_transformers import SentenceTransformer
 
-        self.embedding_model = HuggingFaceEmbeddings(
-            model_name="BAAI/bge-large-en-v1.5",
-            # model_name="BAAI/bge-small-en-v1.5",
-            cache_folder=(settings.BASE_DIR / "bin" / "huggingface_cache").as_posix(),
-        )
+        self.embedding_model = SentenceTransformer((settings.BASE_DIR / "bin" / "models" / "bge-large-en-v1.5").as_posix())
 
     async def execute(self, node_data: NodeOutput) -> NodeOutput:
         """
@@ -75,8 +71,8 @@ class CosineSimilarity(BlockingNode):
         data_1 = self.form.cleaned_data.get("data_1") or ""
         data_2 = self.form.cleaned_data.get("data_2") or ""
 
-        vec1 = self.embedding_model.embed_query(data_1)
-        vec2 = self.embedding_model.embed_query(data_2)
+        vec1 = self.embedding_model.encode(data_1,show_progress_bar=False,normalize_embeddings=True)
+        vec2 = self.embedding_model.encode(data_2,show_progress_bar=False,normalize_embeddings=True)
 
         similarity = cosine_similarity([vec1], [vec2])[0, 0]
 

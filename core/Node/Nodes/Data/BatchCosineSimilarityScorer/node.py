@@ -94,21 +94,16 @@ class BatchCosineSimilarityScorer(BlockingNode):
 
     async def init(self):
         """Initialize the embedding model."""
-        from langchain_huggingface import HuggingFaceEmbeddings
-        self.embedding_model = HuggingFaceEmbeddings(
-            model_name="BAAI/bge-large-en-v1.5",
-            cache_folder=(settings.BASE_DIR / "bin" / "huggingface_cache").as_posix(),
-        )
+        from sentence_transformers import SentenceTransformer
+
+        self.embedding_model = SentenceTransformer((settings.BASE_DIR / "bin" / "models" / "bge-large-en-v1.5").as_posix())
 
     async def execute(self, node_data: NodeOutput) -> NodeOutput:
-        query = (self.form.cleaned_data.get("query") or "").strip()
-        records_raw = self.form.cleaned_data.get("records") or ""
-        content_key = (self.form.cleaned_data.get("content_key") or "").strip()
+        query = self.form.cleaned_data["query"]
+        records_raw = self.form.cleaned_data["records"]
+        content_key = self.form.cleaned_data["content_key"]
 
         records = _parse_records(records_raw, node_data.data or {})
-
-        if not content_key:
-            logger.warning("Content key is empty; all records will use empty string for embedding", node_id=self.node_config.id)
 
         if not records:
             output_key = self.get_unique_output_key(node_data, "batch_cosine_similarity_scorer")
@@ -123,14 +118,17 @@ class BatchCosineSimilarityScorer(BlockingNode):
                 },
             )
 
-        query_vec = self.embedding_model.embed_query(query or "")
+        query_vec = self.embedding_model.encode(query or "",show_progress_bar=False,normalize_embeddings=True)
         scored_records: List[dict] = []
 
         for record in records:
             text = (record.get(content_key) if isinstance(record.get(content_key), str) else "") or ""
-            vec = self.embedding_model.embed_query(text)
+            vec = self.embedding_model.encode(text,show_progress_bar=False,normalize_embeddings=True)
             score = float(cosine_similarity([query_vec], [vec])[0, 0])
             scored_records.append({**record, "similarity_score": score})
+
+        # sort scored_records by similarity_score in descending order
+        scored_records.sort(key=lambda x: x["similarity_score"], reverse=True)
 
         logger.info(
             "Batch cosine similarity computed",
