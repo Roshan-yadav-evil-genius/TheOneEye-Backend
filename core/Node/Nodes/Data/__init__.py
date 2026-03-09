@@ -8,11 +8,13 @@ from .StringIterator import StringIterator, StringIteratorForm
 from .DataTransformer import DataTransformer, DataTransformerForm
 from .CosineSimilarity import CosineSimilarity, CosineSimilarityForm
 from .BatchCosineSimilarityScorer import BatchCosineSimilarityScorer, BatchCosineSimilarityScorerForm
+from .CrossEncoder import CrossEncoder, CrossEncoderForm
 
 __all__ = [
     'StringIterator', 'StringIteratorForm',
     'DataTransformer', 'DataTransformerForm',
     'CosineSimilarity', 'CosineSimilarityForm',
     'BatchCosineSimilarityScorer', 'BatchCosineSimilarityScorerForm',
+    'CrossEncoder', 'CrossEncoderForm',
 ]
 
