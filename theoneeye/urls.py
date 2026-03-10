@@ -4,14 +4,14 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.http import FileResponse, Http404
 
-# Serve node icons - defined BEFORE main urlpatterns to ensure it takes priority
+# Node icons - public (no auth) so <img src> can load them
 NODES_STATIC_ROOT = settings.BASE_DIR / 'core' / 'Node' / 'Nodes'
+
 
 def serve_node_icon(request, icon_path):
     """Serve node icon files from core/Node/Nodes directory."""
     file_path = NODES_STATIC_ROOT / icon_path
     if file_path.exists() and file_path.is_file():
-        # Determine content type based on extension
         suffix = file_path.suffix.lower()
         content_types = {
             '.png': 'image/png',
@@ -22,8 +22,8 @@ def serve_node_icon(request, icon_path):
         return FileResponse(open(file_path, 'rb'), content_type=content_type)
     raise Http404(f"Icon not found: {icon_path}")
 
+
 urlpatterns = [
-    # Node icons FIRST - use 'node-icons' path to avoid conflict with Django's static handling
     path("node-icons/<path:icon_path>", serve_node_icon, name='node-icon'),
     path("admin/", admin.site.urls),
     path("api/",include("apps.workflow.urls")),

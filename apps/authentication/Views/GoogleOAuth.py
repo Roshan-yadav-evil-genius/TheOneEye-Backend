@@ -8,7 +8,7 @@ Business logic is delegated to GoogleOAuthService.
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 
 from apps.authentication.models import GoogleConnectedAccount
@@ -201,7 +201,7 @@ class GoogleAccountChoicesView(APIView):
     Get Google account choices for form dropdowns.
     
     Returns a simplified list of accounts suitable for populating
-    dropdown/select fields in node forms.
+    dropdown/select fields in node forms. Only returns the current user's accounts.
     
     GET /auth/google/accounts/choices/
     
@@ -211,12 +211,10 @@ class GoogleAccountChoicesView(APIView):
         ...
     ]
     """
-    # AllowAny for now - core node forms don't have user context
-    # In production, consider adding authentication
-    permission_classes = [AllowAny]
-    
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
-        accounts = GoogleConnectedAccount.objects.filter(is_active=True)
+        accounts = GoogleConnectedAccount.objects.filter(user=request.user, is_active=True)
         choices = [
             {
                 'id': str(acc.id),
@@ -234,6 +232,7 @@ class GoogleAccountCredentialsView(APIView):
     
     Returns access token (refreshed if needed), refresh token, and 
     client credentials needed to build google.oauth2.credentials.Credentials.
+    Only returns credentials for the current user's connected account.
     
     GET /auth/google/accounts/<id>/credentials/
     
@@ -246,20 +245,16 @@ class GoogleAccountCredentialsView(APIView):
         "scopes": ["..."]
     }
     """
-    # AllowAny for now - core nodes call this internally
-    # In production, consider adding authentication or using internal-only endpoint
-    permission_classes = [AllowAny]
-    
+    permission_classes = [IsAuthenticated]
+
     def get(self, request, account_id):
         from django.conf import settings
-        
-        try:
-            account = GoogleConnectedAccount.objects.get(id=account_id)
-        except GoogleConnectedAccount.DoesNotExist:
-            return Response(
-                {'error': 'Account not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+
+        account = get_object_or_404(
+            GoogleConnectedAccount,
+            id=account_id,
+            user=request.user
+        )
         
         # Get valid access token (refreshes if expired)
         access_token, was_refreshed = google_oauth_service.get_valid_credentials(account)

@@ -6,7 +6,7 @@ REST API endpoints for node operations (mirrors core/views/routes/api.py).
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 
 from .services import get_node_services
@@ -18,7 +18,7 @@ class NodeListView(APIView):
     
     GET /api/nodes/
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def get(self, request):
         services = get_node_services()
@@ -36,7 +36,7 @@ class NodeFlatListView(APIView):
     
     GET /api/nodes/flat/
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def get(self, request):
         services = get_node_services()
@@ -51,7 +51,7 @@ class NodeCountView(APIView):
     
     GET /api/nodes/count/
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def get(self, request):
         services = get_node_services()
@@ -65,7 +65,7 @@ class NodeRefreshView(APIView):
     
     POST /api/nodes/refresh/
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def post(self, request):
         services = get_node_services()
@@ -79,7 +79,7 @@ class NodeFormView(APIView):
     
     GET /api/nodes/<identifier>/form/
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def get(self, request, identifier):
         services = get_node_services()
@@ -124,7 +124,7 @@ class NodeExecuteView(APIView):
         "timeout": 300  // optional timeout in seconds (default: 300)
     }
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def post(self, request, identifier):
         services = get_node_services()
@@ -167,7 +167,7 @@ class NodeResetSessionView(APIView):
         "session_id": "uuid"
     }
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def post(self, request, identifier):
         services = get_node_services()
@@ -207,7 +207,7 @@ class NodeFormUpdateView(APIView):
         "form": { ... }  // Updated form schema
     }
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def post(self, request, identifier):
         services = get_node_services()
@@ -260,7 +260,7 @@ class NodeFieldOptionsView(APIView):
         "options": [{"value": "maharashtra", "text": "Maharashtra"}, ...]
     }
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def post(self, request, identifier):
         services = get_node_services()
@@ -302,7 +302,7 @@ class NodeDetailView(APIView):
     
     GET /api/nodes/<identifier>/
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def get(self, request, identifier):
         services = get_node_services()

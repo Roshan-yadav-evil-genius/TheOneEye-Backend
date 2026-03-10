@@ -11,6 +11,7 @@ from pathlib import Path
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 
 # Add core to path for imports
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
@@ -33,8 +34,7 @@ class WebhookReceiverView(APIView):
     Returns: 202 Accepted (publish-and-forget)
     """
     
-    authentication_classes = []  # Public endpoint
-    permission_classes = []      # No authentication required
+    permission_classes = [IsAuthenticated]
     
     def post(self, request, webhook_id: str):
         """

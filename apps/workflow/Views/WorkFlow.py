@@ -2,7 +2,6 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny
 from apps.workflow.models import WorkFlow
 from apps.workflow.Serializers import WorkFlowSerializer
 from apps.workflow.Serializers.WorkFlow import RawWorkFlawSerializer
@@ -14,13 +13,7 @@ class WorkFlowViewSet(ModelViewSet):
     queryset = WorkFlow.objects.all()
     serializer_class = WorkFlowSerializer
 
-    def get_permissions(self):
-        return [AllowAny()]
-
-    def get_authenticators(self):
-        return []
-
-    @action(detail=True, methods=["get"], authentication_classes=[], permission_classes=[AllowAny])
+    @action(detail=True, methods=["get"])
     def start_execution(self, request, pk=None):
         """Start workflow execution"""
         from django.db.models import F
@@ -43,7 +36,7 @@ class WorkFlowViewSet(ModelViewSet):
         
         return Response(result)
     
-    @action(detail=True, methods=["get"], authentication_classes=[], permission_classes=[AllowAny])
+    @action(detail=True, methods=["get"])
     def stop_execution(self, request, pk=None):
         """Stop workflow execution"""
         workflow = self.get_object()
@@ -275,10 +268,10 @@ class WorkFlowViewSet(ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    @action(detail=True, methods=["post"], authentication_classes=[], permission_classes=[AllowAny])
+    @action(detail=True, methods=["post"])
     def execute(self, request, pk=None):
         """
-        Execute an API workflow synchronously (Public endpoint - no authentication required).
+        Execute an API workflow synchronously (requires authentication).
         
         This endpoint is for API workflows only. It executes the workflow
         from start to finish and returns the output from the last node.

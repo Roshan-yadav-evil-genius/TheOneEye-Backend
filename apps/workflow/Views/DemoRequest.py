@@ -1,8 +1,8 @@
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.decorators import action, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from apps.workflow.models import DemoRequest
 from apps.workflow.Serializers.DemoRequest import DemoRequestSerializer, DemoRequestCreateSerializer
 
@@ -11,15 +11,8 @@ class DemoRequestViewSet(ModelViewSet):
     serializer_class = DemoRequestSerializer
     
     def get_permissions(self):
-        """
-        Allow public access for creating demo requests (landing page),
-        but require authentication for other operations.
-        """
-        if self.action == 'create':
-            permission_classes = [AllowAny]
-        else:
-            permission_classes = [IsAuthenticated]
-        return [permission() for permission in permission_classes]
+        """Require authentication for all actions including create."""
+        return [IsAuthenticated()]
     
     def get_serializer_class(self):
         if self.action == 'create':

@@ -2,7 +2,7 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
 from django.conf import settings
 import os
 import shutil
@@ -24,10 +24,9 @@ from rest_framework.decorators import action
 
 
 class BrowserSessionChoicesView(APIView):
-    """Standalone view for session choices - no authentication required."""
-    authentication_classes = []
-    permission_classes = [AllowAny]
-    
+    """Standalone view for session choices. Requires authentication."""
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
         """Return session choices for dropdown/select fields in forms."""
         sessions = BrowserSession.objects.all().values('id', 'name')
@@ -102,19 +101,19 @@ class BrowserSessionViewSet(ModelViewSet):
             'playwright_config': session.playwright_config
         })
     
-    @action(detail=False, methods=['get'], authentication_classes=[], permission_classes=[AllowAny])
+    @action(detail=False, methods=['get'])
     def choices(self, request):
         """Return session choices for dropdown/select fields in forms."""
         sessions = BrowserSession.objects.all().values('id', 'name')
         choices = [{'id': str(s['id']), 'name': s['name']} for s in sessions]
         return Response(choices)
     
-    @action(detail=True, methods=['get'], authentication_classes=[], permission_classes=[AllowAny])
+    @action(detail=True, methods=['get'])
     def config(self, request, pk=None):
         """
         Return session config for use by core BrowserManager.
-        This endpoint is public to allow the core to fetch session config without auth.
-        
+        Requires authentication.
+
         Returns:
             Session config with browser_type and playwright_config.
         """
@@ -136,8 +135,6 @@ class BrowserSessionViewSet(ModelViewSet):
 
 class BrowserPoolViewSet(ModelViewSet):
     """CRUD for browser pools (pool of sessions for rotation)."""
-    authentication_classes = []
-    permission_classes = [AllowAny]
     queryset = BrowserPool.objects.all()
     serializer_class = BrowserPoolSerializer
 
