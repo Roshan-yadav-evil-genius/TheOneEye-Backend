@@ -9,6 +9,7 @@ from .Views.GoogleOAuth import (
     GoogleAccountChoicesView,
     GoogleAccountCredentialsView,
 )
+from .api_key_views import APIKeyListCreateView, APIKeyRevokeView
 
 urlpatterns = [
     # User authentication
@@ -27,4 +28,8 @@ urlpatterns = [
     # Google Account API for Node Forms
     path('google/accounts/choices/', GoogleAccountChoicesView.as_view(), name='google-accounts-choices'),
     path('google/accounts/<uuid:account_id>/credentials/', GoogleAccountCredentialsView.as_view(), name='google-account-credentials'),
+
+    # API Keys (JWT only)
+    path('api-keys/', APIKeyListCreateView.as_view(), name='api-key-list-create'),
+    path('api-keys/<uuid:id>/', APIKeyRevokeView.as_view(), name='api-key-revoke'),
 ]

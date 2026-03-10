@@ -55,3 +55,32 @@ class GoogleConnectedAccount(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.email})"
+
+
+class APIKey(models.Model):
+    """
+    Per-user API key for authenticating scripts and external callers.
+    Used to perform workflow operations (webhooks, execute, etc.) on behalf of the user.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='api_keys',
+        help_text="The user who owns this API key",
+    )
+    name = models.CharField(max_length=255, help_text="Friendly name for the key (e.g. Production script)")
+    prefix = models.CharField(max_length=16, db_index=True, help_text="Short prefix for lookup (e.g. toe_abc12)")
+    key_hash = models.CharField(max_length=255, help_text="Hashed full key (never store the raw key)")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'prefix'], name='unique_user_prefix'),
+        ]
+        ordering = ['-created_at']
+        verbose_name = "API Key"
+        verbose_name_plural = "API Keys"
+
+    def __str__(self):
+        return f"{self.name} ({self.prefix}...)"

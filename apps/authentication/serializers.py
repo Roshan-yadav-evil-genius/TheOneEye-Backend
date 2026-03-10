@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 
-from .models import GoogleConnectedAccount
+from .models import GoogleConnectedAccount, APIKey
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -99,3 +99,31 @@ class GoogleOAuthCallbackSerializer(serializers.Serializer):
         child=serializers.CharField(),
         help_text="Scopes that were requested"
     )
+
+
+# API Key Serializers
+
+class APIKeyCreateInputSerializer(serializers.Serializer):
+    """Input for creating an API key. Only name is required."""
+    name = serializers.CharField(max_length=255, required=True)
+
+
+class APIKeyListSerializer(serializers.ModelSerializer):
+    """Output for listing API keys. No raw key."""
+    class Meta:
+        model = APIKey
+        fields = ['id', 'name', 'prefix', 'created_at']
+        read_only_fields = ['id', 'name', 'prefix', 'created_at']
+
+
+class APIKeyCreateResponseSerializer(serializers.ModelSerializer):
+    """Output after creating an API key. Includes key only once (from context)."""
+    key = serializers.SerializerMethodField()
+
+    class Meta:
+        model = APIKey
+        fields = ['id', 'name', 'prefix', 'created_at', 'key']
+        read_only_fields = ['id', 'name', 'prefix', 'created_at', 'key']
+
+    def get_key(self, obj):
+        return self.context.get('key', '')
