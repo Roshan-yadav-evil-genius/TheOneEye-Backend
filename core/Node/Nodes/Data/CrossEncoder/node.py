@@ -53,11 +53,11 @@ class CrossEncoder(BlockingNode):
         return PoolType.ASYNC
 
     async def init(self):
-        """Initialize the cross-encoder model."""
-        from sentence_transformers import CrossEncoder as STCrossEncoder
+        """Initialize the cross-encoder model (cached per process, thread-safe)."""
+        from ..heavy_model_cache import get_or_load_cross_encoder
 
         model_path = (settings.BASE_DIR / "bin" / "models" / "bge-reranker-large").as_posix()
-        self.cross_encoder = STCrossEncoder(model_path)
+        self.cross_encoder = get_or_load_cross_encoder(model_path)
 
     async def execute(self, node_data: NodeOutput) -> NodeOutput:
         """

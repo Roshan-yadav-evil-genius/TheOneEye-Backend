@@ -59,10 +59,11 @@ class CosineSimilarity(BlockingNode):
         return PoolType.ASYNC
 
     async def init(self):
-        """Initialize the embedding model."""
-        from sentence_transformers import SentenceTransformer
+        """Initialize the embedding model (cached per process, thread-safe)."""
+        from ..heavy_model_cache import get_or_load_sentence_transformer
 
-        self.embedding_model = SentenceTransformer((settings.BASE_DIR / "bin" / "models" / "bge-large-en-v1.5").as_posix())
+        model_path = (settings.BASE_DIR / "bin" / "models" / "bge-large-en-v1.5").as_posix()
+        self.embedding_model = get_or_load_sentence_transformer(model_path)
 
     async def execute(self, node_data: NodeOutput) -> NodeOutput:
         """
