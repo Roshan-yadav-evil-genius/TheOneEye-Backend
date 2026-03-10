@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db.models import (
     BooleanField,
     CASCADE,
@@ -7,6 +8,7 @@ from django.db.models import (
     ForeignKey,
     IntegerField,
     JSONField,
+    SET_NULL,
     TextField,
     UniqueConstraint,
 )
@@ -34,7 +36,13 @@ class BrowserSession(BaseModel):
     ], default='inactive')
     
     # Session metadata
-    created_by = CharField(max_length=100, blank=True, null=True)
+    created_by = ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=SET_NULL,
+        null=True,
+        blank=True,
+        related_name="browser_sessions",
+    )
 
     def __str__(self):
         return f"{self.name}({self.id})"
@@ -47,6 +55,13 @@ class BrowserPool(BaseModel):
     """A pool of browser sessions; at runtime one session is picked (e.g. least used per domain)."""
     name = CharField(max_length=100)
     description = TextField(blank=True, null=True)
+    created_by = ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=SET_NULL,
+        null=True,
+        blank=True,
+        related_name="browser_pools",
+    )
 
     # Pool-level settings: throttling and resource blocking (apply to all sessions in pool)
     domain_throttle_enabled = BooleanField(default=True)

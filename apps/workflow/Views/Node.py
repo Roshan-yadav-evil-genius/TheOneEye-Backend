@@ -15,13 +15,16 @@ class NodeViewSet(ModelViewSet):
     def get_queryset(self):
         workflow_pk = self.kwargs.get("workflow_pk")
         if workflow_pk:
-            return Node.objects.filter(workflow_id=workflow_pk)
-        return Node.objects.all()
+            return Node.objects.filter(
+                workflow_id=workflow_pk,
+                workflow__created_by=self.request.user,
+            )
+        return Node.objects.filter(workflow__created_by=self.request.user)
     
     def get_workflow(self):
-        """Get the workflow from URL kwargs"""
+        """Get the workflow from URL kwargs (must belong to current user)."""
         workflow_pk = self.kwargs.get('workflow_pk')
-        return get_object_or_404(WorkFlow, id=workflow_pk)
+        return get_object_or_404(WorkFlow, id=workflow_pk, created_by=self.request.user)
     
     def perform_create(self, serializer):
         workflow = self.get_workflow()

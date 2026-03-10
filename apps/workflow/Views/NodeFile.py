@@ -19,8 +19,11 @@ class NodeFileViewSet(ModelViewSet):
         node_pk = self.kwargs.get("node_pk")
         
         if workflow_pk and node_pk:
-            # Verify the node belongs to the workflow
-            node = get_object_or_404(Node, id=node_pk, workflow_id=workflow_pk)
+            # Verify the node belongs to the workflow and workflow belongs to current user
+            node = get_object_or_404(
+                Node, id=node_pk, workflow_id=workflow_pk,
+                workflow__created_by=self.request.user,
+            )
             return NodeFile.objects.filter(node=node)
         return NodeFile.objects.none()
     
@@ -36,8 +39,11 @@ class NodeFileViewSet(ModelViewSet):
         Upload a file for a specific node.
         If a file with the same key exists, it will be overwritten.
         """
-        # Get the node and verify it belongs to the workflow
-        node = get_object_or_404(Node, id=node_pk, workflow_id=workflow_pk)
+        # Get the node and verify it belongs to the workflow and current user
+        node = get_object_or_404(
+            Node, id=node_pk, workflow_id=workflow_pk,
+            workflow__created_by=request.user.username,
+        )
         
         # Add the node to the validated data
         serializer = self.get_serializer(data=request.data)
@@ -59,16 +65,20 @@ class NodeFileViewSet(ModelViewSet):
         Update an existing file for a specific node.
         This will replace the existing file with a new one.
         """
-        # Get the node file
+        # Get the node file (workflow must belong to current user)
         node_file = get_object_or_404(
-            NodeFile, 
-            id=pk, 
-            node_id=node_pk, 
-            node__workflow_id=workflow_pk
+            NodeFile,
+            id=pk,
+            node_id=node_pk,
+            node__workflow_id=workflow_pk,
+            node__workflow__created_by=request.user,
         )
         
         # Get the node
-        node = get_object_or_404(Node, id=node_pk, workflow_id=workflow_pk)
+        node = get_object_or_404(
+            Node, id=node_pk, workflow_id=workflow_pk,
+            workflow__created_by=request.user.username,
+        )
         
         # Create serializer with the existing key
         serializer = self.get_serializer(data=request.data)
@@ -91,10 +101,11 @@ class NodeFileViewSet(ModelViewSet):
         Delete a file. This will also remove the file from the filesystem.
         """
         node_file = get_object_or_404(
-            NodeFile, 
-            id=pk, 
-            node_id=node_pk, 
-            node__workflow_id=workflow_pk
+            NodeFile,
+            id=pk,
+            node_id=node_pk,
+            node__workflow_id=workflow_pk,
+            node__workflow__created_by=request.user,
         )
         
         node_file.delete()  # This will also remove the file from filesystem
@@ -113,10 +124,11 @@ class NodeFileViewSet(ModelViewSet):
         Retrieve a specific file for a node.
         """
         node_file = get_object_or_404(
-            NodeFile, 
-            id=pk, 
-            node_id=node_pk, 
-            node__workflow_id=workflow_pk
+            NodeFile,
+            id=pk,
+            node_id=node_pk,
+            node__workflow_id=workflow_pk,
+            node__workflow__created_by=request.user,
         )
         serializer = self.get_serializer(node_file)
         return Response(serializer.data)

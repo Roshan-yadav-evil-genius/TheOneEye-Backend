@@ -12,7 +12,7 @@ from apps.browsersession.models import (
 class BrowserSessionAdmin(admin.ModelAdmin):
     list_display = ['id', 'name', 'browser_type', 'status', 'created_by', 'created_at', 'updated_at']
     list_filter = ['browser_type', 'status', 'created_at', 'updated_at']
-    search_fields = ['name', 'description', 'created_by']
+    search_fields = ['name', 'description', 'created_by__username']
     readonly_fields = ['id', 'created_at', 'updated_at']
     fields = ['id', 'name', 'description', 'browser_type', 'playwright_config', 'status', 'created_by', 'created_at', 'updated_at']
     ordering = ['-created_at']
@@ -30,12 +30,13 @@ class PoolDomainThrottleRuleInline(admin.TabularInline):
 
 @admin.register(BrowserPool)
 class BrowserPoolAdmin(admin.ModelAdmin):
-    list_display = ['id', 'name', 'domain_throttle_enabled', 'resource_blocking_enabled', 'created_at', 'updated_at']
-    search_fields = ['name', 'description']
+    list_display = ['id', 'name', 'created_by', 'domain_throttle_enabled', 'resource_blocking_enabled', 'created_at', 'updated_at']
+    list_filter = ['created_by', 'created_at', 'updated_at']
+    search_fields = ['name', 'description', 'created_by__username']
     readonly_fields = ['id', 'created_at', 'updated_at']
     inlines = [BrowserPoolSessionInline, PoolDomainThrottleRuleInline]
     ordering = ['-created_at']
-    fields = ['id', 'name', 'description', 'domain_throttle_enabled', 'resource_blocking_enabled', 'blocked_resource_types', 'created_at', 'updated_at']
+    fields = ['id', 'name', 'description', 'created_by', 'domain_throttle_enabled', 'resource_blocking_enabled', 'blocked_resource_types', 'created_at', 'updated_at']
 
 
 @admin.register(PoolDomainThrottleRule)

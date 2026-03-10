@@ -4,11 +4,11 @@ from .models import WorkFlow, Node, Connection, NodeFile, DemoRequest
 
 @admin.register(WorkFlow)
 class WorkFlowAdmin(admin.ModelAdmin):
-    list_display = ['id', 'name', 'description', 'task_id', 'created_at', 'updated_at']
-    list_filter = ['created_at', 'updated_at']
-    search_fields = ['name', 'description', 'task_id']
+    list_display = ['id', 'name', 'description', 'created_by', 'task_id', 'created_at', 'updated_at']
+    list_filter = ['created_at', 'updated_at', 'created_by']
+    search_fields = ['name', 'description', 'task_id', 'created_by__username']
     readonly_fields = ['id', 'created_at', 'updated_at']
-    fields = ['id', 'name', 'description', 'task_id', 'created_at', 'updated_at']
+    fields = ['id', 'name', 'description', 'created_by', 'task_id', 'created_at', 'updated_at']
 
 
 @admin.register(Node)

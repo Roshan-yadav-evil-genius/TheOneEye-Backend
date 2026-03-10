@@ -28,15 +28,18 @@ class BrowserSessionChoicesView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        """Return session choices for dropdown/select fields in forms."""
-        sessions = BrowserSession.objects.all().values('id', 'name')
+        """Return session choices for dropdown/select fields in forms (scoped to current user)."""
+        sessions = BrowserSession.objects.filter(created_by=request.user).values('id', 'name')
         choices = [{'id': str(s['id']), 'name': s['name']} for s in sessions]
         return Response(choices)
 
+
 class BrowserSessionViewSet(ModelViewSet):
-    queryset = BrowserSession.objects.all()
     serializer_class = BrowserSessionSerializer
-    
+
+    def get_queryset(self):
+        return BrowserSession.objects.filter(created_by=self.request.user).order_by("-created_at")
+
     def get_serializer_class(self):
         if self.action == 'create':
             return BrowserSessionCreateSerializer
@@ -45,10 +48,10 @@ class BrowserSessionViewSet(ModelViewSet):
         return BrowserSessionSerializer
     
     def create(self, request, *args, **kwargs):
-        """Override create to create session directory after session creation"""
+        """Override create to create session directory after session creation and set created_by."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        instance = serializer.save()
+        instance = serializer.save(created_by=request.user)
         
         # Get the created session instance ID
         session_id = instance.id
@@ -103,8 +106,8 @@ class BrowserSessionViewSet(ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def choices(self, request):
-        """Return session choices for dropdown/select fields in forms."""
-        sessions = BrowserSession.objects.all().values('id', 'name')
+        """Return session choices for dropdown/select fields in forms (scoped to current user)."""
+        sessions = BrowserSession.objects.filter(created_by=request.user).values('id', 'name')
         choices = [{'id': str(s['id']), 'name': s['name']} for s in sessions]
         return Response(choices)
     
@@ -118,7 +121,7 @@ class BrowserSessionViewSet(ModelViewSet):
             Session config with browser_type and playwright_config.
         """
         try:
-            session = BrowserSession.objects.get(pk=pk)
+            session = BrowserSession.objects.filter(created_by=request.user).get(pk=pk)
             return Response({
                 'id': str(session.id),
                 'name': session.name,
@@ -134,9 +137,11 @@ class BrowserSessionViewSet(ModelViewSet):
 
 
 class BrowserPoolViewSet(ModelViewSet):
-    """CRUD for browser pools (pool of sessions for rotation)."""
-    queryset = BrowserPool.objects.all()
+    """CRUD for browser pools (pool of sessions for rotation). Scoped to current user."""
     serializer_class = BrowserPoolSerializer
+
+    def get_queryset(self):
+        return BrowserPool.objects.filter(created_by=self.request.user).order_by("-created_at")
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -162,20 +167,23 @@ class BrowserPoolViewSet(ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="choices")
     def choices(self, request):
-        """Return pool choices for dropdowns."""
-        pools = BrowserPool.objects.all().values("id", "name")
+        """Return pool choices for dropdowns (scoped to current user)."""
+        pools = BrowserPool.objects.filter(created_by=request.user).values("id", "name")
         return Response([{"id": str(p["id"]), "name": p["name"]} for p in pools])
 
 
 class PoolDomainThrottleRuleViewSet(ModelViewSet):
-    """CRUD for domain throttle rules scoped to a browser pool (pool_id in URL)."""
+    """CRUD for domain throttle rules scoped to a browser pool (pool_id in URL). Pool must belong to current user."""
     serializer_class = PoolDomainThrottleRuleSerializer
 
     def get_queryset(self):
         pool_id = self.kwargs.get("pool_id")
         if not pool_id:
             return PoolDomainThrottleRule.objects.none()
-        return PoolDomainThrottleRule.objects.filter(pool_id=pool_id)
+        return PoolDomainThrottleRule.objects.filter(
+            pool_id=pool_id,
+            pool__created_by=self.request.user,
+        )
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -189,7 +197,7 @@ class PoolDomainThrottleRuleViewSet(ModelViewSet):
 
     def perform_create(self, serializer):
         pool_id = self.kwargs.get("pool_id")
-        pool = BrowserPool.objects.get(id=pool_id)
+        pool = BrowserPool.objects.filter(created_by=self.request.user).get(id=pool_id)
         serializer.save(pool=pool)
 
     def create(self, request, *args, **kwargs):

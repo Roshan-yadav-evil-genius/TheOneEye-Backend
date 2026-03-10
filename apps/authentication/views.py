@@ -13,15 +13,8 @@ def register(request):
     Register a new user.
     View only handles HTTP request/response, delegates to service.
     """
-    # TEMPORARILY DISABLED: New signups are currently disabled
-    return Response(
-        {'error': 'New user registration is temporarily disabled. Please contact support if you need access.'}, 
-        status=status.HTTP_503_SERVICE_UNAVAILABLE
-    )
-    
-    # When re-enabled, uncomment this:
-    # response_data, status_code = AuthenticationService.register(request.data)
-    # return Response(response_data, status=status_code)
+    response_data, status_code = AuthenticationService.register(request.data)
+    return Response(response_data, status=status_code)
 
 
 @api_view(['POST'])

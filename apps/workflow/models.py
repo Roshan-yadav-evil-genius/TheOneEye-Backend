@@ -1,4 +1,5 @@
-from django.db.models import Model, JSONField, UUIDField, CharField, TextField, DateTimeField, FloatField, IntegerField, ForeignKey, CASCADE, FileField, TextChoices
+from django.conf import settings
+from django.db.models import Model, JSONField, UUIDField, CharField, TextField, DateTimeField, FloatField, IntegerField, ForeignKey, CASCADE, SET_NULL, FileField, TextChoices
 from django.core.exceptions import ValidationError
 import uuid
 import os
@@ -45,7 +46,13 @@ class WorkFlow(BaseModel):
     next_run = DateTimeField(blank=True, null=True)
     runs_count = IntegerField(default=0)
     tags = JSONField(default=list)
-    created_by = CharField(max_length=100, blank=True, null=True)
+    created_by = ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=SET_NULL,
+        null=True,
+        blank=True,
+        related_name="workflows",
+    )
     task_id = CharField(max_length=255, blank=True, null=True)  # Store Celery task ID
     env = JSONField(default=dict, blank=True)  # Workflow-level variables for Jinja (workflowenv.<key>)
     runtime_state = JSONField(default=dict, blank=True)  # Last-run snapshot of runtime variables (runtime.<key>)

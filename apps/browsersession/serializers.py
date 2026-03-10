@@ -8,21 +8,26 @@ ALLOWED_RESOURCE_TYPES = frozenset({
 
 
 class BrowserSessionSerializer(serializers.ModelSerializer):
+    created_by_username = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = BrowserSession
         fields = [
             "id", "name", "description", "browser_type",
-            "playwright_config", "status", "created_by",
+            "playwright_config", "status", "created_by", "created_by_username",
             "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id", "created_by", "created_at", "updated_at"]
+
+    def get_created_by_username(self, obj):
+        return obj.created_by.username if obj.created_by else None
 
 class BrowserSessionCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = BrowserSession
         fields = [
-            'name', 'description', 'browser_type', 
-            'playwright_config', 'status', 'created_by'
+            'name', 'description', 'browser_type',
+            'playwright_config', 'status',
         ]
     
     def validate_name(self, value):
@@ -58,18 +63,22 @@ class BrowserSessionUpdateSerializer(serializers.ModelSerializer):
 
 class BrowserPoolSerializer(serializers.ModelSerializer):
     session_ids = serializers.SerializerMethodField()
+    created_by_username = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = BrowserPool
         fields = [
             "id", "name", "description", "session_ids",
             "domain_throttle_enabled", "resource_blocking_enabled", "blocked_resource_types",
-            "created_at", "updated_at",
+            "created_by", "created_by_username", "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id", "created_by", "created_at", "updated_at"]
 
     def get_session_ids(self, obj):
         return [str(ps.session_id) for ps in obj.pool_sessions.all().order_by("usage_count")]
+
+    def get_created_by_username(self, obj):
+        return obj.created_by.username if obj.created_by else None
 
 
 class BrowserPoolCreateSerializer(serializers.Serializer):
@@ -100,12 +109,15 @@ class BrowserPoolCreateSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         session_ids = validated_data.pop("session_ids")
+        request = self.context.get("request")
+        created_by = request.user if request and request.user else None
         pool = BrowserPool.objects.create(
             name=validated_data["name"],
             description=validated_data.get("description"),
             domain_throttle_enabled=validated_data.get("domain_throttle_enabled", True),
             resource_blocking_enabled=validated_data.get("resource_blocking_enabled", False),
             blocked_resource_types=validated_data.get("blocked_resource_types", []),
+            created_by=created_by,
         )
         for sid in session_ids:
             BrowserPoolSession.objects.create(pool=pool, session_id=sid)

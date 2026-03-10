@@ -13,13 +13,16 @@ class ConnectionViewSet(ModelViewSet):
     def get_queryset(self):
         workflow_pk = self.kwargs.get("workflow_pk")
         if workflow_pk:
-            return Connection.objects.filter(workflow_id=workflow_pk)
-        return Connection.objects.all()
+            return Connection.objects.filter(
+                workflow_id=workflow_pk,
+                workflow__created_by=self.request.user,
+            )
+        return Connection.objects.filter(workflow__created_by=self.request.user)
     
     def get_workflow(self):
-        """Get the workflow from URL kwargs"""
+        """Get the workflow from URL kwargs (must belong to current user)."""
         workflow_pk = self.kwargs.get('workflow_pk')
-        return get_object_or_404(WorkFlow, id=workflow_pk)
+        return get_object_or_404(WorkFlow, id=workflow_pk, created_by=self.request.user)
     
     def get_serializer_context(self):
         """Add workflow context for serializers"""

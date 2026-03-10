@@ -10,8 +10,13 @@ from apps.workflow.services import workflow_execution_service
 
 
 class WorkFlowViewSet(ModelViewSet):
-    queryset = WorkFlow.objects.all()
     serializer_class = WorkFlowSerializer
+
+    def get_queryset(self):
+        return WorkFlow.objects.filter(created_by=self.request.user).order_by("-created_at")
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
 
     @action(detail=True, methods=["get"])
     def start_execution(self, request, pk=None):
@@ -109,6 +114,7 @@ class WorkFlowViewSet(ModelViewSet):
             workflow_type=workflow.workflow_type,
             status='inactive',
             tags=workflow.tags.copy() if workflow.tags else [],
+            created_by=request.user,
         )
         
         # Copy nodes and build ID mapping
@@ -150,9 +156,9 @@ class WorkFlowViewSet(ModelViewSet):
         return Response(result)
 
     @action(detail=True, methods=["get"])
-    def rawconfig(self,request,pk:str):
-        workFlow = WorkFlow.objects.get(id=pk)
-        data = RawWorkFlawSerializer(workFlow)
+    def rawconfig(self, request, pk=None):
+        workflow = self.get_object()
+        data = RawWorkFlawSerializer(workflow)
         return Response(data.data)
 
     @action(detail=True, methods=["get"])
