@@ -1,7 +1,7 @@
 from pathlib import Path
 import os
 from dotenv import load_dotenv
-from apps.common.config import get_env_list, get_env_bool
+from apps.common.config import get_env_list, get_env_bool, get_env_int
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -190,6 +190,13 @@ CHANNEL_LAYERS = {
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Max request body size read into memory (bytes). Django default is 2.5 MiB; webhooks
+# often exceed that (e.g. HTML/markdown). Override with DJANGO_DATA_UPLOAD_MAX_MEMORY_SIZE.
+DATA_UPLOAD_MAX_MEMORY_SIZE = get_env_int(
+    'DJANGO_DATA_UPLOAD_MAX_MEMORY_SIZE',
+    10 * 1024 * 1024,
+)
 
 # JWT Configuration
 from datetime import timedelta
